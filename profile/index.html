@@ -24,6 +24,7 @@
         <li><a href="../guild.html">Guild</a></li>
         <li><a href="../leaderboards.html">Leaderboards</a></li>
         <li><a href="./" aria-current="page">Profile</a></li>
+        <li id="pf-nav-signout" hidden><button type="button" class="cs-btn cs-btn-sm cs-btn-ghost" id="pf-signout">Sign out</button></li>
       </ul>
     </nav>
   </header>
@@ -32,6 +33,7 @@
     <h1 class="cs-display" id="pf-h" tabindex="-1">Your profile</h1>
     <p class="cs-section-intro">Your World of Warcraft Forever characters. Choose which ones to display, then plan gear sets for each.</p>
     <p id="pf-status" class="cs-muted" role="status" aria-live="polite"></p>
+    <p id="pf-auth-error" class="pf-inline-error" role="alert" tabindex="-1" hidden></p>
 
     <section id="pf-loading" class="cs-card pf-state" aria-labelledby="pf-loading-h">
       <h2 id="pf-loading-h" class="pf-state-h">Loading your characters…</h2>
@@ -179,10 +181,23 @@
     </div>
   </dialog>
 
+  <dialog id="pf-switch-dialog" class="pf-dialog" aria-labelledby="pf-switch-h" aria-describedby="pf-switch-note">
+    <h2 id="pf-switch-h" tabindex="-1">Use a different Battle.net account</h2>
+    <p id="pf-switch-note">If Battle.net signs you straight back in as the same account, log out at <a href="https://account.battle.net/" target="_blank" rel="noopener noreferrer">battle.net</a> first, then try again</p>
+    <p id="pf-switch-error" class="pf-inline-error" role="alert" hidden></p>
+    <div class="pf-dialog-actions">
+      <button type="button" class="cs-btn cs-btn-primary" id="pf-switch-continue">Continue</button>
+      <button type="button" class="cs-btn cs-btn-ghost" id="pf-switch-cancel">Cancel</button>
+    </div>
+  </dialog>
+
   <footer class="cs-wrap cs-footer">
     <span>© Crusader Strike — World of Warcraft Forever</span>
     <span class="cs-footer-tm">Battle.net is a trademark or registered trademark of Blizzard Entertainment, Inc.</span>
-    <span><a href="../signin.html">Change sign-in</a></span>
+    <div id="pf-account-actions" class="pf-account-actions" role="group" aria-label="Account" hidden>
+      <button type="button" class="cs-btn cs-btn-sm cs-btn-ghost" id="pf-signout-footer">Sign out</button>
+      <button type="button" class="cs-btn cs-btn-sm cs-btn-ghost" id="pf-switch">Use a different Battle.net account</button>
+    </div>
   </footer>
 
   <script src="../js/config.js"></script>
@@ -190,6 +205,7 @@
   <script src="../js/auth-mock.js"></script>
   <script src="../js/faction-badge.js"></script>
   <script src="../js/profile-api.js"></script>
+  <script src="../js/auth-session.js"></script>
   <script src="../js/gear-icons.js"></script>
   <script src="../js/gear-set-rules.js"></script>
   <script src="../js/armory-mock.js"></script>

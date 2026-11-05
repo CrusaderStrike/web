@@ -31,6 +31,7 @@
   window.CSGearListsApi = {
     opId: opId,
     session: function () { return window.CSProfileApi.session().then(function (r) { if (r.ok && r.body) csrf = r.body.csrf_token || null; return r; }); },
+    clearCsrf: function () { csrf = null; },
     lists: function (c) { return m ? M.lists(c) : real('GET', path(P.LISTS, c)); },
     create: function (c, b) { return m ? M.create(c, b) : real('POST', path(P.LISTS, c), b); },
     get: function (id) { return m ? M.get(id) : real('GET', path(P.LIST, id)); },

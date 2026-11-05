@@ -38,6 +38,10 @@
       var b = { main_id: mainId, alt_ids: altIds };
       return m ? mock.saveSelection(b, csrf) : real('PUT', P.SELECTION, b);
     },
-    refresh: function () { return m ? mock.refresh(csrf) : real('POST', P.REFRESH); }
+    refresh: function () { return m ? mock.refresh(csrf) : real('POST', P.REFRESH); },
+    /** DELETE /auth/session. Same X-CSRF-Token header and credentials: 'include' as the other mutations. */
+    deleteSession: function () { return m ? mock.logout(csrf) : real('DELETE', P.SESSION); },
+    csrfToken: function () { return csrf; },
+    clearCsrf: function () { csrf = null; }
   };
 })();

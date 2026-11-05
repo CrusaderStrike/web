@@ -2,7 +2,7 @@
  * Mock for the Battle.net auth, characters and profile API (platform main openapi/v1.yaml; docs/auth-characters-api.md).
  * Character ids are opaque (ch_<region>_<id>); never parse them.
  * No network calls, no OAuth, no secrets. State lives in sessionStorage/localStorage.
- * Dev scenarios: ?mock_scenario=empty | error | upstream (characters endpoint).
+ * Dev scenarios: ?mock_scenario=empty | error | upstream (characters endpoint); logout_error | logout_down (DELETE /auth/session).
  */
 (function () {
   'use strict';
@@ -162,7 +162,17 @@
     devSignIn: function () {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ battletag: 'Crusader#1234', csrf_token: randomToken() }));
     },
-    /** DELETE /auth/session */
-    logout: function () { sessionStorage.removeItem(SESSION_KEY); return res(204, null); }
+    /** DELETE /auth/session. 204 when the CSRF token matches; 401 when already signed out.
+     *  ?mock_scenario=logout_error -> 500 (session kept). logout_down -> network failure (status 0). */
+    logout: function (csrf) {
+      var sc = scenario();
+      if (sc === 'logout_down') return delay({ status: 0, ok: false, body: null });
+      if (sc === 'logout_error') return err(500, 'internal_error', 'Could not sign out.');
+      var s = session();
+      if (!s) return err(401, 'unauthenticated', 'Sign in required.');
+      if (!csrf || csrf !== s.csrf_token) return err(403, 'csrf_failed', 'Security check failed. Reload and try again.');
+      sessionStorage.removeItem(SESSION_KEY);
+      return res(204, null);
+    }
   };
 })();
