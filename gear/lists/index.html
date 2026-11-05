@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Gear wishlists for your World of Warcraft Forever characters on Crusader Strike.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Gear lists — Crusader Strike</title>
+  <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../css/design-system.css">
+  <link rel="stylesheet" href="../../css/profile.css">
+  <link rel="stylesheet" href="../../css/gear.css">
+  <link rel="stylesheet" href="../../css/gear-lists.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="../../index.html">
+      <img src="../../assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="../../index.html">Home</a></li>
+        <li><a href="../../guild.html">Guild</a></li>
+        <li><a href="../../leaderboards.html">Leaderboards</a></li>
+        <li><a href="../../profile/">Profile</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap cs-section">
+    <p><a id="gl-back" href="../../profile/">← Back to profile</a></p>
+    <h1 class="cs-display" id="gl-h" tabindex="-1">Gear lists</h1>
+    <p id="gl-status" class="cs-sr-only" role="status" aria-live="polite"></p>
+
+    <section id="gl-loading" class="cs-card pf-state" aria-labelledby="gl-loading-h">
+      <h2 id="gl-loading-h" class="pf-state-h">Loading gear lists…</h2>
+    </section>
+    <section id="gl-disabled" class="cs-card pf-state" aria-labelledby="gl-disabled-h" hidden>
+      <h2 id="gl-disabled-h" class="pf-state-h" tabindex="-1">Gear lists are coming soon</h2>
+      <p>Battle.net sign-in isn't switched on yet.</p>
+    </section>
+    <section id="gl-signedout" class="cs-card pf-state" aria-labelledby="gl-signedout-h" hidden>
+      <h2 id="gl-signedout-h" class="pf-state-h" tabindex="-1">Sign in to see your gear lists</h2>
+      <a class="cs-btn cs-btn-primary" href="../../signin.html">Sign in</a>
+    </section>
+    <section id="gl-notfound" class="cs-card pf-state" aria-labelledby="gl-notfound-h" hidden>
+      <h2 id="gl-notfound-h" class="pf-state-h" tabindex="-1">Character not found</h2>
+      <p>Pick a character from your profile.</p>
+    </section>
+    <section id="gl-error" class="cs-card pf-state" role="alert" aria-labelledby="gl-error-h" hidden>
+      <h2 id="gl-error-h" class="pf-state-h" tabindex="-1">Gear lists could not load</h2>
+      <p id="gl-error-msg"></p>
+      <button type="button" class="cs-btn cs-btn-ghost" id="gl-retry">Try again</button>
+    </section>
+
+    <section id="gl-ready" aria-labelledby="gl-index-h" hidden>
+      <div id="gl-banner" class="cs-card gl-banner" role="alert" hidden>
+        <p id="gl-banner-msg"></p>
+        <div class="gl-row">
+          <button type="button" class="cs-btn cs-btn-sm cs-btn-primary" id="gl-banner-reapply" hidden>Re-apply my change</button>
+          <button type="button" class="cs-btn cs-btn-sm cs-btn-ghost" id="gl-banner-dismiss">Dismiss</button>
+        </div>
+      </div>
+      <p id="gl-readonly" class="cs-form-note" hidden>View only: only the list owner can change these lists.</p>
+
+      <div class="gl-layout">
+        <div class="gl-side">
+          <h2 id="gl-index-h">Lists <span id="gl-count" class="cs-muted"></span></h2>
+          <ul id="gl-index" class="gl-index"></ul>
+          <p id="gl-none" class="cs-muted" hidden>No gear lists yet.</p>
+
+          <form id="gl-create" class="cs-form-panel gl-edit" novalidate aria-labelledby="gl-create-h">
+            <h3 id="gl-create-h">New list</h3>
+            <div class="cs-field">
+              <label for="gl-new-name">Name</label>
+              <input id="gl-new-name" name="name" type="text" maxlength="64" required aria-describedby="gl-new-name-err">
+              <span class="cs-error" id="gl-new-name-err"></span>
+            </div>
+            <div class="cs-field">
+              <label for="gl-new-vis">Who can see it</label>
+              <select id="gl-new-vis" name="visibility"></select>
+            </div>
+            <button type="submit" class="cs-btn cs-btn-primary" id="gl-new-btn">Create list</button>
+            <p id="gl-limit" class="cs-hint" hidden></p>
+          </form>
+        </div>
+
+        <section id="gl-detail" class="gl-main" aria-labelledby="gl-detail-h" hidden>
+          <h2 id="gl-detail-h" tabindex="-1">List</h2>
+          <p class="cs-muted" id="gl-meta"></p>
+
+          <form id="gl-meta-form" class="cs-form-panel gl-edit gl-inline" novalidate aria-label="List settings">
+            <div class="cs-field">
+              <label for="gl-name">Name</label>
+              <input id="gl-name" type="text" maxlength="64" required aria-describedby="gl-name-err">
+              <span class="cs-error" id="gl-name-err"></span>
+            </div>
+            <div class="cs-field">
+              <label for="gl-vis">Who can see it</label>
+              <select id="gl-vis"></select>
+            </div>
+            <div class="gl-row">
+              <button type="submit" class="cs-btn cs-btn-sm cs-btn-primary">Save</button>
+              <button type="button" class="cs-btn cs-btn-sm cs-btn-danger" id="gl-delete">Delete list</button>
+              <button type="button" class="cs-btn cs-btn-sm cs-btn-danger" id="gl-delete-confirm" hidden>Confirm delete</button>
+              <button type="button" class="cs-btn cs-btn-sm cs-btn-ghost" id="gl-delete-cancel" hidden>Cancel</button>
+            </div>
+          </form>
+
+          <div class="cs-table-wrap" id="gl-items-wrap">
+            <table class="cs-table gl-table">
+              <caption id="gl-caption" class="cs-muted gr-caption">Wishlist items</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Slot</th>
+                  <th scope="col">Item</th>
+                  <th scope="col" class="gr-num">Priority</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" class="gl-edit">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="gl-items"></tbody>
+            </table>
+          </div>
+          <p id="gl-items-empty" class="cs-muted" hidden>No items on this list yet.</p>
+
+          <form id="gl-add" class="cs-form-panel gl-edit" novalidate aria-labelledby="gl-add-h">
+            <h3 id="gl-add-h">Add an item</h3>
+            <div class="gl-grid">
+              <div class="cs-field">
+                <label for="gl-add-slot">Slot</label>
+                <select id="gl-add-slot"></select>
+              </div>
+              <div class="cs-field">
+                <label for="gl-add-id">Item ID</label>
+                <span class="cs-hint" id="gl-add-id-hint">WoW Forever item ID. Item search isn't available yet.</span>
+                <input id="gl-add-id" type="text" inputmode="numeric" pattern="[0-9]*" required aria-describedby="gl-add-id-hint gl-add-id-err">
+                <span class="cs-error" id="gl-add-id-err"></span>
+              </div>
+              <div class="cs-field">
+                <label for="gl-add-pr">Priority</label>
+                <input id="gl-add-pr" type="number" min="1" value="1" required aria-describedby="gl-add-pr-err">
+                <span class="cs-error" id="gl-add-pr-err"></span>
+              </div>
+              <div class="cs-field">
+                <label for="gl-add-note">Note (optional)</label>
+                <input id="gl-add-note" type="text" maxlength="200">
+              </div>
+            </div>
+            <button type="submit" class="cs-btn cs-btn-primary">Add item</button>
+          </form>
+
+          <section class="gl-history" aria-labelledby="gl-hist-h">
+            <h3 id="gl-hist-h">History</h3>
+            <button type="button" class="cs-btn cs-btn-sm cs-btn-ghost" id="gl-hist-btn" aria-expanded="false" aria-controls="gl-hist">Show history</button>
+            <div id="gl-hist" hidden>
+              <p id="gl-hist-msg" class="cs-muted"></p>
+              <ol id="gl-hist-list" class="gl-hist-list"></ol>
+            </div>
+          </section>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — World of Warcraft Forever</span>
+    <span><a href="../../profile/">Profile</a></span>
+  </footer>
+
+  <script src="../../js/config.js"></script>
+  <script src="../../js/auth-mock.js"></script>
+  <script src="../../js/gear-lists-spec.js"></script>
+  <script src="../../js/gear-lists-mock.js"></script>
+  <script src="../../js/profile-api.js"></script>
+  <script src="../../js/gear-lists-api.js"></script>
+  <script src="../../js/gear-lists.js"></script>
+</body>
+</html>

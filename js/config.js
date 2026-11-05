@@ -11,6 +11,15 @@ window.CS_CONFIG = Object.freeze({
   // web#18 gear UI: true = js/gear-mock.js; false = real API GET /characters/{id}/gear.
   USE_MOCK_GEAR: true,
   GEAR_PATH: '/api/v1/characters/{id}/gear',      // platform#30 getCharacterGear
+  // web#18 gear lists (platform#17, per character, max 5). true = js/gear-lists-mock.js (?mock= scenarios); false = real API.
+  USE_MOCK_GEAR_LISTS: true,
+  GEAR_LISTS_PATHS: Object.freeze({
+    LISTS: '/api/v1/characters/{id}/gear-lists',     // GET, POST {name, visibility}
+    LIST: '/api/v1/gear-lists/{id}',                  // GET, PATCH/DELETE with If-Match "v<version>"
+    OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops[]} -> 200 {version, applied, duplicates, conflicts, list}
+    EVENTS: '/api/v1/gear-lists/{id}/events'          // GET ?after_version=&limit=
+  }),
+  GEAR_LISTS_MAX: 5,
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}
