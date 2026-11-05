@@ -34,6 +34,30 @@ window.CS_CONFIG = Object.freeze({
     // Not yet in the spec; proposed in docs/auth-characters-api.md:
     CHARACTERS: '/api/v1/me/characters',
     SELECTION: '/api/v1/me/characters/selection'
+  }),
+  // web#20: rankings page. true = in-browser mock (js/rankings-mock.js) shaped like GET /rankings
+  // in platform openapi/v1.yaml; false = real API at API_BASE (platform#25). Config flip only.
+  USE_MOCK_RANKINGS: true,
+  RANKINGS_PATH: '/api/v1/rankings',
+  // Off = the page shows and sends only what GET /rankings has today (board, dungeon_id, cursor, limit).
+  // On = also the World PvP tab and scope/period/bracket from the platform rankings draft contract.
+  RANKINGS_EXTENDED_FILTERS: false,
+  // The one place rankings filter values live.
+  RANKINGS_FILTERS: Object.freeze({
+    // In openapi/v1.yaml getRankings today:
+    board: Object.freeze(['fastest_clear', 'runs_completed']),
+    limit: 25,                                   // 1-100 (PageMeta)
+    // dungeon_id: any positive integer (instanceMapID); no client-side list, unknown ids pass through.
+    // Draft contract only (platform rankings proposal); used only when RANKINGS_EXTENDED_FILTERS is true:
+    extended: Object.freeze({
+      tab_board: Object.freeze({ world_pvp: 'world_pvp' }),
+      scope: Object.freeze(['guild', 'realm', 'global']),
+      period: Object.freeze(['week', 'month', 'season', 'all']),
+      bracket: Object.freeze({                   // dungeon difficulty / bg level band; not used for world_pvp
+        dungeon: Object.freeze(['normal', 'heroic']),
+        bg: Object.freeze(['10-19', '20-29', '30-39', '40-49', '50-59', '60'])
+      })
+    })
   })
 });
 
