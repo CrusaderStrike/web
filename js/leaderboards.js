@@ -38,15 +38,27 @@
   var caption = document.getElementById('lb-caption');
   if (!tbody) return;
 
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = String(text);
+    return n;
+  }
+
   function badgeFaction(f) {
     var cls = f === 'alliance' ? 'cs-badge-alliance' : 'cs-badge-horde';
     var label = f === 'alliance' ? 'Alliance' : 'Horde';
-    return '<span class="cs-badge ' + cls + '">' + label + '</span>';
+    return el('span', 'cs-badge ' + cls, label);
   }
 
   function rankBadge(rank) {
-    var extra = rank === 1 ? ' cs-badge-gold' : '';
-    return '<span class="cs-badge cs-badge-rank' + extra + '">' + rank + '</span>';
+    return el('span', 'cs-badge cs-badge-rank' + (rank === 1 ? ' cs-badge-gold' : ''), rank);
+  }
+
+  function cell(child, cls) {
+    var td = el('td', cls);
+    if (child instanceof Node) td.appendChild(child); else td.textContent = String(child);
+    return td;
   }
 
   function filtered() {
@@ -71,18 +83,39 @@
     return rows;
   }
 
+  var sortBtns = document.querySelectorAll('button.cs-sort');
+
+  function updateSortState() {
+    sortBtns.forEach(function (btn) {
+      var th = btn.closest('th');
+      if (!th) return;
+      var on = btn.getAttribute('data-sort') === state.sortKey;
+      th.setAttribute('aria-sort', on ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
   function render() {
     var rows = filtered();
-    tbody.innerHTML = rows.map(function (r) {
-      return '<tr>' +
-        '<td>' + rankBadge(r.rank) + '</td>' +
-        '<td>' + r.name + '</td>' +
-        '<td>' + r.realm + '</td>' +
-        '<td>' + badgeFaction(r.faction) + '</td>' +
-        '<td>' + r.season + '</td>' +
-        '<td class="lb-score">' + r.score.toLocaleString() + '</td>' +
-        '</tr>';
-    }).join('') || '<tr><td colspan="6">No entries match these filters.</td></tr>';
+    var frag = document.createDocumentFragment();
+    rows.forEach(function (r) {
+      var tr = el('tr');
+      tr.appendChild(cell(rankBadge(r.rank)));
+      tr.appendChild(cell(r.name));
+      tr.appendChild(cell(r.realm));
+      tr.appendChild(cell(badgeFaction(r.faction)));
+      tr.appendChild(cell(r.season));
+      tr.appendChild(cell(Number(r.score).toLocaleString(), 'lb-score'));
+      frag.appendChild(tr);
+    });
+    if (!rows.length) {
+      var tr = el('tr');
+      var td = el('td', null, 'No entries match these filters.');
+      td.colSpan = 6;
+      tr.appendChild(td);
+      frag.appendChild(tr);
+    }
+    tbody.replaceChildren(frag);
+    updateSortState();
 
     if (caption) {
       caption.textContent = (state.board === 'dungeon' ? 'Dungeon Run' : 'World PvP') +
@@ -90,14 +123,32 @@
     }
   }
 
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      state.board = tab.getAttribute('data-board');
-      tabs.forEach(function (t) {
-        var on = t === tab;
-        t.setAttribute('aria-selected', on ? 'true' : 'false');
-      });
-      render();
+  var tabList = Array.prototype.slice.call(tabs);
+  var panel = document.getElementById('lb-panel');
+
+  function selectTab(tab, focus) {
+    state.board = tab.getAttribute('data-board');
+    tabList.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    if (panel) panel.setAttribute('aria-labelledby', tab.id);
+    if (focus) tab.focus();
+    render();
+  }
+
+  tabList.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { selectTab(tab, false); });
+    tab.addEventListener('keydown', function (e) {
+      var n = tabList.length, j = null;
+      if (e.key === 'ArrowRight') j = (i + 1) % n;
+      else if (e.key === 'ArrowLeft') j = (i - 1 + n) % n;
+      else if (e.key === 'Home') j = 0;
+      else if (e.key === 'End') j = n - 1;
+      if (j === null) return;
+      e.preventDefault();
+      selectTab(tabList[j], true);
     });
   });
 
@@ -111,7 +162,7 @@
   factionSel.addEventListener('change', onFilter);
   seasonSel.addEventListener('change', onFilter);
 
-  document.querySelectorAll('button.cs-sort').forEach(function (btn) {
+  sortBtns.forEach(function (btn) {
     btn.addEventListener('click', function () {
       var key = btn.getAttribute('data-sort');
       if (state.sortKey === key) {

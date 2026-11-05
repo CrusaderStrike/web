@@ -33,8 +33,8 @@
     <p class="cs-section-intro">Mock Dungeon Run and World PvP ladders with realm, faction, and season filters. Fake data only.</p>
 
     <div class="lb-tabs" role="tablist" aria-label="Leaderboard type">
-      <button type="button" role="tab" data-board="dungeon" aria-selected="true" aria-controls="lb-panel">Dungeon Run</button>
-      <button type="button" role="tab" data-board="pvp" aria-selected="false" aria-controls="lb-panel">World PvP</button>
+      <button type="button" role="tab" id="lb-tab-dungeon" data-board="dungeon" aria-selected="true" aria-controls="lb-panel" tabindex="0">Dungeon Run</button>
+      <button type="button" role="tab" id="lb-tab-pvp" data-board="pvp" aria-selected="false" aria-controls="lb-panel" tabindex="-1">World PvP</button>
     </div>
 
     <div class="cs-toolbar" role="search" aria-label="Leaderboard filters">
@@ -65,18 +65,18 @@
       </div>
     </div>
 
-    <div id="lb-panel" role="tabpanel">
+    <div id="lb-panel" role="tabpanel" aria-labelledby="lb-tab-dungeon" tabindex="0">
       <div class="cs-table-wrap">
         <table class="cs-table" aria-describedby="lb-caption">
           <caption id="lb-caption" class="cs-muted" style="caption-side:bottom;padding:0.75rem;text-align:left">Dungeon Run leaderboard (mock data)</caption>
           <thead>
             <tr>
-              <th scope="col"><button type="button" class="cs-sort" data-sort="rank">Rank</button></th>
-              <th scope="col"><button type="button" class="cs-sort" data-sort="name">Character</button></th>
-              <th scope="col"><button type="button" class="cs-sort" data-sort="realm">Realm</button></th>
-              <th scope="col"><button type="button" class="cs-sort" data-sort="faction">Faction</button></th>
-              <th scope="col"><button type="button" class="cs-sort" data-sort="season">Season</button></th>
-              <th scope="col"><button type="button" class="cs-sort" data-sort="score">Score</button></th>
+              <th scope="col" aria-sort="ascending"><button type="button" class="cs-sort" data-sort="rank">Rank</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="name">Character</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="realm">Realm</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="faction">Faction</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="season">Season</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="score">Score</button></th>
             </tr>
           </thead>
           <tbody id="lb-body"></tbody>
