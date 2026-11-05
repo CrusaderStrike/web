@@ -1,0 +1,34 @@
+.lb-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+.lb-tabs a, .lb-tabs button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--cs-border);
+  background: var(--cs-bg-elevated);
+  color: var(--cs-muted);
+  text-decoration: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lb-tabs a[aria-current="page"],
+.lb-tabs button[aria-selected="true"] {
+  color: var(--cs-ink-on-gold);
+  background: linear-gradient(180deg, #e2c15a 0%, var(--cs-gold-soft) 100%);
+  border-color: #8a6b1c;
+}
+.lb-panel[hidden] { display: none !important; }
+.lb-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+@media (max-width: 640px) {
+  .cs-table th:nth-child(4),
+  .cs-table td:nth-child(4) { /* hide class on very small if needed - keep all for a11y */ }
+}

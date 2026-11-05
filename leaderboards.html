@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Mock Dungeon Run and World PvP leaderboards for Crusader Strike.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Leaderboards — Crusader Strike</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/leaderboards.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="index.html">
+      <img src="assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="guild.html">Guild</a></li>
+        <li><a href="leaderboards.html" aria-current="page">Leaderboards</a></li>
+        <li><a href="styleguide.html">Styleguide</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap-wide cs-section">
+    <h1 class="cs-display">Leaderboards</h1>
+    <p class="cs-section-intro">Mock Dungeon Run and World PvP ladders with realm, faction, and season filters. Fake data only.</p>
+
+    <div class="lb-tabs" role="tablist" aria-label="Leaderboard type">
+      <button type="button" role="tab" data-board="dungeon" aria-selected="true" aria-controls="lb-panel">Dungeon Run</button>
+      <button type="button" role="tab" data-board="pvp" aria-selected="false" aria-controls="lb-panel">World PvP</button>
+    </div>
+
+    <div class="cs-toolbar" role="search" aria-label="Leaderboard filters">
+      <div class="cs-field">
+        <label for="filter-realm">Realm</label>
+        <select id="filter-realm">
+          <option value="">All realms</option>
+          <option>Emberfall</option>
+          <option>Duskhollow</option>
+          <option>Stormwatch Keep</option>
+        </select>
+      </div>
+      <div class="cs-field">
+        <label for="filter-faction">Faction</label>
+        <select id="filter-faction">
+          <option value="">All factions</option>
+          <option value="alliance">Alliance</option>
+          <option value="horde">Horde</option>
+        </select>
+      </div>
+      <div class="cs-field">
+        <label for="filter-season">Season</label>
+        <select id="filter-season">
+          <option value="">All seasons</option>
+          <option value="S1">Season 1</option>
+          <option value="S2">Season 2</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="lb-panel" role="tabpanel">
+      <div class="cs-table-wrap">
+        <table class="cs-table" aria-describedby="lb-caption">
+          <caption id="lb-caption" class="cs-muted" style="caption-side:bottom;padding:0.75rem;text-align:left">Dungeon Run leaderboard (mock data)</caption>
+          <thead>
+            <tr>
+              <th scope="col"><button type="button" class="cs-sort" data-sort="rank">Rank</button></th>
+              <th scope="col"><button type="button" class="cs-sort" data-sort="name">Character</button></th>
+              <th scope="col"><button type="button" class="cs-sort" data-sort="realm">Realm</button></th>
+              <th scope="col"><button type="button" class="cs-sort" data-sort="faction">Faction</button></th>
+              <th scope="col"><button type="button" class="cs-sort" data-sort="season">Season</button></th>
+              <th scope="col"><button type="button" class="cs-sort" data-sort="score">Score</button></th>
+            </tr>
+          </thead>
+          <tbody id="lb-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — mock leaderboards</span>
+    <span><a href="guild.html">Guild profile</a></span>
+  </footer>
+
+  <script src="js/leaderboards.js"></script>
+</body>
+</html>
