@@ -1,0 +1,29 @@
+/* web#18 gear lists */
+.gl-layout { display: grid; grid-template-columns: minmax(14rem, 18rem) 1fr; gap: 1.5rem; align-items: start; }
+.gl-index { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.4rem; }
+.gl-index button { width: 100%; text-align: left; display: grid; gap: 0.15rem; padding: 0.6rem 0.75rem; background: var(--cs-bg-elevated);
+  color: inherit; border: 1px solid var(--cs-border); border-radius: var(--cs-radius); cursor: pointer; font: inherit; }
+.gl-index button[aria-current="true"] { border-color: var(--cs-gold); box-shadow: inset 3px 0 0 var(--cs-gold); }
+.gl-index button:focus-visible, .gl-table button:focus-visible { outline: 2px solid var(--cs-gold); outline-offset: 2px; }
+.gl-index .gl-sub { color: var(--cs-muted); font-size: 0.85rem; }
+.gl-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.gl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1rem; }
+.gl-inline { margin-bottom: 1rem; }
+.gl-form-panel, .gl-main form { margin-bottom: 1rem; }
+.gl-banner { margin-bottom: 1rem; border-color: var(--cs-gold-soft); }
+.gl-banner p { margin: 0 0 0.6rem; color: var(--cs-text, inherit); }
+.gl-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.gl-obtained .gl-itemname { text-decoration: line-through; color: var(--cs-muted); }
+.gl-hist-list { margin: 0.75rem 0 0; padding-left: 1.25rem; display: grid; gap: 0.35rem; }
+.gl-hist-list .gl-rej { color: var(--cs-muted); }
+.gl-readonly .gl-edit { display: none !important; }
+@media (max-width: 860px) { .gl-layout, .gl-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) {
+  .gl-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .gl-table, .gl-table tbody, .gl-table tr, .gl-table td { display: block; width: 100%; }
+  .gl-table tr { border-bottom: 1px solid var(--cs-border); padding: 0.5rem 0; }
+  .gl-table td { border: 0; padding: 0.2rem 0.75rem; text-align: left; }
+  .gl-table td[data-label]::before { content: attr(data-label) ": "; color: var(--cs-muted); }
+}
+.gl-pending td { opacity: 0.8; }
+.gl-queue:empty { display: none; }
