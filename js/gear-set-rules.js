@@ -19,8 +19,15 @@
     item_not_in_slot: 'That item doesn\u2019t fit this slot.',
     item_not_forever: 'That item isn\u2019t a WoW Forever item.',
     invalid_slot: 'That slot isn\u2019t valid.',
-    list_items_limit: 'This set already holds the maximum number of items.'
+    list_items_limit: 'This set already holds the maximum number of items.',
+    // web#50: platform field-map codes (platform#54 invalid_json and the gear-list create/patch fields).
+    invalid_json: 'The request couldn\u2019t be read. Reload the page and try again.',
+    invalid_name: 'Name must be 1\u201364 characters.',
+    invalid_type: 'Choose leveling or max level.',
+    invalid_visibility: 'Choose a valid visibility.',
+    invalid_slots: 'The slot list wasn\u2019t valid.'
   };
+  var GENERIC = 'That change wasn\u2019t accepted. Check it and try again.';
   function ul(s) { var n = parseInt(s && s.until_level, 10); return n > 0 ? n : MAX + 1; }
   function lvl(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
   window.CSGearSetRules = {
@@ -66,6 +73,20 @@
       var b = r && r.body || {}, d = (b.error && b.error.details) || b.errors || {}, out = {};
       Object.keys(d).forEach(function (k) { var v = d[k]; out[k] = typeof v === 'string' ? v : (v && (v.code || v.message)) || ''; });
       return out;
+    },
+    /** web#50: banner text for a field-map value: known code -> sentence, prose passes through, unknown code -> generic. */
+    text: function (v) { return MSG[v] || (typeof v === 'string' && v.indexOf(' ') > 0 ? v : GENERIC); },
+    GENERIC: GENERIC,
+    /**
+     * web#50: one API-down message for profile and gear lists. 502 is Battle.net only when the platform
+     * says so (error.code upstream_unavailable); a bare 502 from the proxy means Crusader Strike is down.
+     */
+    downMsg: function (r) {
+      if (!r || r.status === 0) return 'You appear to be offline, or Crusader Strike can\u2019t be reached.';
+      var c = r.body && r.body.error && r.body.error.code;
+      if (r.status === 502 && c === 'upstream_unavailable') return 'Battle.net is unavailable, try again later';
+      if (r.status >= 500) return 'Crusader Strike is having trouble right now (HTTP ' + r.status + '). Try again in a few minutes.';
+      return '';
     },
     message: function (code) { return MSG[code] || (typeof code === 'string' && code.indexOf(' ') > 0 ? code : 'Check this field.'); },
     outgrown: function (s, c) { return !!(s && (s.outgrown || (s.type === 'leveling' && lvl(c) && s.until_level != null && lvl(c) >= s.until_level))); },

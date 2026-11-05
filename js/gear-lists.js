@@ -34,13 +34,9 @@
   }
   function when(iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString() : 'unknown time'; }
   /** platform app.ts error handler: { error: { code, message } }, or { errors: { field: msg } } when the AppError carries fields. */
-  function fieldMsg(r) { var e = r && r.body && r.body.errors; if (!e || typeof e !== 'object') return ''; var k = Object.keys(e)[0]; return k ? txt(e[k]) : ''; }
+  function fieldMsg(r) { var e = r && r.body && r.body.errors; if (!e || typeof e !== 'object') return ''; if (txt(r.body.message)) return txt(r.body.message); /* platform#56: top-level message next to errors */ var k = Object.keys(e)[0]; return k ? R.text(txt(e[k])) : ''; }
   /** web#48: API down (no response / 5xx) gets a clear message with the status instead of a generic one. */
-  function downMsg(r) {
-    if (!r || r.status === 0) return 'You appear to be offline, or Crusader Strike can\u2019t be reached.';
-    if (r.status >= 500) return 'Crusader Strike is having trouble right now (HTTP ' + r.status + '). Try again in a few minutes.';
-    return '';
-  }
+  function downMsg(r) { return R.downMsg(r); }
   function errMsg(r) { return (r && r.status >= 500 && downMsg(r)) || (r && r.body && r.body.error && txt(r.body.error.message)) || fieldMsg(r) || 'Something went wrong. Please try again.'; }
   function code(r) { return r && r.body && r.body.error && r.body.error.code; }
   function itemName(i) { return txt(i.name) || 'Item ' + i.item_id; }
@@ -360,7 +356,7 @@
           function () { doPatch(body, r.body.current.version); });
         return;
       }
-      if (r.status === 400 && r.body && r.body.errors && r.body.errors.name) { fieldErr('gl-name', r.body.errors.name); return; }
+      if (r.status === 400 && r.body && r.body.errors && r.body.errors.name) { fieldErr('gl-name', R.message(r.body.errors.name)); return; }
       if (failed(r, function () { doPatch(body, version); })) return;
       serverUpdate(r.body); renderIndex(); renderDetail(); hideBanner(); say('List saved.');
     });
@@ -397,7 +393,7 @@
         if (r.status === 400) {
           var fc = R.fieldCodes(r), hit = false;
           ['type', 'until_level', 'role_spec'].forEach(function (f) { if (fc[f]) { fieldErr(META_F[f], R.message(fc[f])); hit = true; } });
-          if (fc.name) { fieldErr('gl-new-name', fc.name); hit = true; }
+          if (fc.name) { fieldErr('gl-new-name', R.message(fc.name)); hit = true; }
           if (hit) return;
         }
         if (failed(r, go)) return;
@@ -523,7 +519,36 @@
   $('gl-add-pr').max = String(L.priority_max);
   // ---------- web#48 CSGEAR1 import (schema §7: decode, create id:null sets, apply ops, map local_id -> id) ----------
   var G = window.CSGear1, importing = false;
-  var IMP_REASON = { not_found: 'not on the site any more (deleted here?), skipped', site_newer: 'changed on the site after the game edit, site version kept' };
+  // web#50 (platform review of web#49): local_id -> server id for sets created by imports on this page, per character.
+  // A re-paste of the original string (id:null) must never create the same set twice.
+  // Kept in sessionStorage so a reload in the same tab still knows what it created.
+  var IMP_KEY = 'cs_gear_import_ids', imported = {};
+  try { imported = JSON.parse(sessionStorage.getItem(IMP_KEY) || '{}') || {}; } catch (e) { imported = {}; }
+  var IMP_REASON = { not_found: 'not on the site any more (deleted here?), skipped', site_newer: 'changed on the site after the game edit, site version kept',
+    already_imported: 'already created on the site by an earlier import, skipped (no duplicate)' };
+  function remember(mapping) {
+    Object.keys(mapping || {}).forEach(function (lid) { imported[charId + ':' + lid] = mapping[lid]; });
+    try { sessionStorage.setItem(IMP_KEY, JSON.stringify(imported)); } catch (e) { /* storage full/blocked: in-memory guard still applies */ }
+  }
+  /** Copy of the pasted payload with server ids filled in for sets created so far, so a re-import updates instead of re-creating. */
+  function withIds(p) {
+    var q = JSON.parse(JSON.stringify(p));
+    q.lists.forEach(function (s) { var id = imported[charId + ':' + s.local_id]; if (s.id == null && id) s.id = id; });
+    return q;
+  }
+  function renderImport(res, pl, fresh, payload) {
+    var ul = $('gl-import-list'); clear(ul);
+    res.results.forEach(function (x) {
+      var t = x.action === 'created' ? 'Created \u201c' + x.name + '\u201d (game ' + x.local_id + ' \u2192 ' + x.id + ')' :
+        x.action === 'deleted' ? 'Deleted \u201c' + x.name + '\u201d' : (x.action === 'unchanged' ? 'No changes for \u201c' : 'Updated \u201c') + x.name + '\u201d' +
+        (x.conflicts && x.conflicts.length ? ' (' + x.conflicts.length + ' change(s) not applied: ' + x.conflicts.map(function (c) { return R.message(c); }).join(' ') + ')' : '');
+      var li = el('li', null, t); li.dataset.localId = x.local_id || ''; li.dataset.id = x.id || ''; ul.appendChild(li);
+    });
+    pl.skipped.forEach(function (x) { var li = el('li', 'gl-rej', '\u201c' + x.name + '\u201d ' + IMP_REASON[x.reason]); li.dataset.localId = x.local_id; ul.appendChild(li); });
+    res.failures.forEach(function (x) { var li = el('li', 'gl-rej', 'Not saved \u201c' + (x.name || x.id) + '\u201d: ' + x.message); li.dataset.localId = x.local_id || ''; ul.appendChild(li); });
+    $('gl-import-out').value = G.reply(payload, character, fresh, res.mapping);
+    $('gl-import-result').hidden = false;
+  }
   $('gl-import').addEventListener('submit', function (e) {
     e.preventDefault();
     if (importing || readOnly) return;
@@ -532,31 +557,32 @@
     var d = G.decode($('gl-import-text').value);
     if (!d.ok) { err(d.message); return; }
     if (!character) { err('Your character details could not load, so the level rules can\u2019t be checked. Reload and try again.'); return; }
-    var pl = G.plan(d.payload, character, lists);
+    var pl = G.plan(withIds(d.payload), character, lists);
     if (!pl.ok) { err(pl.message); return; }
+    // Belt and braces: a create whose local_id this page already created (even if that list is gone from `lists`) is skipped.
+    pl.creates = pl.creates.filter(function (cr) {
+      if (!imported[charId + ':' + cr.local_id]) return true;
+      pl.skipped.push({ local_id: cr.local_id, name: cr.body.name, reason: 'already_imported' }); return false;
+    });
     importing = true; $('gl-import-btn').disabled = true; $('gl-import-btn').setAttribute('aria-busy', 'true'); say('Importing gear sets\u2026');
     var done = function () { importing = false; $('gl-import-btn').disabled = false; $('gl-import-btn').removeAttribute('aria-busy'); };
     G.apply(api, charId, pl).then(function (res) {
+      remember(res.mapping);
       if (res.stopped) {
         done();
         if (res.stopped.status === 401) { show('signedout'); return; }
-        err((res.stopped.status === 403 ? 'Security check failed. Reload the page and try again.' : downMsg(res.stopped)) + ' ' + (res.results.length ? res.results.length + ' set(s) were saved before it stopped; import again to finish.' : 'Nothing was imported.'));
-        return reloadLists(null);
+        var why = res.stopped.status === 403 ? 'Security check failed. Reload the page and try again.' : downMsg(res.stopped);
+        if (!res.results.length) { err(why + ' Nothing was imported.'); return reloadLists(null); }
+        // Partial stop: never advise re-pasting the original (id:null would create duplicates). Show the mapping,
+        // and rewrite the import box with the new server ids so pressing Import again only finishes the rest.
+        $('gl-import-text').value = G.encode(withIds(d.payload));
+        err(why + ' ' + res.results.length + ' set(s) were saved before it stopped (listed below). The import text now carries their new ids, so Import again only finishes the rest \u2014 copy the string below back into the game too.');
+        return reloadLists(null).then(function () { renderImport(res, pl, lists, d.payload); });
       }
       return api.lists(charId).then(function (lr) {
         done();
         var fresh = lr.ok && lr.body && Array.isArray(lr.body.items) ? lr.body.items : lists;
-        var ul = $('gl-import-list'); clear(ul);
-        res.results.forEach(function (x) {
-          var t = x.action === 'created' ? 'Created \u201c' + x.name + '\u201d (game ' + x.local_id + ' \u2192 ' + x.id + ')' :
-            x.action === 'deleted' ? 'Deleted \u201c' + x.name + '\u201d' : (x.action === 'unchanged' ? 'No changes for \u201c' : 'Updated \u201c') + x.name + '\u201d' +
-            (x.conflicts && x.conflicts.length ? ' (' + x.conflicts.length + ' change(s) not applied: ' + x.conflicts.map(function (c) { return R.message(c); }).join(' ') + ')' : '');
-          var li = el('li', null, t); li.dataset.localId = x.local_id || ''; li.dataset.id = x.id || ''; ul.appendChild(li);
-        });
-        pl.skipped.forEach(function (x) { var li = el('li', 'gl-rej', '\u201c' + x.name + '\u201d ' + IMP_REASON[x.reason]); li.dataset.localId = x.local_id; ul.appendChild(li); });
-        res.failures.forEach(function (x) { var li = el('li', 'gl-rej', 'Not saved \u201c' + (x.name || x.id) + '\u201d: ' + x.message); li.dataset.localId = x.local_id || ''; ul.appendChild(li); });
-        $('gl-import-out').value = G.reply(d.payload, character, fresh, res.mapping);
-        $('gl-import-result').hidden = false;
+        renderImport(res, pl, fresh, d.payload);
         say('Import finished: ' + res.results.length + ' saved, ' + (pl.skipped.length + res.failures.length) + ' not applied.');
         if (lr.ok) { lists = []; fresh.forEach(serverUpdate); select((res.results[0] && res.results[0].id) || (current && current.id) || (lists[0] && lists[0].id), false); }
       });

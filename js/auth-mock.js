@@ -89,7 +89,7 @@
       if (scenario() === 'save_error') return err(500, 'internal_error', 'Could not save. Try again.');
       if (!csrf || csrf !== s.csrf_token) return err(403, 'csrf_failed', 'Security check failed. Reload and try again.');
       if (scenario() === 'save_ratelimit') return res(429, { error: { code: 'rate_limited', message: 'Too many requests.', request_id: 'req_mock' } }, { 'retry-after': '5' });
-      if (scenario() === 'save_body') return res(400, { errors: { body: 'Request body is invalid.' } });
+      if (scenario() === 'save_body') return res(400, { errors: { body: 'invalid_json' } });
       var extra = staleIds();
       var ids = FIXTURES.filter(function (c) { return c.game === 'wow_forever' && !c.stale && extra.indexOf(c.id) < 0; }).map(function (c) { return c.id; });
       if (!body || ids.indexOf(body.main_id) === -1) return invalid('main_id', 'Pick a main from your characters.');
