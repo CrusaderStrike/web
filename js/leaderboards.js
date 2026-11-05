@@ -94,6 +94,16 @@
     });
   }
 
+  var SORT_LABELS = { rank: 'Rank', name: 'Character', realm: 'Realm', faction: 'Faction', season: 'Season', score: 'Score' };
+  function describeView(count) {
+    var parts = [state.board === 'dungeon' ? 'Dungeon Run' : 'World PvP'];
+    if (state.realm) parts.push(state.realm);
+    if (state.faction) parts.push(state.faction === 'alliance' ? 'Alliance' : 'Horde');
+    if (state.season) parts.push('Season ' + state.season);
+    return parts.join(', ') + ', sorted by ' + (SORT_LABELS[state.sortKey] || state.sortKey) + ', ' +
+      (state.sortDir === 'asc' ? 'ascending' : 'descending') + ' (' + count + (count === 1 ? ' entry' : ' entries') + ', mock data)';
+  }
+
   function render() {
     var rows = filtered();
     var frag = document.createDocumentFragment();
@@ -118,8 +128,7 @@
     updateSortState();
 
     if (caption) {
-      caption.textContent = (state.board === 'dungeon' ? 'Dungeon Run' : 'World PvP') +
-        ' leaderboard (mock data)';
+      caption.textContent = describeView(rows.length);
     }
   }
 

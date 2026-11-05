@@ -55,3 +55,6 @@
   .hero-mark { order: -1; }
   .hero-mark img { width: min(180px, 45%); }
 }
+
+/* web#17 flag-gated nav entry */
+#nav-bnet[hidden] { display: none !important; }
