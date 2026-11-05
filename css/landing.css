@@ -35,3 +35,7 @@
 
 /* web#17 flag-gated nav entry */
 #nav-bnet[hidden], #hero-bnet[hidden] { display: none !important; }
+
+/* web#51: redirect line + fan-site disclaimer under the hero Battle.net button. */
+.hero-bnet-notes { margin-top: 0.75rem; display: grid; gap: 0.25rem; font-size: var(--cs-text-sm); color: var(--cs-muted); }
+.hero-bnet-notes p { margin: 0; }

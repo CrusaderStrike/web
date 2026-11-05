@@ -35,7 +35,7 @@ Mock-only dev scenarios (via query string on `signin.html`): `mock_scenario=empt
 ## Endpoints (server base `https://api.crusaderstrike.com/api/v1`)
 
 ### `GET /auth/blizzard/login?return_to=/signin.html` (spec `blizzardLogin`)
-`return_to` is a relative same-site path starting with a single `/` (default `/signin.html`). The UI sends `/signin.html`.
+`return_to` is a relative same-site path starting with a single `/` (default `/signin.html`). Since web#51 the UI sends no `return_to`: every control links to plain start-auth, and `/signin.html` is a redirect stub that sends `?auth=` callback returns on to `/profile/`.
 *Mock:* navigates to `signin.html?mock_authorize=1&state=…`, a simulated consent screen.
 
 ### `GET /auth/blizzard/callback` (spec `blizzardCallback`)

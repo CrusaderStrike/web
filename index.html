@@ -23,7 +23,7 @@
         <li><a href="leaderboards.html">Leaderboards</a></li>
         <li><a href="rankings.html">Rankings</a></li>
         <li><a href="guild.html">Guilds</a></li>
-        <li id="nav-bnet" hidden><a href="signin.html" class="cs-btn cs-btn-sm cs-btn-primary">Login / Create account with Battle.net</a></li>
+        <li id="nav-bnet" hidden><a href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login" class="cs-btn cs-btn-sm cs-btn-bnet cs-btn-bnet--compact">Login / Create account with Battle.net</a></li>
       </ul>
     </nav>
   </header>
@@ -37,8 +37,12 @@
           Dungeon Run and World PvP rankings, and an addon that keeps your roster in the fight.
         </p>
         <div class="cta-row">
-          <a class="cs-btn cs-btn-primary" id="hero-bnet" href="signin.html" hidden>Sign in with Battle.net</a>
+          <a class="cs-btn cs-btn-bnet" id="hero-bnet" href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login" hidden>Sign in with Battle.net</a>
           <a class="cs-btn cs-btn-primary" href="#pitch">See what ships</a>
+        </div>
+        <div id="hero-bnet-notes" class="hero-bnet-notes" hidden>
+          <p id="hero-bnet-redirect">You'll be redirected to the official Battle.net sign-in page.</p>
+          <p id="hero-bnet-disclaimer">Crusader Strike is a fan site. It is not affiliated with or endorsed by Blizzard Entertainment.</p>
         </div>
       </div>
       <div class="hero-mark" aria-hidden="true">
@@ -72,6 +76,7 @@
 
   <footer class="cs-wrap cs-footer">
     <span>© Crusader Strike — for Azeroth, Forever.</span>
+    <span class="cs-footer-tm">Battle.net is a trademark or registered trademark of Blizzard Entertainment, Inc.</span>
     <span><a href="https://github.com/CrusaderStrike/web">Source</a></span>
   </footer>
 

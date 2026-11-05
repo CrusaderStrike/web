@@ -2,95 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Sign in with Battle.net and choose your World of Warcraft Forever main and alts on Crusader Strike.">
-  <meta name="theme-color" content="#0b0907">
   <meta name="robots" content="noindex">
-  <title>Sign in — Crusader Strike</title>
-  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/design-system.css">
-  <link rel="stylesheet" href="css/signin.css">
+  <title>Redirecting to Battle.net sign-in…</title>
+  <!-- web#51: sign-in now starts at the platform start-auth URL. GitHub Pages can't send a 301/302, so this stub
+       redirects. No return_to (PM): the platform falls back to /signin.html after the callback, so a request that
+       already carries ?auth= (the callback coming back) goes to the profile instead of starting OAuth again. -->
+  <script>
+    (function () {
+      if (/[?&]auth=/.test(location.search)) { location.replace('/profile/' + location.search); return; }
+      location.replace('https://api.crusaderstrike.com/api/v1/auth/blizzard/login');
+    })();
+  </script>
+  <noscript><meta http-equiv="refresh" content="0; url=https://api.crusaderstrike.com/api/v1/auth/blizzard/login"></noscript>
 </head>
 <body>
-  <a class="cs-skip-link" href="#main">Skip to content</a>
-  <header class="cs-wrap cs-header">
-    <a class="cs-brand" href="index.html">
-      <img src="assets/logo.svg" width="40" height="40" alt="">
-      <span>Crusader Strike</span>
-    </a>
-    <nav aria-label="Primary">
-      <ul class="cs-nav">
-        <li><a href="index.html">Home</a></li>
-        <li><a href="guild.html">Guild</a></li>
-        <li><a href="leaderboards.html">Leaderboards</a></li>
-        <li><a href="signin.html" aria-current="page">Sign in</a></li>
-      </ul>
-    </nav>
-  </header>
-
-  <main id="main" class="cs-wrap cs-section si-main">
-    <h1 class="cs-display">Your characters</h1>
-    <p class="cs-section-intro">Sign in with Battle.net. You land on your profile, where you choose which World of Warcraft Forever characters to display.</p>
-    <p id="si-mock-note" class="si-note" hidden>Preview: this uses a mock API with fake characters. No real Battle.net sign-in happens.</p>
-
-    <div id="si-status" class="si-sr-only" role="status" aria-live="polite"></div>
-
-    <section id="si-disabled" class="si-step cs-form-panel" aria-labelledby="si-disabled-h" hidden>
-      <h2 id="si-disabled-h" tabindex="-1">Battle.net sign-in is coming soon</h2>
-      <p>It isn't open yet. Back to the <a href="index.html">home page</a>.</p>
-    </section>
-
-    <section id="si-start" class="si-step cs-form-panel" aria-labelledby="si-start-h" hidden>
-      <h2 id="si-start-h" tabindex="-1">Sign in</h2>
-      <p>We only read your World of Warcraft Forever characters. We never see your Battle.net password.</p>
-      <button type="button" class="cs-btn cs-btn-primary si-bnet" id="si-signin">Login / Create account with Battle.net</button>
-    </section>
-
-    <section id="si-authorize" class="si-step cs-form-panel" aria-labelledby="si-authorize-h" hidden>
-      <h2 id="si-authorize-h" tabindex="-1">Battle.net (simulated)</h2>
-      <p>Crusader Strike wants to read your World of Warcraft Forever character list.</p>
-      <div class="si-actions">
-        <button type="button" class="cs-btn cs-btn-primary" id="si-authorize-ok">Authorize</button>
-        <button type="button" class="cs-btn cs-btn-ghost" id="si-authorize-cancel">Cancel</button>
-      </div>
-    </section>
-
-    <section id="si-loading" class="si-step cs-form-panel" aria-labelledby="si-loading-h" aria-busy="true" hidden>
-      <h2 id="si-loading-h" tabindex="-1">Loading your characters…</h2>
-      <div class="si-spinner" aria-hidden="true"></div>
-    </section>
-
-    <section id="si-cancelled" class="si-step cs-form-panel si-alert" aria-labelledby="si-cancelled-h" hidden>
-      <h2 id="si-cancelled-h" tabindex="-1">Sign-in cancelled</h2>
-      <p>You didn't authorize Crusader Strike on Battle.net, so nothing was shared. You can try again any time.</p>
-      <button type="button" class="cs-btn cs-btn-primary" data-action="restart">Try again</button>
-    </section>
-
-    <section id="si-error" class="si-step cs-form-panel si-alert" aria-labelledby="si-error-h" hidden>
-      <h2 id="si-error-h" tabindex="-1">Something went wrong</h2>
-      <p id="si-error-msg">We couldn't finish that. Please try again.</p>
-      <div class="si-actions">
-        <button type="button" class="cs-btn cs-btn-primary" data-action="retry">Try again</button>
-        <button type="button" class="cs-btn cs-btn-ghost" data-action="restart">Start over</button>
-      </div>
-    </section>
-
-    <section id="si-empty" class="si-step cs-form-panel" aria-labelledby="si-empty-h" hidden>
-      <h2 id="si-empty-h" tabindex="-1">No World of Warcraft Forever characters found</h2>
-      <p>Your Battle.net account doesn't have any World of Warcraft Forever characters yet. Create one in game, then refresh.</p>
-      <button type="button" class="cs-btn cs-btn-primary" data-action="retry">Refresh</button>
-    </section>
-
-  </main>
-
-  <footer class="cs-wrap cs-footer">
-    <span>© Crusader Strike — World of Warcraft Forever community platform</span>
-    <span><a href="index.html">Home</a></span>
-  </footer>
-
-  <script src="js/config.js"></script>
-  <script src="js/auth-mock.js"></script>
-  <script src="js/faction-badge.js"></script>
-  <script src="js/signin.js"></script>
+  <p>Redirecting to Battle.net sign-in… <a href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login">Continue to Battle.net sign-in</a></p>
 </body>
 </html>
