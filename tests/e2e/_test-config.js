@@ -14,8 +14,9 @@ async function forceTestConfig(target, overrides) {
     const local = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'js', 'config.js'), 'utf8');
     if (body !== local) throw new Error('forceTestConfig: the server on this port is serving a different checkout than ' + require('path').resolve(__dirname, '..', '..') + '. Use tests/e2e/run-all.js or set CS_E2E_PORT.');
     for (const [k, v] of Object.entries(flags)) {
-      const re = new RegExp('(\\b' + k + ':\\s*)(true|false)');
-      if (re.test(body)) body = body.replace(re, '$1' + v);
+      const re = typeof v === 'string' ? new RegExp('(\\b' + k + ":\\s*)'[^']*'") : new RegExp('(\\b' + k + ':\\s*)(true|false)');
+      if (re.test(body)) body = body.replace(re, '$1' + (typeof v === 'string' ? "'" + v + "'" : v));
+      else if (typeof v === 'string') throw new Error('forceTestConfig: ' + k + " not found as a string flag in config.js");
     }
     if (!new RegExp('FEATURE_BNET_SIGNIN:\\s*' + flags.FEATURE_BNET_SIGNIN).test(body) || !new RegExp('USE_MOCK_AUTH:\\s*' + flags.USE_MOCK_AUTH).test(body)) throw new Error('forceTestConfig: config.js shape changed');
     await route.fulfill({ response: res, body, headers: { ...res.headers(), 'cache-control': 'no-store' } });

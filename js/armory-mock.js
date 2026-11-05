@@ -2,7 +2,7 @@
  * web#42 in-browser mock with the shipped platform main wire shapes (openapi/v1.yaml, src/routes/{profile,gear-lists}.ts,
  * gear-list schema v1): GET /me/characters {characters, selection}; PUT /me/characters/selection {main_id, alt_ids}
  * (delegates to js/auth-mock.js); GET/POST /characters/{id}/gear-lists; GET /gear-lists/{id};
- * POST /gear-lists/{id}/ops (add_item | remove_item, op_id, base_version -> {version, applied, duplicates, conflicts, list});
+ * POST /gear-lists/{id}/ops (add_item | remove_item, plus platform#46 set_slot | clear_slot; op_id, base_version -> {version, applied, duplicates, conflicts, list});
  * GET /items, /items/{id}. A character not in the selection -> 403 {errors:{character_id}} like
  * requireOwnedCharacter. Items are FICTIONAL (icon_url null). State in localStorage (cs_mock_armory).
  * Scenarios: ?mock_armory=limit | notdisplayed | conflict | notforever | ratelimit | items500 | toggle500.
@@ -58,6 +58,7 @@
   function groupOf(slot) { return GROUP[slot] || slot; }
   function fits(item, slot) { return item && item.slot_group === groupOf(slot); }
   function pub(i) { var o = JSON.parse(JSON.stringify(i)); delete o.slot_group; return o; }
+  var ITEMS_MAX = (window.CSGearListsSpec && window.CSGearListsSpec.limits && window.CSGearListsSpec.limits.items_per_list) || 100;
   function findItem(iid) { return ITEMS.filter(function (i) { return i.item_id === iid; })[0] || null; }
 
   window.CSArmoryMock = {
@@ -110,8 +111,10 @@
       if (!Array.isArray(ops) || ops.length < 1 || ops.length > 50) return fields(400, { ops: 'Array of 1..50 ops required.' });
       for (var i = 0; i < ops.length; i++) {
         var o = ops[i];
-        if (!o || !UUID_RE.test(o.op_id) || ['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained'].indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 ||
-          typeof o.item_id !== 'number' || o.item_id < 1 || typeof o.base_version !== 'number' || (o.type === 'add_item' && !(o.priority >= 1))) return fields(400, { ['ops.' + i]: 'Invalid.' });
+        var slotOp = o && (o.type === 'set_slot' || o.type === 'clear_slot');  // platform#46
+        if (!o || !UUID_RE.test(o.op_id) || ['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained', 'set_slot', 'clear_slot'].indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 ||
+          (o.type !== 'clear_slot' && (typeof o.item_id !== 'number' || o.item_id < 1 || o.item_id % 1)) || typeof o.base_version !== 'number' || (o.type === 'add_item' && !(o.priority >= 1))) return fields(400, { ['ops.' + i]: 'Invalid.' });
+        // platform#46: known-but-irrelevant fields (clear_slot item_id; set_slot priority/note/obtained) are ignored silently.
       }
       if (!l) return err(404, 'not_found', 'List not found.');
       l.touch = l.touch || {}; s.flags.seen = s.flags.seen || [];
@@ -122,11 +125,35 @@
         l.version++; l.staleAll = l.version;
       }
       var out = { applied: [], duplicates: [], conflicts: [], ignored: [] };
+      // platform#46: stale checks use touches from BEFORE this request; ops in the same batch never make each other stale.
+      var pre = JSON.parse(JSON.stringify(l.touch)), preAll = l.staleAll || 0;
+      var KNOWN = ['op_id', 'type', 'slot', 'item_id', 'base_version', 'priority', 'note', 'obtained', 'client_ts'];
+      var slotT = function (slot) { return Math.max.apply(null, [preAll].concat(Object.keys(pre).filter(function (k) { return k.indexOf(slot + ':') === 0; }).map(function (k) { return pre[k]; }))); };
       ops.forEach(function (o) {
+        var unk = Object.keys(o).filter(function (k) { return KNOWN.indexOf(k) < 0; });
+        if (unk.length) out.ignored.push({ op_id: o.op_id, keys: unk });
         if (s.flags.seen.indexOf(o.op_id) >= 0) { out.duplicates.push(o.op_id); return; }
         s.flags.seen.push(o.op_id);
+        if (o.type === 'set_slot' || o.type === 'clear_slot') {
+          var cur = l.items.filter(function (x) { return x.slot === o.slot; });
+          if (o.type === 'set_slot') {
+            var it = sc() === 'notforever' ? null : findItem(o.item_id);
+            if (!it) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); return; }
+            if (!fits(it, o.slot)) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_in_slot', message: 'item_not_in_slot' }); return; }
+          }
+          var ts = slotT(o.slot);  // stale check runs BEFORE the no-op check; a rejection bumps the version
+          if (ts > o.base_version) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: ts, message: 'Stale base_version.' }); return; }
+          var noop = o.type === 'clear_slot' ? !cur.length : cur.length === 1 && cur[0].item_id === o.item_id;
+          if (o.type === 'set_slot' && !cur.length && l.items.length >= ITEMS_MAX) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'list_items_limit', message: 'list_items_limit' }); return; }
+          if (!noop) {
+            l.version++; l.touch[o.slot + ':*'] = l.version; cur.forEach(function (x) { l.touch[o.slot + ':' + x.item_id] = l.version; });
+            l.items = l.items.filter(function (x) { return x.slot !== o.slot; });
+            if (o.type === 'set_slot') { l.touch[o.slot + ':' + o.item_id] = l.version; l.items.push({ slot: o.slot, item_id: o.item_id, priority: 1, note: null, obtained: false, obtained_at: null, icon_url: null }); }
+          }
+          out.applied.push(o.op_id); return;  // no-op: accepted, no version bump
+        }
         if (o.type === 'add_item' && (sc() === 'notforever' || !findItem(o.item_id))) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); return; }
-        var key = o.slot + ':' + o.item_id, t = Math.max(l.touch[key] || 0, l.staleAll || 0);
+        var key = o.slot + ':' + o.item_id, t = Math.max(pre[key] || 0, pre[o.slot + ':*'] || 0, preAll);  // slot wiped by set/clear earlier -> stale
         if (t > o.base_version) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); return; }
         l.version++; l.touch[key] = l.version;
         if (o.type === 'remove_item') l.items = l.items.filter(function (x) { return !(x.slot === o.slot && x.item_id === o.item_id); });
