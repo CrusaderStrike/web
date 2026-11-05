@@ -3,91 +3,168 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Crusader Strike — a World of Warcraft Classic community platform.">
-  <title>Crusader Strike</title>
+  <meta name="description" content="Crusader Strike — guild websites, Dungeon Run and World PvP rankings, and a Classic addon for your community.">
+  <meta name="theme-color" content="#0b0907">
+  <title>Crusader Strike — WoW Classic community platform</title>
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
-  <style>
-    :root {
-      --bg: #0c0a08;
-      --panel: #1a1410;
-      --gold: #c9a227;
-      --gold-dim: #8a7018;
-      --parchment: #e8d9b5;
-      --muted: #a89878;
-      --accent: #6b2d1a;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background:
-        radial-gradient(ellipse at 50% 0%, #2a1c12 0%, var(--bg) 55%),
-        var(--bg);
-      color: var(--parchment);
-      font-family: Georgia, "Times New Roman", serif;
-    }
-    main {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1.25rem;
-      text-align: center;
-    }
-    .mark {
-      width: min(160px, 40vw);
-      height: auto;
-      filter: drop-shadow(0 0 18px rgba(201, 162, 39, 0.35));
-      margin-bottom: 1.5rem;
-    }
-    h1 {
-      margin: 0 0 0.5rem;
-      font-size: clamp(1.75rem, 5vw, 2.75rem);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--gold);
-      text-shadow: 0 2px 0 #000, 0 0 24px rgba(201, 162, 39, 0.25);
-    }
-    .tag {
-      margin: 0 0 1.75rem;
-      max-width: 28rem;
-      color: var(--muted);
-      font-size: 1.05rem;
-      line-height: 1.5;
-    }
-    .panel {
-      background: linear-gradient(180deg, #241a12 0%, var(--panel) 100%);
-      border: 1px solid var(--gold-dim);
-      box-shadow: 0 0 0 1px #000, 0 12px 40px rgba(0,0,0,0.45);
-      border-radius: 4px;
-      padding: 1.25rem 1.5rem;
-      max-width: 26rem;
-    }
-    .panel p {
-      margin: 0;
-      font-size: 0.95rem;
-      line-height: 1.55;
-      color: var(--parchment);
-    }
-    .panel strong { color: var(--gold); }
-    footer {
-      margin-top: 2.5rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-      letter-spacing: 0.04em;
-    }
-  </style>
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/landing.css">
 </head>
 <body>
-  <main>
-    <img class="mark" src="assets/logo.svg" width="160" height="160" alt="Crusader Strike shield and sword emblem">
-    <h1>Crusader Strike</h1>
-    <p class="tag">A World of Warcraft Classic community platform for guilds, rankings, and the open world.</p>
-    <div class="panel" role="status">
-      <p><strong>The forge is lit.</strong> This placeholder marks crusaderstrike.com as live on GitHub Pages. The full landing page ships next.</p>
-    </div>
-    <footer>For Azeroth — Classic.</footer>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="index.html">
+      <img src="assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="#pitch">Features</a></li>
+        <li><a href="#signup">Join</a></li>
+        <li><a href="leaderboards.html">Leaderboards</a></li>
+        <li><a href="guild.html">Guilds</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="cs-wrap hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title" class="cs-display">Forge your Classic community</h1>
+        <p class="lede">
+          Crusader Strike is a World of Warcraft Classic platform for guilds: websites that look the part,
+          Dungeon Run and World PvP rankings, and an addon that keeps your roster in the fight.
+        </p>
+        <div class="cta-row">
+          <a class="cs-btn cs-btn-primary" href="#signup">Request early access</a>
+          <a class="cs-btn cs-btn-ghost" href="#pitch">See what ships</a>
+        </div>
+      </div>
+      <div class="hero-mark" aria-hidden="true">
+        <img src="assets/logo.svg" width="280" height="280" alt="">
+      </div>
+    </section>
+
+    <section id="pitch" class="cs-wrap cs-section" aria-labelledby="pitch-title">
+      <h2 id="pitch-title" class="cs-display">Built for guilds that still take the open world seriously</h2>
+      <p class="cs-section-intro">
+        Whether you run a raiding guild or a World PvP warband, Crusader Strike gives you a home page,
+        competitive ladders, and tools that stay out of the way until you need them.
+      </p>
+      <div class="cards">
+        <article class="cs-card">
+          <h3>Guild websites</h3>
+          <p>Claim a guild page with roster highlights, progression, and recruitment — branded with the Crusader Strike shield.</p>
+        </article>
+        <article class="cs-card">
+          <h3>Dungeon Run &amp; World PvP rankings</h3>
+          <p>Climb ladders for timed dungeon runs and open-world PvP. Compare alts, brackets, and rival guilds without leaving Classic.</p>
+        </article>
+        <article class="cs-card">
+          <h3>The addon</h3>
+          <p>A lightweight Classic addon that syncs what matters for rankings and guild ops — no bloat, no drama.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="signup" class="cs-section signup" aria-labelledby="signup-title">
+      <div class="cs-wrap signup-grid">
+        <div>
+          <h2 id="signup-title" class="cs-display">Join the waiting list</h2>
+          <p class="cs-section-intro">
+            Tell us your guild and where you play. We use double opt-in: after you submit, check your email to confirm.
+          </p>
+        </div>
+        <form class="cs-form-panel" id="signup-form" novalidate>
+          <p class="cs-form-note" role="note">
+            <strong>Mocked by default.</strong> Set <code>USE_MOCK_SIGNUP</code> to false in
+            <code>js/config.js</code> when <code>https://api.crusaderstrike.com</code> is live.
+            <!-- TODO(web#3): flip mock off once Platform Dev enables POST /api/v1/signups -->
+          </p>
+
+          <div class="cs-hp" aria-hidden="true">
+            <label for="website">Website</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="cs-field">
+            <label for="email">Email</label>
+            <span class="cs-hint" id="email-hint">We'll only use this for early-access notices. Max 254 characters.</span>
+            <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" aria-describedby="email-hint" placeholder="you@example.com">
+          </div>
+
+          <div class="cs-field">
+            <label for="character_name">Character name <span class="cs-muted">(optional)</span></label>
+            <input id="character_name" name="character_name" type="text" autocomplete="nickname" maxlength="48" placeholder="e.g. Thrall">
+          </div>
+
+          <div class="cs-field">
+            <label for="realm">Realm <span class="cs-muted">(optional)</span></label>
+            <input id="realm" name="realm" type="text" maxlength="48" placeholder="e.g. Whitemane">
+          </div>
+
+          <div class="cs-field">
+            <label for="faction">Faction <span class="cs-muted">(optional)</span></label>
+            <select id="faction" name="faction">
+              <option value="">Select…</option>
+              <option value="alliance">Alliance</option>
+              <option value="horde">Horde</option>
+            </select>
+          </div>
+
+          <div class="cs-field">
+            <label for="guild_name">Guild <span class="cs-muted">(optional)</span></label>
+            <input id="guild_name" name="guild_name" type="text" maxlength="48" placeholder="e.g. Crusaders of Light">
+          </div>
+
+          <fieldset class="cs-field" style="border:0;padding:0;margin:0 0 1rem">
+            <legend style="font-size:0.9rem;font-weight:600;margin-bottom:0.35rem">Interests <span class="cs-muted">(optional)</span></legend>
+            <div class="interest-grid">
+              <div class="cs-field-check" style="margin:0">
+                <input id="interest_guild_site" name="interest_guild_site" type="checkbox">
+                <label for="interest_guild_site">Guild site</label>
+              </div>
+              <div class="cs-field-check" style="margin:0">
+                <input id="interest_dungeon_run" name="interest_dungeon_run" type="checkbox">
+                <label for="interest_dungeon_run">Dungeon Run</label>
+              </div>
+              <div class="cs-field-check" style="margin:0">
+                <input id="interest_world_pvp" name="interest_world_pvp" type="checkbox">
+                <label for="interest_world_pvp">World PvP</label>
+              </div>
+              <div class="cs-field-check" style="margin:0">
+                <input id="interest_addon" name="interest_addon" type="checkbox">
+                <label for="interest_addon">Addon</label>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="cs-field-check">
+            <input id="consent" name="consent" type="checkbox" required aria-describedby="consent-note">
+            <label for="consent">
+              I agree to be contacted about Crusader Strike early access. See our
+              <a href="#privacy-note" id="privacy-note">privacy note</a>
+              (consent version <code>2026-11-04</code>).
+            </label>
+          </div>
+          <p class="cs-hint" id="consent-note" style="margin:-0.5rem 0 1rem">
+            We store your email and optional character details to run the waitlist and send a confirmation link.
+            No credentials or cookies are sent with the signup request. You can ignore the email to stay off the list.
+          </p>
+
+          <button class="cs-btn cs-btn-primary" type="submit">Join the list</button>
+          <p class="cs-form-status" id="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
   </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — for Azeroth, Classic.</span>
+    <span><a href="https://github.com/CrusaderStrike/web">Source</a></span>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/signup.js"></script>
 </body>
 </html>
