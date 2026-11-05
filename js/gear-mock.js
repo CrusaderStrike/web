@@ -19,11 +19,11 @@
       { slot: 'finger1', itemId: 910009, name: null, quality: null, ilvl: null, icon: null }
     ],
     ch_us_1002: [
-      { slot: 'head', itemId: 920001, name: 'Circlet of Stormwatch Keep', quality: 'rare', ilvl: 57, icon: 'inv_boots_01', icon_url: null },
-      { slot: 'main_hand', itemId: 920002, name: 'Staff of Gentle Embers', quality: 'epic', ilvl: 63, icon: 'inv_crown_01', icon_url: null }
+      { slot: 'head', itemId: 920001, name: 'Circlet of Stormwatch Keep', quality: 'rare', ilvl: 57, icon: 'inv_crown_01', icon_url: null },
+      { slot: 'main_hand', itemId: 920002, name: 'Staff of Gentle Embers', quality: 'epic', ilvl: 63, icon: 'inv_staff_08', icon_url: null }
     ],
     ch_us_1003: [
-      { slot: 'chest', itemId: 930001, name: 'Briarhide Vest', quality: 'uncommon', ilvl: 48, icon: 'inv_staff_08', icon_url: null }
+      { slot: 'chest', itemId: 930001, name: 'Briarhide Vest', quality: 'uncommon', ilvl: 48, icon: 'inv_chest_leather_01', icon_url: null }
     ]
   };
   var OWNED = ['ch_us_1001', 'ch_us_1002', 'ch_us_1003', 'ch_us_1004', 'ch_us_1005', 'ch_eu_2001'];

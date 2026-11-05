@@ -6,6 +6,7 @@
   'use strict';
   var cfg = window.CS_CONFIG;
   var ICON_HOST = 'render.worldofwarcraft.com';  // only host allowed for platform-provided icon_url
+  var ICON_PATH = /^\/[a-z]{2}\/icons\/\d+\/[a-z0-9_]+\.jpg$/;  // e.g. /us/icons/56/inv_helmet_03.jpg
   window.CSGearApi = {
     /**
      * Icon URL for an item: the platform's icon_url only when it is https: on exactly
@@ -18,7 +19,8 @@
       if (typeof u !== 'string') return ph;
       try {
         var p = new URL(u);
-        if (p.protocol === 'https:' && p.hostname === ICON_HOST) return p.href;
+        if (p.protocol === 'https:' && p.hostname === ICON_HOST && !p.username && !p.password && p.port === '' && !p.search && !p.hash &&
+            ICON_PATH.test(p.pathname)) return p.href;
       } catch (e) { /* invalid URL -> placeholder */ }
       return ph;
     },

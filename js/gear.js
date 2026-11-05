@@ -16,7 +16,11 @@
     ['loading', 'disabled', 'signedout', 'notfound', 'error', 'ready'].forEach(function (s) { $('gr-' + s).hidden = s !== name; });
     var h = $('gr-' + name + '-h'); if (h && name !== 'loading') h.focus();
   }
-  function fullName(c) { return [txt(c.character_name), txt(c.surname)].filter(Boolean).join(' ') || 'your character'; }
+  function fullName(c) {
+    var n = [txt(c.character_name), txt(c.surname)].filter(Boolean).join(' ') || 'your character';
+    var where = [txt(c.realm), txt(c.region).toUpperCase()].filter(Boolean).join(' ');
+    return where ? n + ' (' + where + ')' : n;
+  }
 
   function render(body, ch) {
     var name = ch ? fullName(ch) : 'Character';

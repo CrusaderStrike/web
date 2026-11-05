@@ -10,7 +10,7 @@ await p.evaluate(()=>{CSAuthMock.devSignIn();localStorage.setItem('cs_mock_selec
 await p.goto(B+'profile/'); await vis('#pf-ready');
 await p.click('[data-id=ch_us_1001] .pf-gear-link'); await p.waitForURL(/gear\/\?character=ch_us_1001/);
 ok(await p.isVisible('#gr-loading'),'loading state'); ok(await vis('#gr-ready'),'ready via profile link');
-ok((await p.textContent('#gr-h'))==='Lightbringer Dawnmantle — gear','heading');
+ok(/^Lightbringer Dawnmantle \([A-Z][\w' ]+ US\) — gear$/.test(await p.textContent('#gr-h')),'heading with realm and region: '+await p.textContent('#gr-h'));
 ok(/^Last updated /.test(await p.textContent('#gr-updated')),'updated_at shown');
 const rows=await p.$$eval('#gr-body tr',t=>t.map(r=>[...r.cells].map(c=>c.textContent)));
 ok(rows.length===9,'9 items (empty slots omitted)'); ok(rows.map(r=>r[0]).join(',')==='Head,Neck,Shoulder,Chest,Shirt,Hands,Feet,Finger 1,Main hand','slot order: '+rows.map(r=>r[0]));
@@ -84,5 +84,14 @@ for(const [w,h,f,dpr] of [[1280,900,(process.env.SHOT_DIR||'/workspace')+'/gear-
  ok(await q.$$eval('#gr-body .gr-icon',i=>i.every(x=>x.getBoundingClientRect().width===36)),w+'px: no layout shift, 36px frames');
  ok(await q.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),w+'px: no horizontal overflow');
  await q.screenshot({path:f,fullPage:true});ok(require('fs').statSync(f).size>5000,'screenshot '+f);await c.close();}}
+{const r=await p.evaluate(()=>{const ok='https://render.worldofwarcraft.com/us/icons/56/inv_helmet_03.jpg';
+ const bad=['http://render.worldofwarcraft.com/us/icons/56/a.jpg','javascript:alert(1)','//render.worldofwarcraft.com/us/icons/56/a.jpg',
+ 'https://x.render.worldofwarcraft.com/us/icons/56/a.jpg','https://render.worldofwarcraft.com.evil.com/us/icons/56/a.jpg',
+ 'https://render.worldofwarcraft.com@evil.com/us/icons/56/a.jpg','https://render.worldofwarcraft.com./us/icons/56/a.jpg',
+ 'https://evil.com@render.worldofwarcraft.com/us/icons/56/a.jpg','https://u:p@render.worldofwarcraft.com/us/icons/56/a.jpg',
+ 'https://render.worldofwarcraft.com:8443/us/icons/56/a.jpg','https://render.worldofwarcraft.com/evil.svg',
+ 'https://render.worldofwarcraft.com/us/icons/56/a.jpg?x=1#','data:image/png;base64,AAAA','not a url',42,null,undefined,{}];
+ return {ok:CSGearApi.iconFor({icon_url:ok})===ok, bad:bad.filter(u=>CSGearApi.iconFor({icon_url:u})!==null).map(String)};});
+ok(r.ok,'allowlisted icon_url accepted');ok(r.bad.length===0,'hostile icon_url list rejected: '+r.bad.join(' '));}
 ok(errs.length===0,'no page errors '+errs.join('|'));
 await b.close();})();
