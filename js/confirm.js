@@ -10,13 +10,20 @@
   var params = new URLSearchParams(window.location.search);
   var token = (params.get('token') || '').trim();
 
-  function setTone(tone, html) {
+  function setTone(tone, text, linkText, linkHref) {
     statusEl.dataset.tone = tone || '';
-    statusEl.innerHTML = html || '';
+    statusEl.textContent = text || '';
+    if (linkText) {
+      var a = document.createElement('a');
+      a.href = linkHref;
+      a.textContent = linkText;
+      statusEl.appendChild(a);
+      statusEl.appendChild(document.createTextNode('.'));
+    }
   }
 
   if (!token) {
-    setTone('err', 'This confirmation link is missing a token. <a href="../index.html#signup">Request a new signup</a>.');
+    setTone('err', 'This confirmation link is missing a token. ', 'Request a new signup', '../index.html#signup');
     btn.hidden = true;
     return;
   }
@@ -61,13 +68,19 @@
         if (result.status === 200 && result.body && result.body.status === 'confirmed') {
           setTone('ok', 'You are confirmed. Welcome to Crusader Strike.');
           btn.hidden = true;
-          if (actionEl) actionEl.innerHTML = '<a class="cs-btn cs-btn-primary" href="../index.html">Back to home</a>';
+          if (actionEl) {
+            var home = document.createElement('a');
+            home.className = 'cs-btn cs-btn-primary';
+            home.href = '../index.html';
+            home.textContent = 'Back to home';
+            actionEl.replaceChildren(home);
+          }
           return;
         }
         var tokenMsg = result.body && result.body.errors && result.body.errors.token
           ? result.body.errors.token
           : 'invalid or expired';
-        setTone('err', 'This confirmation link is ' + tokenMsg + '. <a href="../index.html#signup">Sign up again</a>.');
+        setTone('err', 'This confirmation link is ' + String(tokenMsg) + '. ', 'Sign up again', '../index.html#signup');
         btn.hidden = true;
       })
       .catch(function () {
