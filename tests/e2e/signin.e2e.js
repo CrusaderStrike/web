@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const B='http://localhost:8765/';
+const B='http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async()=>{const b = require('./_test-config.js').withTestConfig(await chromium.launch());const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
 const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c)process.exitCode=1;};
 await p.goto(B+'index.html'); ok(await p.locator('#nav-bnet').isHidden(),'entry hidden by default');

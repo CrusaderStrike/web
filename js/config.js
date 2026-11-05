@@ -12,7 +12,8 @@ window.CS_CONFIG = Object.freeze({
   USE_MOCK_GEAR: true,
   GEAR_PATH: '/api/v1/characters/{id}/gear',      // platform#30 getCharacterGear
   // web#18 gear lists (platform#17, per character, max 5). true = js/gear-lists-mock.js (?mock= scenarios); false = real API.
-  USE_MOCK_GEAR_LISTS: true,
+  // web#40: live against platform main src/routes/gear-lists.ts (signed-in only; cs_session cookie + X-CSRF-Token on writes).
+  USE_MOCK_GEAR_LISTS: false,
   GEAR_LISTS_PATHS: Object.freeze({
     LISTS: '/api/v1/characters/{id}/gear-lists',     // GET, POST {name, visibility}
     LIST: '/api/v1/gear-lists/{id}',                  // GET, PATCH/DELETE with If-Match "v<version>"

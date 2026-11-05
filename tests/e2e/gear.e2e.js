@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const B='http://localhost:8765/';
+const B='http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async()=>{const b = require('./_test-config.js').withTestConfig(await chromium.launch());const p=await b.newPage();await p.route('https://render.worldofwarcraft.com/**',r=>r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg"/>'}));const errs=[];p.on('pageerror',e=>errs.push(e.message));
 const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c)process.exitCode=1;};
 const vis=s=>p.waitForSelector(s+':not([hidden])',{timeout:5000}).then(()=>true,()=>false);
@@ -52,7 +52,7 @@ const t=await p.evaluate(()=>document.body.innerText); ok(!/\b(undefined|null|Na
 // real client path
 const p2=await b.newPage(); let url='';
 await p2.route('https://render.worldofwarcraft.com/**',r=>r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'}));
-await p2.route('https://api.crusaderstrike.com/**',r=>{url=r.request().url();r.fulfill({status:200,headers:{'Access-Control-Allow-Origin':'http://localhost:8765','Access-Control-Allow-Credentials':'true'},contentType:'application/json',body:JSON.stringify({character_id:'ch_us_1001',updated_at:'2026-11-04T18:00:00Z',items:[{slot:'head',itemId:1,name:'Real Helm',quality:'rare',ilvl:60,icon:'inv_helmet_03'},{slot:'chest',itemId:3,name:'Url Chest',quality:'rare',ilvl:60,icon:'inv_x',icon_url:'https://render.worldofwarcraft.com/us/icons/56/inv_chest_plate03.jpg'},{slot:'neck',itemId:2,name:'Bad Icon',quality:'epic',ilvl:60,icon:'../../evil"x'}]})});});
+await p2.route('https://api.crusaderstrike.com/**',r=>{url=r.request().url();r.fulfill({status:200,headers:{'Access-Control-Allow-Origin':B.slice(0, -1),'Access-Control-Allow-Credentials':'true'},contentType:'application/json',body:JSON.stringify({character_id:'ch_us_1001',updated_at:'2026-11-04T18:00:00Z',items:[{slot:'head',itemId:1,name:'Real Helm',quality:'rare',ilvl:60,icon:'inv_helmet_03'},{slot:'chest',itemId:3,name:'Url Chest',quality:'rare',ilvl:60,icon:'inv_x',icon_url:'https://render.worldofwarcraft.com/us/icons/56/inv_chest_plate03.jpg'},{slot:'neck',itemId:2,name:'Bad Icon',quality:'epic',ilvl:60,icon:'../../evil"x'}]})});});
 await p2.goto(B+'profile/?ff_bnet=1'); await p2.evaluate(()=>{CSAuthMock.devSignIn();});
 await p2.addInitScript(()=>{Object.defineProperty(window,'CS_CONFIG',{configurable:true,set(v){Object.defineProperty(window,'CS_CONFIG',{value:Object.freeze(Object.assign({},v,{USE_MOCK_GEAR:false})),writable:false});},get(){return undefined;}});});
 await p2.goto(B+'gear/?character=ch_us_1001'); await p2.waitForSelector('#gr-ready:not([hidden])');

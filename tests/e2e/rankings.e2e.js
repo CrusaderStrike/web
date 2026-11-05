@@ -1,7 +1,7 @@
 // web#20 rankings page. Run: node tests/e2e/rankings.e2e.js (site served on http://localhost:8765).
 const { chromium } = require('playwright');
 const fs = require('fs');
-const B = 'http://localhost:8765/';
+const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async () => {
 const b = require('./_test-config.js').withTestConfig(await chromium.launch());
 let p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));

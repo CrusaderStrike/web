@@ -26,7 +26,9 @@
     var h = $('gl-' + name + '-h'); if (h && name !== 'loading' && name !== 'ready') h.focus();
   }
   function when(iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString() : 'unknown time'; }
-  function errMsg(r) { return (r && r.body && r.body.error && txt(r.body.error.message)) || 'Something went wrong. Please try again.'; }
+  /** platform app.ts error handler: { error: { code, message } }, or { errors: { field: msg } } when the AppError carries fields. */
+  function fieldMsg(r) { var e = r && r.body && r.body.errors; if (!e || typeof e !== 'object') return ''; var k = Object.keys(e)[0]; return k ? txt(e[k]) : ''; }
+  function errMsg(r) { return (r && r.body && r.body.error && txt(r.body.error.message)) || fieldMsg(r) || 'Something went wrong. Please try again.'; }
   function code(r) { return r && r.body && r.body.error && r.body.error.code; }
   function itemName(i) { return txt(i.name) || 'Item ' + i.item_id; }
   function retryAfter(r) { var n = parseInt(r && r.headers && r.headers['retry-after'], 10); return n > 0 && n < 3600 ? n : 30; }
@@ -53,6 +55,9 @@
     if (r.status === 401) { show('signedout'); return true; }
     if (r.status === 403 && code(r) === 'csrf_failed' && retry && !retry._csrf) {
       retry._csrf = true; api.session().then(function () { retry(); }); return true;  // refresh the token, retry once
+    }
+    if (r.status === 403 && !code(r) && r.body && r.body.errors && r.body.errors.character_id) {
+      banner('This character is no longer your selected main or alt. Your change was not saved.'); return true;
     }
     if (r.status === 403 && code(r) === 'forbidden') { setReadOnly(true); banner('Only the list owner can change this list. Your change was not saved.'); return true; }
     if (r.status === 404) { banner('That list no longer exists. It may have been deleted elsewhere.'); reloadLists(null); return true; }
