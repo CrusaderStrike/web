@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 const B = 'http://localhost:8765/';
 (async () => {
-  const b = await chromium.launch();
+  const b = require('./_test-config.js').withTestConfig(await chromium.launch());
   const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });

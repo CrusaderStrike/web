@@ -34,4 +34,4 @@
 }
 
 /* web#17 flag-gated nav entry */
-#nav-bnet[hidden] { display: none !important; }
+#nav-bnet[hidden], #hero-bnet[hidden] { display: none !important; }
