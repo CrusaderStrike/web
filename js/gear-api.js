@@ -7,15 +7,13 @@
   var cfg = window.CS_CONFIG;
   var ICON_HOST = 'render.worldofwarcraft.com';  // only host allowed for platform-provided icon_url
   window.CSGearApi = {
-    /** The one local placeholder icon path used everywhere on the gear page. */
-    PLACEHOLDER_ICON: '/assets/icons/item.svg',
     /**
      * Icon URL for an item: the platform's icon_url only when it is https: on exactly
-     * ICON_HOST; otherwise the local placeholder. Clients must not build
+     * ICON_HOST; otherwise null, and the page draws its slot placeholder (js/gear-icons.js). Clients must not build
      * icon URLs themselves (platform#31).
      */
     iconFor: function (item) {
-      var ph = this.PLACEHOLDER_ICON;
+      var ph = null;
       var u = item && item.icon_url;
       if (typeof u !== 'string') return ph;
       try {

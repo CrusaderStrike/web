@@ -44,11 +44,22 @@
       var s = el('td', null, SLOT_LABEL[i.slot]); s.setAttribute('data-label', 'Slot'); tr.appendChild(s);
       var it = el('td'); it.setAttribute('data-label', 'Item');
       var wrap = el('span', 'gr-item q-' + q);
-      var img = el('img', 'gr-icon'); img.alt = ''; img.width = 36; img.height = 36; img.loading = 'lazy';
-      var ph = window.CSGearApi.PLACEHOLDER_ICON;
-      img.addEventListener('error', function () { if (img.getAttribute('src') !== ph) img.src = ph; });
-      img.src = window.CSGearApi.iconFor(i);
-      wrap.appendChild(img);
+      // Fixed 36x36 frame, border colored by quality; holds the allowlisted icon or the slot placeholder.
+      var frame = el('span', 'gr-icon');
+      frame.setAttribute('aria-hidden', 'true');
+      var url = window.CSGearApi.iconFor(i);
+      var usePlaceholder = function () {
+        while (frame.firstChild) frame.removeChild(frame.firstChild);
+        frame.classList.add('gr-icon-ph');
+        frame.appendChild(window.CSGearIcons.placeholder(i.slot));
+      };
+      if (url) {
+        var img = el('img'); img.alt = ''; img.width = 32; img.height = 32; img.loading = 'lazy';
+        img.addEventListener('error', usePlaceholder);
+        img.src = url;
+        frame.appendChild(img);
+      } else usePlaceholder();
+      wrap.appendChild(frame);
       wrap.appendChild(el('span', 'gr-name', txt(i.name) || 'Unknown item'));
       it.appendChild(wrap); tr.appendChild(it);
       var qc = el('td', 'q-' + q, QUALITY[q]); qc.setAttribute('data-label', 'Quality'); tr.appendChild(qc);
