@@ -8,4 +8,4 @@ npm i -D playwright && npx playwright install chromium
 node tests/e2e/gear.e2e.js           # also profile.e2e.js, signin.e2e.js, rankings.e2e.js
 ```
 
-Each script prints PASS/FAIL lines and exits non-zero on any failure. All data comes from the in-browser mocks; no network or credentials are needed. `gear.e2e.js` writes screenshots to `/workspace/gear-placeholder-*.png`.
+Suites force a flag-off, all-mock config through `tests/e2e/_test-config.js` (set `CS_E2E_SHIPPED_CONFIG=1` to test the committed config). Each script prints PASS/FAIL lines and exits non-zero on any failure. All data comes from the in-browser mocks; no network or credentials are needed. `gear.e2e.js` writes screenshots to `/workspace/gear-placeholder-*.png`.

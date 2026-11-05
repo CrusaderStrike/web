@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
 const B='http://localhost:8765/';
-(async()=>{const b=await chromium.launch();const p=await b.newPage();await p.route('https://render.worldofwarcraft.com/**',r=>r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg"/>'}));const errs=[];p.on('pageerror',e=>errs.push(e.message));
+(async()=>{const b = require('./_test-config.js').withTestConfig(await chromium.launch());const p=await b.newPage();await p.route('https://render.worldofwarcraft.com/**',r=>r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg"/>'}));const errs=[];p.on('pageerror',e=>errs.push(e.message));
 const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c)process.exitCode=1;};
 const vis=s=>p.waitForSelector(s+':not([hidden])',{timeout:5000}).then(()=>true,()=>false);
 await p.goto(B+'gear/?character=ch_us_1001'); ok(await vis('#gr-disabled'),'flag off -> coming soon');

@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const B = 'http://localhost:8765/';
 (async () => {
-const b = await chromium.launch();
+const b = require('./_test-config.js').withTestConfig(await chromium.launch());
 let p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
 const ready = () => p.waitForFunction(() => document.getElementById('rk-table').getAttribute('aria-busy') === 'false' || !document.getElementById('rk-error').hidden || !document.getElementById('rk-empty').hidden);
