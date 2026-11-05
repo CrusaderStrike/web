@@ -238,7 +238,7 @@
       btn.disabled = false; btn.removeAttribute('aria-busy');
       if (r.status === 401) { $('pf-create').close(); show('signedout'); return; }
       if (r.status === 400) { var fc = R.fieldCodes(r); if (Object.keys(fc).length) { showCodes(fc); return; } }
-      if (r.status === 409 && R.isListLimit(code(r))) { $('pf-c-error').textContent = 'This character already has ' + cfg.ARMORY_MAX_SETS + ' gear sets. Delete one to make another.'; $('pf-c-error').hidden = false; return; }
+      if (r.status === 409 && R.isListLimit(code(r))) { $('pf-c-error').textContent = R.limitMessage(r, 'gear sets'); $('pf-c-error').hidden = false; return; }  // server 409 is the truth (main caps at 5, platform#43 at 20)
       if ((r.status === 409 && code(r) === 'character_not_displayed') || (r.status === 403 && r.body && r.body.errors && r.body.errors.character_id)) { $('pf-c-error').textContent = R.MSG.character_not_displayed; $('pf-c-error').hidden = false; return; }
       if (!r.ok) { $('pf-c-error').textContent = 'Could not create the set: ' + errMsg(r, 'please try again.'); $('pf-c-error').hidden = false; return; }
       $('pf-create').close();

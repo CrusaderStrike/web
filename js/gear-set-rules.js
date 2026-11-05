@@ -1,5 +1,5 @@
 /**
- * web#42 shared gear-set rules (gear-list schema v1, /workspace/groom/gear-list-schema.md; platform openapi/v1.yaml). Used by the armory (profile) and the gear-lists page.
+ * web#42 shared gear-set rules (gear-list schema v1; platform openapi/v1.yaml). Used by the armory (profile) and the gear-lists page.
  * type: leveling | max_level. Leveling needs until_level > character level and <= 60; at level 60 only max_level.
  */
 (function () {
@@ -26,6 +26,17 @@
     MAX_LEVEL: MAX, ROLE_MAX: ROLE_MAX, MSG: MSG,
     /** 409 list cap (platform contract): list_limit_reached. */
     isListLimit: function (code) { return code === 'list_limit_reached'; },
+    /** Limit from a 409 list_limit_reached body (error.details.limit / error.limit / body.limit, else a number in the message); null if absent. */
+    listLimit: function (r) {
+      var b = (r && r.body) || {}, e = b.error || {}, d = e.details || {};
+      var n = [d.limit, d.max, e.limit, b.limit].map(function (x) { return parseInt(x, 10); }).filter(function (x) { return x > 0; })[0];
+      if (!n) { var m = /\b(\d{1,4})\b/.exec(e.message || ''); n = m ? parseInt(m[1], 10) : 0; }
+      return n > 0 ? n : null;
+    },
+    limitMessage: function (r, noun) {
+      var n = this.listLimit(r);
+      return n ? 'This character already has ' + n + ' ' + noun + ' (the maximum). Delete one to make another.' : 'This character already has the maximum number of ' + noun + '. Delete one to make another.';
+    },
     canLevel: function (c) { return lvl(c) < MAX; },
     defaultType: function (c) { return lvl(c) < MAX ? 'leveling' : 'max_level'; },
     minUntil: function (c) { return Math.min(MAX, lvl(c) + 1); },

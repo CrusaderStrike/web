@@ -1,5 +1,13 @@
 /** Site config. API_BASE is shared by the auth, profile, gear and rankings clients. */
-window.CS_CONFIG = Object.freeze({
+/** Production hosts: in-browser mocks never run here, whatever the flags below say (see csProdGuard). */
+window.CS_PROD_HOSTS = Object.freeze(['crusaderstrike.com', 'www.crusaderstrike.com']);
+function csProdGuard(c) {
+  var h = ''; try { h = String(location.hostname || '').toLowerCase(); } catch (e) {}
+  c.IS_PROD_HOST = window.CS_PROD_HOSTS.indexOf(h) >= 0;
+  if (c.IS_PROD_HOST) c.USE_MOCK_ARMORY = false;  // armory mocks are dev/test only
+  return c;
+}
+window.CS_CONFIG = Object.freeze(csProdGuard({
   API_BASE: 'https://api.crusaderstrike.com',
   // web#17: Battle.net sign-in + main/alt picker. OFF in production.
   // Dev/preview override (non-production hosts only): ?ff_bnet=1 or localStorage cs_ff_bnet=1.
@@ -21,17 +29,17 @@ window.CS_CONFIG = Object.freeze({
     EVENTS: '/api/v1/gear-lists/{id}/events'          // GET ?after_version=&limit=
   }),
   // web#42 profile display toggles + armory gear sets. Contract: platform main openapi/v1.yaml + src/routes/{profile,gear-lists}.ts,
-  // gear-list schema v1 (/workspace/groom/gear-list-schema.md). Display = PUT selection; slot edits = POST ops.
+  // gear-list schema v1. Display = PUT selection; slot edits = POST ops.
   // true = js/armory-mock.js (fictional Forever items, ?mock_armory= scenarios); false = real API at API_BASE.
-  USE_MOCK_ARMORY: true,
+  USE_MOCK_ARMORY: false,  // forced false on CS_PROD_HOSTS regardless; e2e suites force true via _test-config.js
   ARMORY_PATHS: Object.freeze({
     SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, visibility?} (shipped); type/until_level/role_spec sent for platform#43
     SET: '/api/v1/gear-lists/{id}',                   // GET (ETag "v<version>")
     OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops:[add_item|remove_item, op_id, slot, item_id, base_version]} -> {version, applied, duplicates, conflicts, list}
-    ITEMS: '/api/v1/items',                           // platform#42 (open): GET ?slot=&q=&max_required_level=&cursor= -> {items, next_cursor}
-    ITEM: '/api/v1/items/{id}'                        // platform#42 (open)
+    ITEMS: '/api/v1/items',                           // GET ?slot=&q=&max_required_level=&cursor= -> {items, next_cursor}
+    ITEM: '/api/v1/items/{id}'
   }),
-  ARMORY_MAX_SETS: 20,
+  ARMORY_MAX_SETS: 20,  // UI hint only; never blocks a create. The server's 409 list_limit_reached is the source of truth.
   ARMORY_MAX_LEVEL: 60,
   ARMORY_SLOTS: Object.freeze(['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist', 'hands', 'waist', 'legs', 'feet',
     'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand', 'ranged']),
@@ -75,7 +83,7 @@ window.CS_CONFIG = Object.freeze({
       })
     })
   })
-});
+}));
 
 /** Resolves the Battle.net sign-in flag. Production hosts ignore overrides. */
 window.csBnetEnabled = function () {

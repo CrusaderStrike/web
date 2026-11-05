@@ -176,9 +176,9 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.click('#pf-drawer-btn'); await p.waitForTimeout(300); await p.click(`.pf-set[data-set="${setId}"]`);
   ok(await until(() => !document.getElementById('pf-panel').classList.contains('is-open') && !document.getElementById('pf-armory-view').hidden), 'choosing a set closes the drawer and opens the armory');
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= 375), 'no horizontal overflow at 375px');
-  await p.screenshot({ path: '/workspace/armory-mobile.png', fullPage: true });
+  await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-mobile.png'), fullPage: true });
   await p.setViewportSize({ width: 1280, height: 900 }); await go(); await p.click(`.pf-set[data-set="${setId}"]`); await p.waitForTimeout(400);
-  await p.screenshot({ path: '/workspace/armory-desktop.png', fullPage: true });
+  await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-desktop.png'), fullPage: true });
 
   const txt = await p.evaluate(() => document.body.innerText); ok(!/\b(undefined|NaN)\b/.test(txt), 'no undefined/NaN in page text');
   const src = await p.evaluate(async () => { let s = ''; for (const f of ['js/profile.js', 'js/armory-api.js', 'js/armory-mock.js', 'js/gear-set-rules.js']) s += await (await fetch('../' + f)).text(); return s; });

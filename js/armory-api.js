@@ -1,11 +1,11 @@
 /**
  * web#42 armory client. Every call resolves { status, ok, body, headers }.
- * Contract: platform main openapi/v1.yaml + src/routes/{profile,gear-lists}.ts, and the gear-list schema v1
- * (/workspace/groom/gear-list-schema.md). Only shipped routes are used:
+ * Contract: platform main openapi/v1.yaml + src/routes/{profile,gear-lists}.ts, and the gear-list schema v1.
+ * Only shipped routes are used:
  *   display  -> PUT  /api/v1/me/characters/selection {main_id, alt_ids}   (displayed = main + alts)
  *   sets     -> GET/POST /api/v1/characters/{id}/gear-lists, GET /api/v1/gear-lists/{id}
  *   slots    -> POST /api/v1/gear-lists/{id}/ops {ops:[remove_item|add_item]} with op_id (uuid v4) + base_version
- *   items    -> GET /api/v1/items, /api/v1/items/{id} (platform#42, not on main yet)
+ *   items    -> GET /api/v1/items, /api/v1/items/{id}
  * A list holds items[] {slot, item_id, priority}; the armory shows one item per slot (priority 1, else the first)
  * and normalizes each list to add a 19-key `slots` map.
  * CS_CONFIG.USE_MOCK_ARMORY = true -> js/armory-mock.js (same wire shapes).

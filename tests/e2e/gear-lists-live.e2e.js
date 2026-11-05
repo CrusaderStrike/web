@@ -95,7 +95,7 @@ const CH = 'ch_us_1001';
   // 409 list_limit_reached (server owns the 20 cap; no client cap)
   ok(await p.isEnabled('#gl-new-btn') && (await p.textContent('#gl-count')) === '(2)', 'no client-side 5-list cap');
   S.nextLimit = true; await p.fill('#gl-new-name', 'Twenty-first'); await p.click('#gl-new-btn');
-  ok(await p.waitForFunction(() => /already have 20 lists/.test(document.getElementById('gl-banner-msg').textContent), null, { timeout: 3000 }).then(() => true, () => false), '409 list_limit_reached banner');
+  ok(await p.waitForFunction(() => /already has 20 lists/.test(document.getElementById('gl-banner-msg').textContent), null, { timeout: 3000 }).then(() => true, () => false), '409 list_limit_reached banner');
 
   // delete (DELETE If-Match, 204)
   await p.click('#gl-delete'); await p.click('#gl-delete-confirm');

@@ -1,6 +1,6 @@
 /**
  * web#18 gear list management (platform#34 spec). All API data is set with createElement + textContent only.
- * Lists: create (type/until_level/role_spec; server cap 20 -> 409 list_limit_reached) / rename / visibility / delete with If-Match "v<n>"; 409 version_mismatch -> current list + re-apply.
+ * Lists: create (type/until_level/role_spec; server cap -> 409 list_limit_reached, limit read from the response) / rename / visibility / delete with If-Match "v<n>"; 409 version_mismatch -> current list + re-apply.
  * Items: ops batch, always 200; conflicts[] shown with a re-apply. Undo = mark_obtained obtained:false.
  */
 (function () {
@@ -16,7 +16,7 @@
     stale_base_version: 'the list had changed since you loaded it', item_not_forever: 'that item ID is not a WoW Forever item' };
   var charId = new URLSearchParams(location.search).get('character') || '';
   var lists = [], current = null, readOnly = false, pendingRetry = null;
-  var R = window.CSGearSetRules, MAXL = window.CS_CONFIG.ARMORY_MAX_SETS || 20, character = null;  // web#42: server owns the 20 cap
+  var R = window.CSGearSetRules, character = null;  // web#42: the server owns the cap (409 list_limit_reached)
 
   function txt(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : ''; }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
@@ -76,7 +76,7 @@
 
   function fillVis(sel) { clear(sel); SPEC.visibility.forEach(function (v) { var o = el('option', null, VIS_LABEL[v] || v); o.value = v; sel.appendChild(o); }); }
   function limitState() {
-    // web#42: no client-side cap; the server enforces 20 and answers 409 list_limit_reached.
+    // web#42: no client-side cap; the server enforces the cap and answers 409 list_limit_reached.
     $('gl-new-btn').disabled = readOnly; $('gl-new-name').disabled = readOnly;
     $('gl-limit').hidden = true;
     $('gl-count').textContent = '(' + lists.length + ')';
@@ -380,7 +380,7 @@
     body.visibility = $('gl-new-vis').value;
     var go = function () {
       api.create(charId, body).then(function (r) {
-        if (r.status === 409 && R.isListLimit(code(r))) { banner('You already have ' + MAXL + ' lists for this character. Delete one to make another.'); return; }
+        if (r.status === 409 && R.isListLimit(code(r))) { banner(R.limitMessage(r, 'lists')); return; }
         if (r.status === 409 && code(r) === 'character_not_displayed') { banner(R.MSG.character_not_displayed); return; }
         if (r.status === 400) {
           var fc = R.fieldCodes(r), hit = false;

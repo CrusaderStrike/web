@@ -3,7 +3,7 @@
 // gear-list schema v1: GET /me/characters {characters, selection}; PUT /me/characters/selection {main_id, alt_ids};
 // GET/POST /characters/{id}/gear-lists (403 {errors:{character_id}} when not selected, 409 list_limit_reached);
 // GET /gear-lists/{id}; POST /gear-lists/{id}/ops (add_item|remove_item, uuid op_id, base_version -> conflicts[]);
-// 429 Retry-After. Items (GET /items, /items/{id}) follow platform#42 (open). Run with the repo served on CS_E2E_PORT.
+// 429 Retry-After. Items (GET /items, /items/{id}) are live on main. Run with the repo served on CS_E2E_PORT.
 const { chromium } = require('playwright');
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 const API = 'https://api.crusaderstrike.com';
@@ -57,7 +57,7 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
       if (!selected(c.id) || (m === 'POST' && S.once.notSelected)) { S.once.notSelected = false; return J(403, { errors: { character_id: 'Must be your selected main or an alt.' } }); }
       if (m === 'GET') return J(200, { items: S.sets.filter(s => s.character_id === c.id).map(view) });
       if (S.once.create400) { const d = S.once.create400; S.once.create400 = null; return J(400, { error: { code: 'validation_error', message: 'x', request_id: 'r', details: d } }); }
-      if (S.sets.filter(s => s.character_id === c.id).length >= 20) return J(409, { error: { code: 'list_limit_reached', message: 'Maximum of 20 gear lists per character.', request_id: 'r' } });
+      if (S.sets.filter(s => s.character_id === c.id).length >= (S.cap || 20)) return J(409, { error: Object.assign({ code: 'list_limit_reached', message: S.capMsg !== undefined ? S.capMsg : 'Maximum of ' + (S.cap || 20) + ' gear lists per character.', request_id: 'r' }, S.capDetails ? { details: S.capDetails } : {}) });
       const s = mkSet(c.id, body.name, { type: body.type, until_level: body.until_level, role_spec: body.role_spec });
       S.sets.push(s); return J(201, view(s), { etag: '"v1"' });
     }
@@ -100,7 +100,7 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
     if ((mm = p.match(/^\/api\/v1\/items\/(\d+)$/))) { const it = items.find(i => i.item_id === +mm[1]); return it ? J(200, it) : J(404, err('not_found')); }
     return J(404, err('not_found'));
   });
-  const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); if (process.env.DBG) p.on('console', m => console.log('CONSOLE', m.text()));
   const vis = (s, t) => p.waitForSelector(s + ':not([hidden])', { timeout: t || 5000 }).then(() => true, () => false);
   const until = (fn, arg) => p.waitForFunction(fn, arg, { timeout: 8000 }).then(() => true, () => false);
   const idle = () => p.waitForFunction(() => document.documentElement.getAttribute('data-pf-busy') === '0', null, { timeout: 8000 }).catch(() => {});
@@ -212,8 +212,34 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   // 409 list_limit_reached at 20 sets
   while (S.sets.filter(s => s.character_id === 'ch_a').length < 20) S.sets.push(mkSet('ch_a', 'S' + n));
   await go(); await newBtn('ch_a').click(); await p.fill('#pf-c-name', 'Twenty-first'); await p.click('#pf-c-save');
-  ok(await vis('#pf-c-error') && /already has 20 gear sets/.test(await p.textContent('#pf-c-error')), '409 list_limit_reached message'); await closeCreate();
+  ok(await vis('#pf-c-error') && /already has 20 gear sets \(the maximum\)/.test(await p.textContent('#pf-c-error')), '409 list_limit_reached message'); await closeCreate();
   ok(await p.evaluate(() => CSGearSetRules.isListLimit('list_limit_reached') && !CSGearSetRules.isListLimit('list_limit')), 'only list_limit_reached is the cap code');
+  // server is the source of truth: UI hint 20 never blocks a create the server accepts
+  S.cap = 25; await go(); await newBtn('ch_a').click(); await p.fill('#pf-c-name', 'Twenty-first'); await p.click('#pf-c-save');
+  ok(await until(() => !document.getElementById('pf-create').open) && S.sets.filter(s => s.character_id === 'ch_a').length === 21, 'create past the 20 UI hint goes through when the server accepts');
+  // main's cap of 5: 409 with a 5 in the message -> message says 5, no crash
+  S.cap = 5; await go(); await newBtn('ch_a').click(); await p.fill('#pf-c-name', 'Main cap'); await p.click('#pf-c-save');
+  ok(await vis('#pf-c-error') && /already has 5 gear sets/.test(await p.textContent('#pf-c-error')), '409 from main cap 5 -> limit read from response message'); await closeCreate();
+  S.capDetails = { limit: 7 }; S.capMsg = 'Maximum of 5 gear lists'; await newBtn('ch_a').click(); await p.fill('#pf-c-name', 'Details cap'); await p.click('#pf-c-save');
+  ok(await vis('#pf-c-error') && /already has 7 gear sets/.test(await p.textContent('#pf-c-error')), '409 error.details.limit preferred over message'); await closeCreate();
+  S.capDetails = null; S.capMsg = 'Too many lists.'; await newBtn('ch_a').click(); await p.fill('#pf-c-name', 'No number'); await p.click('#pf-c-save');
+  ok(await vis('#pf-c-error') && /maximum number of gear sets/.test(await p.textContent('#pf-c-error')) && !/20/.test(await p.textContent('#pf-c-error')), '409 without a limit -> generic message, not the 20 hint'); await closeCreate();
+  S.cap = 0; S.capMsg = undefined;
+  ok(await until(() => !document.getElementById('pf-c-save').disabled), 'create button not left disabled after 409');
+  S.sets = S.sets.filter(s => !(s.character_id === 'ch_a' && /^Twenty-first$/.test(s.name)));
+
+  // prod hosts: mocks forced off even if config says true (here forced true via overrides)
+  for (const host of ['crusaderstrike.com', 'www.crusaderstrike.com', 'staging.crusaderstrike.com']) {
+    const ctx = await b.newContext();
+    await ctx.route('https://' + host + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: '<script src="/js/config.js"></script>' }));
+    await ctx.route('https://' + host + '/js/config.js', async r => { const res = await ctx.request.get(B + 'js/config.js'); r.fulfill({ status: 200, contentType: 'text/javascript', body: (await res.text()).replace(/USE_MOCK_ARMORY:\s*false/, 'USE_MOCK_ARMORY: true') }); });
+    const pp = await ctx.newPage(); await pp.goto('https://' + host + '/profile/');
+    const v = await pp.evaluate(() => [CS_CONFIG.USE_MOCK_ARMORY, CS_CONFIG.IS_PROD_HOST]);
+    const prod = host !== 'staging.crusaderstrike.com';
+    ok(prod ? v[0] === false && v[1] === true : v[0] === true && v[1] === false, host + (prod ? ': mocks forced off on prod host' : ': non-prod host keeps configured mock'));
+    await ctx.close();
+  }
+  ok(await p.evaluate(() => CS_CONFIG.IS_PROD_HOST === false), 'localhost is not a prod host');
 
   // hide: selection drops the alt; sets kept. Hiding the last displayed character is blocked (server needs a main).
   await p.uncheck('#pf-show-ch_b'); await status(/is hidden/); await idle();

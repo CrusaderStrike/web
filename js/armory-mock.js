@@ -3,7 +3,7 @@
  * gear-list schema v1): GET /me/characters {characters, selection}; PUT /me/characters/selection {main_id, alt_ids}
  * (delegates to js/auth-mock.js); GET/POST /characters/{id}/gear-lists; GET /gear-lists/{id};
  * POST /gear-lists/{id}/ops (add_item | remove_item, op_id, base_version -> {version, applied, duplicates, conflicts, list});
- * GET /items, /items/{id} (platform#42). A character not in the selection -> 403 {errors:{character_id}} like
+ * GET /items, /items/{id}. A character not in the selection -> 403 {errors:{character_id}} like
  * requireOwnedCharacter. Items are FICTIONAL (icon_url null). State in localStorage (cs_mock_armory).
  * Scenarios: ?mock_armory=limit | notdisplayed | conflict | notforever | ratelimit | items500 | toggle500.
  */

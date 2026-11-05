@@ -72,7 +72,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   for (const n of ['Three', 'Four', 'Five', 'Six']) { await p.fill('#gl-new-name', n); await p.click('#gl-new-btn'); await p.waitForFunction(t => document.getElementById('gl-detail-h').textContent === t, n); }
   ok(await p.isEnabled('#gl-new-btn') && await p.isHidden('#gl-limit'), 'a sixth list is allowed (cap is the server\'s 20)');
   await fresh('&mock=limit'); await p.fill('#gl-new-name', 'Twenty-first'); await p.click('#gl-new-btn'); await vis('#gl-banner');
-  ok((await banner()).includes('already have 20 lists'), '409 list_limit_reached message');
+  ok((await banner()).includes('already has 20 lists'), '409 list_limit_reached message');
 
   // 409 version_mismatch: current {version, list} applied, re-apply works
   await fresh('&mock=stale'); await p.fill('#gl-name', 'Emberfall BiS v2'); await p.click('#gl-meta-form button[type=submit]'); await vis('#gl-banner');
@@ -191,8 +191,8 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   // mobile
   await p.setViewportSize({ width: 375, height: 800 }); await fresh();
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= 375), 'no horizontal scroll at 375px');
-  await p.screenshot({ path: '/workspace/gear-lists-mobile.png', fullPage: true });
-  await p.setViewportSize({ width: 1280, height: 900 }); await fresh(); await p.screenshot({ path: '/workspace/gear-lists-desktop.png', fullPage: true });
+  await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'gear-lists-mobile.png'), fullPage: true });
+  await p.setViewportSize({ width: 1280, height: 900 }); await fresh(); await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'gear-lists-desktop.png'), fullPage: true });
   ok(errs.length === 0, 'no console/page errors: ' + errs.join(' | '));
   await b.close();
 })();
