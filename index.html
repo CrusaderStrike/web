@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Crusader Strike — a World of Warcraft Classic community platform.">
+  <title>Crusader Strike</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0c0a08;
+      --panel: #1a1410;
+      --gold: #c9a227;
+      --gold-dim: #8a7018;
+      --parchment: #e8d9b5;
+      --muted: #a89878;
+      --accent: #6b2d1a;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(ellipse at 50% 0%, #2a1c12 0%, var(--bg) 55%),
+        var(--bg);
+      color: var(--parchment);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    main {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+      text-align: center;
+    }
+    .mark {
+      width: min(160px, 40vw);
+      height: auto;
+      filter: drop-shadow(0 0 18px rgba(201, 162, 39, 0.35));
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.75rem, 5vw, 2.75rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gold);
+      text-shadow: 0 2px 0 #000, 0 0 24px rgba(201, 162, 39, 0.25);
+    }
+    .tag {
+      margin: 0 0 1.75rem;
+      max-width: 28rem;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.5;
+    }
+    .panel {
+      background: linear-gradient(180deg, #241a12 0%, var(--panel) 100%);
+      border: 1px solid var(--gold-dim);
+      box-shadow: 0 0 0 1px #000, 0 12px 40px rgba(0,0,0,0.45);
+      border-radius: 4px;
+      padding: 1.25rem 1.5rem;
+      max-width: 26rem;
+    }
+    .panel p {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: var(--parchment);
+    }
+    .panel strong { color: var(--gold); }
+    footer {
+      margin-top: 2.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="mark" src="assets/logo.svg" width="160" height="160" alt="Crusader Strike shield and sword emblem">
+    <h1>Crusader Strike</h1>
+    <p class="tag">A World of Warcraft Classic community platform for guilds, rankings, and the open world.</p>
+    <div class="panel" role="status">
+      <p><strong>The forge is lit.</strong> This placeholder marks crusaderstrike.com as live on GitHub Pages. The full landing page ships next.</p>
+    </div>
+    <footer>For Azeroth — Classic.</footer>
+  </main>
+</body>
+</html>

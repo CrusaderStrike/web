@@ -2,3 +2,6 @@
 
 # web
 crusaderstrike.com website and guild sites
+
+Static site deployed to GitHub Pages via Actions on every push to `main`.
+Custom domain: `crusaderstrike.com`.
