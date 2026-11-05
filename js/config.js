@@ -1,7 +1,7 @@
 /**
- * Signup API config.
- * TODO(web#3): set USE_MOCK_SIGNUP to false and point API_BASE at the live API
- * once Platform Dev flips the endpoint on. Keep mock default for local/Pages demos.
+ * Signup API config — see /workspace/contracts/signups-api.md (also mirrored in repo docs later).
+ * TODO(web#3): set USE_MOCK_SIGNUP to false when Platform Dev enables the live endpoint.
+ * CORS allows crusaderstrike.com / www; methods POST, OPTIONS; Content-Type; no credentials.
  */
 window.CS_CONFIG = Object.freeze({
   API_BASE: 'https://api.crusaderstrike.com',

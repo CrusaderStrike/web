@@ -20,7 +20,7 @@
   function showFieldError(name, message) {
     var input = form.elements.namedItem(name);
     if (!input) return;
-    var field = input.closest('.cs-field, .cs-field-check') || input.parentElement;
+    var field = input.closest('.cs-field, .cs-field-check, fieldset') || input.parentElement;
     input.setAttribute('aria-invalid', 'true');
     var err = document.createElement('p');
     err.className = 'cs-error';
@@ -46,7 +46,8 @@
     var factionEl = form.elements.namedItem('faction');
     var faction = factionEl && factionEl.value ? factionEl.value : undefined;
     var payload = {
-      email: String(form.elements.namedItem('email').value || '').trim(),
+      // Server also trims + lowercases; send already normalized.
+      email: String(form.elements.namedItem('email').value || '').trim().toLowerCase(),
       consent: !!(form.elements.namedItem('consent') && form.elements.namedItem('consent').checked),
       consent_version: cfg.CONSENT_VERSION,
       website: String((form.elements.namedItem('website') && form.elements.namedItem('website').value) || '')
@@ -70,6 +71,9 @@
     if (!payload.consent) {
       errors.consent = 'Consent is required to join the list.';
     }
+    if (!payload.consent_version) {
+      errors.consent_version = 'Consent version is required.';
+    }
     if (payload.character_name && payload.character_name.length > 48) {
       errors.character_name = 'Character name must be 48 characters or fewer.';
     }
@@ -79,12 +83,21 @@
     if (payload.guild_name && payload.guild_name.length > 48) {
       errors.guild_name = 'Guild name must be 48 characters or fewer.';
     }
+    if (payload.faction && payload.faction !== 'alliance' && payload.faction !== 'horde') {
+      errors.faction = 'Faction must be alliance or horde.';
+    }
+    if (payload.interests) {
+      var bad = payload.interests.filter(function (i) { return INTERESTS.indexOf(i) === -1; });
+      if (bad.length) errors.interests = 'Unknown interest value.';
+    }
     return errors;
   }
 
   function mockSubmit(payload) {
+    // Mirrors /workspace/contracts/signups-api.md
     return new Promise(function (resolve) {
       window.setTimeout(function () {
+        // Honeypot filled → fake 202, nothing stored
         if (payload.website) {
           resolve({ status: 202, body: { status: 'pending' } });
           return;
@@ -97,6 +110,7 @@
           resolve({ status: 429, body: {}, headers: { 'Retry-After': '60' } });
           return;
         }
+        // New and duplicate emails both return 202 pending (no enumeration)
         resolve({ status: 202, body: { status: 'pending' } });
       }, 350);
     });

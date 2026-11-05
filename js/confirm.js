@@ -16,16 +16,17 @@
   }
 
   if (!token) {
-    setTone('err', 'This confirmation link is missing a token. <a href="index.html#signup">Request a new signup</a>.');
+    setTone('err', 'This confirmation link is missing a token. <a href="../index.html#signup">Request a new signup</a>.');
     btn.hidden = true;
     return;
   }
 
   function mockConfirm() {
+    // Mirrors contract: 200 confirmed | 400 {errors:{token:"invalid or expired"}}
     return new Promise(function (resolve) {
       window.setTimeout(function () {
         if (token === 'expired' || token === 'invalid') {
-          resolve({ status: 400, body: { error: 'invalid_or_expired' } });
+          resolve({ status: 400, body: { errors: { token: 'invalid or expired' } } });
         } else {
           resolve({ status: 200, body: { status: 'confirmed' } });
         }
@@ -60,10 +61,13 @@
         if (result.status === 200 && result.body && result.body.status === 'confirmed') {
           setTone('ok', 'You are confirmed. Welcome to Crusader Strike.');
           btn.hidden = true;
-          if (actionEl) actionEl.innerHTML = '<a class="cs-btn cs-btn-primary" href="index.html">Back to home</a>';
+          if (actionEl) actionEl.innerHTML = '<a class="cs-btn cs-btn-primary" href="../index.html">Back to home</a>';
           return;
         }
-        setTone('err', 'This confirmation link is invalid or expired. <a href="index.html#signup">Sign up again</a>.');
+        var tokenMsg = result.body && result.body.errors && result.body.errors.token
+          ? result.body.errors.token
+          : 'invalid or expired';
+        setTone('err', 'This confirmation link is ' + tokenMsg + '. <a href="../index.html#signup">Sign up again</a>.');
         btn.hidden = true;
       })
       .catch(function () {
