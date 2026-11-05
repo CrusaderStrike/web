@@ -39,7 +39,8 @@
   function retryAfter(r) { var ra = parseInt(r && r.headers && r.headers['retry-after'], 10); return ra > 0 && ra < 3600 ? ra : 30; }
   function errMsg(r, fallback) {
     var b = r && r.body;
-    if (r && r.status === 0) return 'You appear to be offline.';
+    if (r && r.status === 0) return 'You appear to be offline, or Crusader Strike can\u2019t be reached.';
+    if (r && r.status >= 500 && r.status !== 502) return 'Crusader Strike is having trouble right now (HTTP ' + r.status + '). Try again in a few minutes.';
     if (r && r.status === 403 && code(r) === 'csrf_failed') return 'Security check failed. Reload the page and try again.';
     if (r && r.status === 429) return 'Too many requests. Try again in ' + retryAfter(r) + ' seconds.';
     if (r && r.status === 502) return 'Battle.net is unavailable, try again later';
@@ -47,7 +48,13 @@
     if (b && b.errors) return Object.keys(b.errors).map(function (k) { return txt(b.errors[k]); }).filter(Boolean).join(' ') || fallback;
     return fallback;
   }
+  var signedIn = false;  // web#48: 401 after a good session = expired
   function show(name) {
+    if (name === 'signedout') {
+      if (signedIn) { try { $('pf-create').close(); } catch (e) { /* not open */ } }
+      $('pf-signedout-h').textContent = signedIn ? 'Your session has expired' : 'Sign in to see your profile';
+      $('pf-signedout-msg').textContent = signedIn ? 'Sign in again with Battle.net to keep editing your characters and gear sets.' : 'Sign in with Battle.net to load your WoW Forever characters.';
+    }
     ['loading', 'disabled', 'signedout', 'error', 'ready'].forEach(function (s) { $('pf-' + s).hidden = s !== name; });
     var h = $('pf-' + name + '-h'); if (h && name !== 'loading') h.focus();
   }
@@ -195,7 +202,8 @@
     var lv = $('pf-c-type-lv').checked;
     $('pf-c-until-wrap').hidden = !lv;
     $('pf-c-until').min = String(R.minUntil(c)); $('pf-c-until').max = String(R.MAX_LEVEL);
-    $('pf-c-until-hint').textContent = 'From ' + R.minUntil(c) + ' to ' + R.MAX_LEVEL + ' (above current level ' + level(c) + ').';
+    $('pf-c-until-hint').textContent = R.levelKnown(c) ? 'From ' + R.minUntil(c) + ' to ' + R.MAX_LEVEL + ' (above current level ' + level(c) + ').' :
+      'From 1 to ' + R.MAX_LEVEL + '. The character\u2019s level isn\u2019t known yet; it must be above its current level.';
   }
   var createOpener = null;
   function openCreate(c, opener) {
@@ -409,6 +417,7 @@
     A.session().then(function (s) {
       if (s.status === 401) { show('signedout'); return null; }
       if (!s.ok) throw s;
+      signedIn = true;
       st.battletag = txt(s.body.battletag);
       return api.profile().then(function (pr) {
         if (pr.ok && pr.body) {

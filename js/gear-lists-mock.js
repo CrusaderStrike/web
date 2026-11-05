@@ -14,6 +14,17 @@
   var MAX = (window.CS_CONFIG && window.CS_CONFIG.ARMORY_MAX_SETS) || 20;  // web#42: platform cap 20 (409 list_limit_reached)
   var OWNED = ['ch_us_1001', 'ch_us_1002', 'ch_us_1003', 'ch_us_1004', 'ch_us_1005', 'ch_eu_2001'];
   var SLOTS = SPEC.slots;
+  // web#48: character levels from the js/auth-mock.js fixtures, for the platform level rules on create (validateSetLevelRules).
+  var LEVEL = { ch_us_1001: 60, ch_us_1002: 60, ch_us_1003: 52, ch_us_1004: 38, ch_us_1005: 27, ch_eu_2001: 44 };
+  function levelRules(tp, until, lv) {
+    if (tp === 'max_level') return until != null ? { until_level: 'until_level_must_be_null' } : null;
+    var e = {};
+    if (lv >= 60) e.type = 'leveling_set_at_max_level';
+    if (until == null) e.until_level = 'until_level_required';
+    else if (typeof until !== 'number' || until % 1 || until < 1 || until > 60) e.until_level = 'until_level_out_of_range';
+    else if (until <= lv) e.until_level = 'until_level_not_above_current_level';
+    return Object.keys(e).length ? e : null;
+  }
   // Forever item fixtures (fictional). Unknown ids still pass; name comes back null.
   var NOT_FOREVER = [19019, 22691];  // fixture ids the mock treats as non-Forever (item_not_forever)
   var ITEMS = { 910001: 'Helm of the Dawnward Vigil', 910003: 'Pauldrons of the Silver Hand Reborn', 910006: 'Duskhollow Warhammer',
@@ -97,13 +108,23 @@
       if (!body || !validName(body.name)) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { name: 'Name must be 1–64 characters.' } });
       var vis = body.visibility === 'guild' ? 'guild' : 'private';
       var tp = body.type === 'leveling' ? 'leveling' : 'max_level';
-      if (tp === 'leveling' && body.until_level == null) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { until_level: 'until_level_required' } });
-      if (tp === 'max_level' && body.until_level != null) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { until_level: 'until_level_must_be_null' } });
+      if (body.type != null && body.type !== 'leveling' && body.type !== 'max_level') return err(400, 'validation_error', 'Invalid list.', { errors: { type: 'Must be leveling or max_level.' } });
+      var lr = levelRules(tp, body.until_level, LEVEL[charId] || 0);
+      if (lr) return err(400, 'validation_error', 'Invalid list.', { errors: lr });
+      // web#48: create accepts slots (platform create: slot -> item_id|null); item_not_forever rejects the whole create.
+      var sl = body.slots == null ? {} : body.slots;
+      if (typeof sl !== 'object' || Array.isArray(sl)) return err(400, 'validation_error', 'Invalid slots.', { errors: { slots: 'Must be an object map of slot \u2192 item_id|null.' } });
+      for (var sk in sl) {
+        if (SLOTS.indexOf(sk) < 0) return err(400, 'validation_error', 'Unknown slot: ' + sk + '.', { errors: { slot: 'invalid_slot' } });
+        if (sl[sk] != null && NOT_FOREVER.indexOf(sl[sk]) >= 0) return err(400, 'validation_error', 'Item is not in the Forever catalog.', { errors: { item_id: 'item_not_forever' } });
+      }
       var l = { id: uid(), character_id: charId, owner_user_id: OWNER, name: body.name.trim(), visibility: vis, type: tp,
         until_level: tp === 'leveling' ? body.until_level : null, role_spec: body.role_spec || null, outgrown: false,
         version: 0, updated_at: now(), edited_at: now(), updated_source: 'web', items: [] };
       s.lists.push(l); s.events[l.id] = [];
-      bump(s, l, 'GearListCreated', { name: l.name, character_id: charId, visibility: vis }); save(s);
+      bump(s, l, 'GearListCreated', { name: l.name, character_id: charId, visibility: vis });
+      Object.keys(sl).forEach(function (k) { if (sl[k] != null) { l.items.push(item(k, sl[k], 1)); bump(s, l, 'GearItemAdded', { slot: k, item_id: sl[k], priority: 1, note: null }); l.items[l.items.length - 1]._v = l.version; } });
+      save(s);
       return res(201, strip(l), etag(l));
     },
     get: function (id) {
@@ -152,10 +173,23 @@
       }
       ops.forEach(function (o) {
         if (s.seen_ops[o.op_id]) { out.duplicates.push(o.op_id); return; }
-        if (SPEC.op_types.indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 || !(o.item_id >= 1 && o.item_id === Math.floor(o.item_id)) || typeof o.base_version !== 'number') {  // client source is soft-ignored, as on platform /ops
+        var slotOp = o.type === 'set_slot' || o.type === 'clear_slot';  // platform#46 (armory model), used by the CSGEAR1 import
+        if ((SPEC.op_types.indexOf(o.type) < 0 && !slotOp) || SLOTS.indexOf(o.slot) < 0 || (o.type !== 'clear_slot' && !(o.item_id >= 1 && o.item_id === Math.floor(o.item_id))) || typeof o.base_version !== 'number') {  // client source is soft-ignored, as on platform /ops
           bad = true; return;
         }
         if (mock() === 'conflict' && !s.flags.cf) { s.flags.cf = 1; reject(o, 'superseded_by_newer_edit'); return; }
+        if (slotOp) {
+          var cur = l.items.filter(function (x) { return x.slot === o.slot; });
+          if (cur.some(function (x) { return (x._v || 0) > o.base_version; })) { reject(o, 'stale_base_version'); return; }
+          if (o.type === 'set_slot' && NOT_FOREVER.indexOf(o.item_id) >= 0) { reject(o, 'item_not_forever', 'Not a WoW Forever item.'); return; }
+          var noop = o.type === 'clear_slot' ? !cur.length : cur.length === 1 && cur[0].item_id === o.item_id;
+          s.seen_ops[o.op_id] = 1; out.applied.push(o.op_id);
+          if (noop) return;
+          l.items = l.items.filter(function (x) { return x.slot !== o.slot; });
+          cur.forEach(function (x) { bump(s, l, 'GearItemRemoved', { slot: x.slot, item_id: x.item_id }); });
+          if (o.type === 'set_slot') { var ni = item(o.slot, o.item_id, 1); l.items.push(ni); bump(s, l, 'GearItemAdded', { slot: o.slot, item_id: o.item_id, priority: 1, note: null }); ni._v = l.version; }
+          return;
+        }
         var idx = -1; l.items.forEach(function (it, i) { if (it.slot === o.slot && it.item_id === o.item_id) idx = i; });
         var it = idx >= 0 ? l.items[idx] : null;
         if (o.type !== 'add_item' && !it) { reject(o, 'item_removed'); return; }

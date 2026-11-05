@@ -5,7 +5,7 @@
  * POST /gear-lists/{id}/ops (add_item | remove_item, plus platform#46 set_slot | clear_slot; op_id, base_version -> {version, applied, duplicates, conflicts, list});
  * GET /items, /items/{id}. A character not in the selection -> 403 {errors:{character_id}} like
  * requireOwnedCharacter. Items are FICTIONAL (icon_url null). State in localStorage (cs_mock_armory).
- * Scenarios: ?mock_armory=limit | notdisplayed | conflict | notforever | ratelimit | items500 | toggle500.
+ * Scenarios: ?mock_armory=limit | notdisplayed | conflict | notforever | ratelimit | items500 | toggle500 | down | api503 (web#48); every route 401 without a session.
  */
 (function () {
   'use strict';
@@ -177,4 +177,15 @@
     item: function (iid) { var i = findItem(iid); return i ? res(200, pub(i)) : err(404, 'not_found', 'Item not found.'); },
     devReset: function () { localStorage.removeItem(KEY); }
   };
+  // web#48: like platform requireSession, every armory route answers 401 once the session is gone (expired token);
+  // ?mock_armory=down -> no response (status 0), ?mock_armory=api503 -> 503, for the API-down error states.
+  ['sets', 'create', 'get', 'ops', 'items', 'item'].forEach(function (k) {
+    var f = window.CSArmoryMock[k];
+    window.CSArmoryMock[k] = function () {
+      if (!csrf()) return err(401, 'unauthenticated', 'Sign in required.');
+      if (sc() === 'down') return delay({ status: 0, ok: false, body: null, headers: {} });
+      if (sc() === 'api503') return err(503, 'service_unavailable', 'Service unavailable.');
+      return f.apply(this, arguments);
+    };
+  });
 })();

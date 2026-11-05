@@ -22,14 +22,26 @@
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
   function say(m) { $('gl-status').textContent = ''; setTimeout(function () { $('gl-status').textContent = m; }, 30); }
+  var signedIn = false;  // web#48: a 401 after a good session = expired session, not "never signed in"
   function show(name) {
+    if (name === 'signedout') {
+      $('gl-signedout-h').textContent = signedIn ? 'Your session has expired' : 'Sign in to see your gear lists';
+      $('gl-signedout-msg').textContent = signedIn ? 'Sign in again to keep editing. Changes that were waiting to be sent are kept on this device.' : '';
+      $('gl-signedout-msg').hidden = !signedIn;
+    }
     ['loading', 'disabled', 'signedout', 'notfound', 'error', 'ready'].forEach(function (s) { $('gl-' + s).hidden = s !== name; });
     var h = $('gl-' + name + '-h'); if (h && name !== 'loading' && name !== 'ready') h.focus();
   }
   function when(iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString() : 'unknown time'; }
   /** platform app.ts error handler: { error: { code, message } }, or { errors: { field: msg } } when the AppError carries fields. */
   function fieldMsg(r) { var e = r && r.body && r.body.errors; if (!e || typeof e !== 'object') return ''; var k = Object.keys(e)[0]; return k ? txt(e[k]) : ''; }
-  function errMsg(r) { return (r && r.body && r.body.error && txt(r.body.error.message)) || fieldMsg(r) || 'Something went wrong. Please try again.'; }
+  /** web#48: API down (no response / 5xx) gets a clear message with the status instead of a generic one. */
+  function downMsg(r) {
+    if (!r || r.status === 0) return 'You appear to be offline, or Crusader Strike can\u2019t be reached.';
+    if (r.status >= 500) return 'Crusader Strike is having trouble right now (HTTP ' + r.status + '). Try again in a few minutes.';
+    return '';
+  }
+  function errMsg(r) { return (r && r.status >= 500 && downMsg(r)) || (r && r.body && r.body.error && txt(r.body.error.message)) || fieldMsg(r) || 'Something went wrong. Please try again.'; }
   function code(r) { return r && r.body && r.body.error && r.body.error.code; }
   function itemName(i) { return txt(i.name) || 'Item ' + i.item_id; }
   function retryAfter(r) { var n = parseInt(r && r.headers && r.headers['retry-after'], 10); return n > 0 && n < 3600 ? n : 30; }
@@ -69,7 +81,7 @@
       setTimeout(function () { if (pendingRetry === retry) { hideBanner(); retry(); } }, s * 1000);
       return true;
     }
-    if (r.status === 0) { banner('You appear to be offline. Your change was kept.', retry, 'Retry'); return true; }
+    if (r.status === 0) { banner(downMsg(r) + ' Your change was kept.', retry, 'Retry'); return true; }
     banner(errMsg(r), r.status >= 500 ? retry : null, 'Retry');
     return true;
   }
@@ -476,8 +488,11 @@
     api.session().then(function (s) {
       if (s.status === 401) { show('signedout'); return null; }
       if (!s.ok) throw s;
+      signedIn = true;
       userKey = (s.body && (s.body.user_id || s.body.battletag)) || '';
       return window.CSProfileApi.characters().then(function (r) {
+        if (r.status === 401) { show('signedout'); return; }
+        if (r.status === 0 || r.status >= 500) throw r;  // web#48: don't render lists with an unknown character level
         var ch = r.ok && r.body && Array.isArray(r.body.characters) ? r.body.characters.filter(function (c) { return c.id === charId; })[0] : null;
         character = ch || null; typeUi(true);
         var nm = ch ? [txt(ch.character_name), txt(ch.surname)].filter(Boolean).join(' ') : '';
@@ -486,7 +501,7 @@
         return reloadLists(null);
       });
     }).catch(function (r) {
-      $('gl-error-msg').textContent = r && r.status === 0 ? 'You appear to be offline.' :
+      $('gl-error-msg').textContent = r && (r.status === 0 || r.status >= 500) ? downMsg(r) :
         r && r.status === 429 ? 'Too many requests. Try again in ' + retryAfter(r) + ' seconds.' : errMsg(r);
       show('error');
     });
@@ -506,6 +521,48 @@
   fillVis($('gl-new-vis')); fillVis($('gl-vis'));
   SPEC.slots.forEach(function (s) { var o = el('option', null, SLOT_LABEL[s] || s); o.value = s; $('gl-add-slot').appendChild(o); });
   $('gl-add-pr').max = String(L.priority_max);
+  // ---------- web#48 CSGEAR1 import (schema §7: decode, create id:null sets, apply ops, map local_id -> id) ----------
+  var G = window.CSGear1, importing = false;
+  var IMP_REASON = { not_found: 'not on the site any more (deleted here?), skipped', site_newer: 'changed on the site after the game edit, site version kept' };
+  $('gl-import').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (importing || readOnly) return;
+    var err = function (m) { $('gl-import-err').textContent = m || ''; var t = $('gl-import-text'); if (m) { t.setAttribute('aria-invalid', 'true'); t.focus(); } else t.removeAttribute('aria-invalid'); };
+    err(''); $('gl-import-result').hidden = true;
+    var d = G.decode($('gl-import-text').value);
+    if (!d.ok) { err(d.message); return; }
+    if (!character) { err('Your character details could not load, so the level rules can\u2019t be checked. Reload and try again.'); return; }
+    var pl = G.plan(d.payload, character, lists);
+    if (!pl.ok) { err(pl.message); return; }
+    importing = true; $('gl-import-btn').disabled = true; $('gl-import-btn').setAttribute('aria-busy', 'true'); say('Importing gear sets\u2026');
+    var done = function () { importing = false; $('gl-import-btn').disabled = false; $('gl-import-btn').removeAttribute('aria-busy'); };
+    G.apply(api, charId, pl).then(function (res) {
+      if (res.stopped) {
+        done();
+        if (res.stopped.status === 401) { show('signedout'); return; }
+        err((res.stopped.status === 403 ? 'Security check failed. Reload the page and try again.' : downMsg(res.stopped)) + ' ' + (res.results.length ? res.results.length + ' set(s) were saved before it stopped; import again to finish.' : 'Nothing was imported.'));
+        return reloadLists(null);
+      }
+      return api.lists(charId).then(function (lr) {
+        done();
+        var fresh = lr.ok && lr.body && Array.isArray(lr.body.items) ? lr.body.items : lists;
+        var ul = $('gl-import-list'); clear(ul);
+        res.results.forEach(function (x) {
+          var t = x.action === 'created' ? 'Created \u201c' + x.name + '\u201d (game ' + x.local_id + ' \u2192 ' + x.id + ')' :
+            x.action === 'deleted' ? 'Deleted \u201c' + x.name + '\u201d' : (x.action === 'unchanged' ? 'No changes for \u201c' : 'Updated \u201c') + x.name + '\u201d' +
+            (x.conflicts && x.conflicts.length ? ' (' + x.conflicts.length + ' change(s) not applied: ' + x.conflicts.map(function (c) { return R.message(c); }).join(' ') + ')' : '');
+          var li = el('li', null, t); li.dataset.localId = x.local_id || ''; li.dataset.id = x.id || ''; ul.appendChild(li);
+        });
+        pl.skipped.forEach(function (x) { var li = el('li', 'gl-rej', '\u201c' + x.name + '\u201d ' + IMP_REASON[x.reason]); li.dataset.localId = x.local_id; ul.appendChild(li); });
+        res.failures.forEach(function (x) { var li = el('li', 'gl-rej', 'Not saved \u201c' + (x.name || x.id) + '\u201d: ' + x.message); li.dataset.localId = x.local_id || ''; ul.appendChild(li); });
+        $('gl-import-out').value = G.reply(d.payload, character, fresh, res.mapping);
+        $('gl-import-result').hidden = false;
+        say('Import finished: ' + res.results.length + ' saved, ' + (pl.skipped.length + res.failures.length) + ' not applied.');
+        if (lr.ok) { lists = []; fresh.forEach(serverUpdate); select((res.results[0] && res.results[0].id) || (current && current.id) || (lists[0] && lists[0].id), false); }
+      });
+    }).catch(function (x) { done(); err(downMsg(x && x.status != null ? x : null)); });
+  });
+
   $('gl-retry').addEventListener('click', load);
   if (!window.csBnetEnabled()) { show('disabled'); return; }
   load();
