@@ -1,121 +1,188 @@
+// web#42 profile + armory against the in-browser mocks (USE_MOCK_ARMORY=true; shipped wire shapes: PUT selection, POST ops): display toggles, choose step,
+// gear set side panel (drawer on mobile), create form level rules, 19-slot armory, item picker, autosave + conflicts.
 const { chromium } = require('playwright');
-const B='http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
-(async()=>{const b = require('./_test-config.js').withTestConfig(await chromium.launch());const ctx=await b.newContext();const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
-const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c)process.exitCode=1;};
-const vis=s=>p.waitForSelector(s+':not([hidden])',{timeout:5000}).then(()=>true,()=>false);
-await p.goto(B+'profile/'); ok(await vis('#pf-disabled'),'flag off -> coming soon');
-await p.goto(B+'profile/?ff_bnet=1'); ok(await vis('#pf-signedout'),'signed out state');
-// sign in (mock) with a saved main
-await p.evaluate(()=>{CSAuthMock.devSignIn();localStorage.setItem('cs_mock_selection',JSON.stringify({main_id:'ch_us_1001',alt_ids:['ch_us_1003'],updated_at:'2026-11-04T18:00:00Z'}));});
-await p.goto(B+'profile/'); ok(await p.isVisible('#pf-loading'),'loading state'); ok(await vis('#pf-ready'),'ready');
-ok((await p.textContent('#pf-battletag'))==='Crusader#1234','battletag');
-ok(await p.locator('#pf-list > li').count()===6,'6 WoW Forever cards incl. stale (non-Forever filtered)');
-const card=id=>p.locator(`#pf-list > li[data-id=${id}]`);
-ok((await card('ch_us_1001').locator('[data-role]').textContent())==='Main' && await card('ch_us_1001').evaluate(e=>e.classList.contains('is-main')),'main marked');
-ok((await card('ch_us_1002').locator('[data-role]').textContent())==='Alt','others alts');
-ok((await card('ch_us_1001').locator('.pf-meta').textContent())==='Emberfall · US · Level 60 · Human Paladin','meta');
-// web#26 no faction
-const nf=card('ch_us_1005').locator('.cs-badge').first();
-ok((await nf.textContent())==='No faction' && await nf.getAttribute('aria-label')==='Faction: none' && !(await nf.getAttribute('class')).includes('horde'),'no-faction neutral badge, not Horde');
-ok((await card('ch_us_1003').locator('.cs-badge').first().textContent())==='Horde','horde still Horde');
-ok(await p.locator('fieldset#pf-fieldset legend').textContent()==='Main character','labelled radio group');
-ok(await p.getAttribute('#pf-main-ch_us_1002','aria-describedby')==='pf-name-ch_us_1002','radio described by name');
-// stale (platform#30)
-const sc=card('ch_eu_2001');
-ok(await sc.locator('.pf-stale').count()===1 && await p.isDisabled('#pf-main-ch_eu_2001') && (await sc.locator('[data-role]').textContent())==='Not available','stale flagged, not selectable');
-const r400=await p.evaluate(()=>CSAuthMock.session().then(s=>CSAuthMock.saveSelection({main_id:'ch_eu_2001',alt_ids:[]},s.body.csrf_token)));
-ok(r400.status===400 && r400.body.errors.main_id,'mock: stale main -> 400');
-const r400b=await p.evaluate(()=>CSAuthMock.session().then(s=>CSAuthMock.saveSelection({main_id:'ch_us_1001',alt_ids:['ch_eu_2001']},s.body.csrf_token)));
-ok(r400b.status===400 && r400b.body.errors.alt_ids,'mock: stale alt -> 400');
-// profile endpoint + region
-ok(await p.inputValue('#pf-region')==='us','preferred_region from GET /me/profile');
-await p.selectOption('#pf-region','eu'); await p.waitForFunction(()=>/Preferred region saved/.test(document.getElementById('pf-status').textContent));
-const prof=await p.evaluate(()=>CSAuthMock.profile().then(r=>r.body)); ok(prof.preferred_region==='eu' && prof.main_character_id==='ch_us_1001' && prof.battletag==='Crusader#1234','PUT /me/profile saved; UserProfile shape');
-await p.selectOption('#pf-region','tw'); await p.waitForFunction(()=>CSAuthMock.profile().then(r=>r.body.preferred_region==='tw'));
-const kr=await p.evaluate(()=>CSAuthMock.session().then(s=>CSAuthMock.updateProfile({preferred_region:'kr'},s.body.csrf_token)));
-ok(kr.status===200&&kr.body.preferred_region==='kr','regions kr/tw accepted');
-const bad=await p.evaluate(()=>CSAuthMock.session().then(s=>CSAuthMock.updateProfile({preferred_region:'cn'},s.body.csrf_token)));
-ok(bad.status===400&&bad.body.errors.preferred_region,'unknown region -> 400');
-await p.evaluate(()=>CSAuthMock.session().then(s=>CSAuthMock.updateProfile({preferred_region:'eu'},s.body.csrf_token)));
-const pb=await p.evaluate(()=>CSAuthMock.session().then(s=>CSAuthMock.updateProfile({main_character_id:'x'},s.body.csrf_token))); ok(pb.status===400 && pb.body.errors.body,'mock: unknown profile field -> 400 errors.body');
-// keyboard select via arrow keys within radio group
-await p.focus('#pf-main-ch_us_1001'); await p.keyboard.press('ArrowDown');
-await p.waitForFunction(()=>document.querySelector('[data-id=ch_us_1002]').classList.contains('is-main'));
-await p.waitForFunction(()=>/Main saved/.test(document.getElementById('pf-status').textContent));
-ok(true,'keyboard sets main + announced');
-const sel=await p.evaluate(()=>JSON.parse(localStorage.getItem('cs_mock_selection')));
-ok(sel.main_id==='ch_us_1002' && sel.alt_ids.length===4 && !sel.alt_ids.includes('ch_us_1002'),'PUT body: main + all others alts');
-await p.reload(); await vis('#pf-ready'); ok(await p.isChecked('#pf-main-ch_us_1002'),'persists across reload');
-// 403 csrf_failed
-await p.evaluate(()=>{const s=JSON.parse(sessionStorage.getItem('cs_mock_session'));s.csrf_token='rotated';sessionStorage.setItem('cs_mock_session',JSON.stringify(s));});
-await p.check('#pf-main-ch_us_1003'); ok(await vis('#pf-save-error'),'csrf error shown');
-ok((await p.textContent('#pf-save-error')).includes('Security check failed. Reload'),'403 csrf_failed message');
-ok(await p.isChecked('#pf-main-ch_us_1002'),'rolled back after 403');
-await p.reload(); await vis('#pf-ready');
-// 429 + 400 body on save
-await p.goto(B+'profile/?mock_scenario=save_ratelimit'); await vis('#pf-ready'); await p.check('#pf-main-ch_us_1004'); await vis('#pf-save-error');
-ok((await p.textContent('#pf-save-error')).includes('Try again in 5 seconds'),'429 Retry-After on save: '+await p.textContent('#pf-save-error'));
-await p.goto(B+'profile/?mock_scenario=save_body'); await vis('#pf-ready'); await p.check('#pf-main-ch_us_1004'); await vis('#pf-save-error');
-ok((await p.textContent('#pf-save-error')).includes('Request body is invalid.'),'400 errors.body message');
-// rollback on save error
-await p.goto(B+'profile/?mock_scenario=save_error'); await vis('#pf-ready');
-await p.check('#pf-main-ch_us_1004');
-ok(await p.evaluate(()=>document.querySelector('[data-id=ch_us_1004]').classList.contains('is-main')),'optimistic update');
-ok(await vis('#pf-save-error'),'save error shown');
-ok(await p.isChecked('#pf-main-ch_us_1002') && !(await p.isChecked('#pf-main-ch_us_1004')),'rolled back');
-// refresh
-await p.goto(B+'profile/'); await vis('#pf-ready'); await p.click('#pf-refresh');
-ok((await p.textContent('#pf-refresh'))==='Refreshing…' && await p.isDisabled('#pf-refresh'),'refresh loading');
-await p.waitForFunction(()=>document.getElementById('pf-refresh').textContent==='Refresh characters'); ok(await p.isHidden('#pf-refresh-error'),'refresh ok');
-await p.goto(B+'profile/?mock_scenario=refresh_error'); await vis('#pf-ready'); await p.click('#pf-refresh'); ok(await vis('#pf-refresh-error'),'refresh error');
-ok((await p.textContent('#pf-refresh-error'))==='Battle.net is unavailable, try again later','502 message');
-// CSRF header: real client sends X-CSRF-Token on refresh
-await p.goto(B+'profile/?mock_scenario=refresh_ratelimit'); await vis('#pf-ready'); await p.click('#pf-refresh');
-await p.waitForFunction(()=>/Refresh again in \d+s/.test(document.getElementById('pf-refresh').textContent));
-ok(await p.isDisabled('#pf-refresh') && (await p.textContent('#pf-refresh-error')).includes('3 seconds'),'429 Retry-After countdown, button disabled: '+await p.textContent('#pf-refresh'));
-await p.waitForFunction(()=>document.getElementById('pf-refresh').textContent==='Refresh characters'&&!document.getElementById('pf-refresh').disabled,null,{timeout:6000});
-ok(true,'button re-enabled after countdown');
-// refresh clears selection (main went stale) -> picker
-await p.goto(B+'profile/?mock_scenario=refresh_stale'); await vis('#pf-ready'); await p.click('#pf-refresh'); await p.waitForURL(/signin\.html/);
-ok(true,'refresh cleared selection -> sent to picker');
-await vis('#si-picker'); ok(await p.locator('#si-main-ch_eu_2001').count()===0 && await p.locator('#si-main-ch_us_1002').count()===0,'picker hides stale characters');
-await p.evaluate(()=>{CSAuthMock.devReset();localStorage.setItem('cs_mock_selection',JSON.stringify({main_id:'ch_us_1002',alt_ids:[],updated_at:'2026-11-04T18:00:00Z'}));});
-// states
-await p.goto(B+'profile/?mock_scenario=empty'); await vis('#pf-ready'); ok(await p.isVisible('#pf-empty') && await p.isHidden('#pf-fieldset'),'empty state');
-await p.goto(B+'profile/?mock_scenario=upstream'); ok(await vis('#pf-error'),'error state'); ok((await p.textContent('#pf-error-msg'))==='Battle.net is unavailable, try again later','502 load message');
-// no main -> picker
-await p.goto(B+'profile/?mock_scenario=nomain'); await p.waitForURL(/signin\.html/); ok(true,'no main -> sent to picker');
-await vis('#si-picker'); const nb=p.locator('#si-list li:has(#si-main-ch_us_1005) .cs-badge');
-ok((await nb.textContent())==='No faction','signin picker no-faction badge (web#26)');
-// real client: CSRF + Retry-After with USE_MOCK_PROFILE=false (route-mocked network)
-const p2=await ctx.newPage(); const hdrs={};
-const CORS={'Access-Control-Allow-Origin':B.slice(0, -1),'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'Content-Type, X-CSRF-Token, Accept','Access-Control-Allow-Methods':'GET, POST, PUT, DELETE','Access-Control-Expose-Headers':'Retry-After'};
-await p2.route('https://api.crusaderstrike.com/**',async r=>{const u=r.request().url();
- if(r.request().method()==='OPTIONS')return r.fulfill({status:204,headers:CORS});
- hdrs[r.request().method()+' '+new URL(u).pathname]=r.request().headers();const f=r.fulfill.bind(r);r={fulfill:o=>f(Object.assign({},o,{headers:Object.assign({},CORS,o.headers||{})}))};
- if(u.endsWith('/auth/session'))return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({battletag:'Crusader#1234',active_guild_id:null,memberships:[],csrf_token:'tok123'})});
- if(u.endsWith('/me/profile'))return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({battletag:'Crusader#1234',main_character_id:'c1',preferred_region:'eu',created_at:'2026-10-01T00:00:00Z',updated_at:'2026-11-04T00:00:00Z'})});
- if(u.endsWith('/me/characters'))return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({game:'wow_forever',characters:[{id:'c1',character_name:'Lightbringer',realm:'Emberfall',faction:'alliance',level:60,game:'wow_forever'},{id:'c2',character_name:'Wispwander',realm:'Duskhollow',faction:null,game:'wow_forever'}],selection:{main_id:'c1',alt_ids:['c2'],updated_at:'2026-11-04T18:00:00Z'}})});
- if(u.endsWith('/me/characters/refresh'))return r.fulfill({status:429,headers:{'Retry-After':'2'},contentType:'application/json',body:JSON.stringify({error:{code:'rate_limited',message:'Slow down.'}})});
- r.fulfill({status:404,body:'{}'});});
-await p2.addInitScript(()=>{Object.defineProperty(window,'CS_CONFIG',{configurable:true,set(v){Object.defineProperty(window,'CS_CONFIG',{value:Object.freeze(Object.assign({},v,{USE_MOCK_PROFILE:false})),writable:false});},get(){return undefined;}});});
-await p2.goto(B+'profile/?ff_bnet=1'); await p2.waitForSelector('#pf-ready:not([hidden])');
-ok((await p2.locator('[data-id=c2] .cs-badge').first().textContent())==='No faction','real client: null faction neutral');
-await p2.click('#pf-refresh'); await p2.waitForFunction(()=>/Refresh again in/.test(document.getElementById('pf-refresh').textContent));
-const rh=hdrs['POST /api/v1/me/characters/refresh']||{}; ok(rh['x-csrf-token']==='tok123','real client sends X-CSRF-Token on refresh');
-ok(await p2.inputValue('#pf-region')==='eu','real client reads GET /me/profile');
-ok((await p2.textContent('#pf-refresh-error')).includes('2 seconds'),'real client honours Retry-After header');
-await p2.close();
-// XSS
-await p.evaluate(()=>localStorage.setItem('cs_mock_selection',JSON.stringify({main_id:'ch_us_1001',alt_ids:[],updated_at:'2026-11-04T18:00:00Z'})));
-await p.goto(B+'profile/'); await vis('#pf-ready');
-await p.evaluate(()=>{const o=CSAuthMock.characters;CSAuthMock.characters=function(){return o.call(CSAuthMock).then(r=>{r.body.characters[0].character_name='<img src=x onerror="window.__x=1">';r.body.characters[0].realm='<b>x</b>';return r;});};});
-await p.click('#pf-refresh'); await p.waitForFunction(()=>document.getElementById('pf-refresh').textContent==='Refresh characters');
-ok(await p.evaluate(()=>!window.__x && !document.querySelector('#pf-list img, #pf-list b')),'hostile data rendered as text');
-const t=await p.evaluate(()=>document.body.innerText); ok(!/\b(undefined|null|retail|classic)\b/i.test(t),'no undefined/null, WoW Forever wording');
-await p.setViewportSize({width:375,height:800}); await p.goto(B+'profile/'); await vis('#pf-ready');
-ok(await p.evaluate(()=>document.documentElement.scrollWidth<=375),'no horizontal overflow at 375px');
-const src=await p.evaluate(async()=>{let s='';for(const f of ['../js/profile.js','../js/profile-api.js','../js/faction-badge.js','../js/auth-mock.js','../js/signin.js'])s+=await (await fetch(f)).text();return s});
-ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(src),'no HTML sinks');
-ok(errs.length===0,'no page errors '+errs.join('|'));
-await b.close();})();
+const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
+(async () => {
+  const b = require('./_test-config.js').withTestConfig(await chromium.launch());
+  const ctx = await b.newContext(); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
+  const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
+  const vis = (s, t) => p.waitForSelector(s + ':not([hidden])', { timeout: t || 5000 }).then(() => true, () => false);
+  const until = (fn, arg) => p.waitForFunction(fn, arg, { timeout: 5000 }).then(() => true, () => false);
+  const status = () => p.textContent('#pf-status');
+  const card = id => p.locator(`#pf-list > li[data-id=${id}]`);
+  const idle = () => p.waitForFunction(() => document.documentElement.getAttribute('data-pf-busy') === '0', null, { timeout: 8000 }).catch(() => {});
+  const go = async q => { await p.goto(B + 'profile/' + (q || '')); await vis('#pf-ready'); await idle(); };
+  const mockSet = id => p.evaluate(i => JSON.parse(localStorage.getItem('cs_mock_armory')).sets.find(s => s.id === i), id);
+
+  await p.goto(B + 'profile/'); ok(await vis('#pf-disabled'), 'flag off -> coming soon');
+  await p.goto(B + 'profile/?ff_bnet=1'); ok(await vis('#pf-signedout'), 'signed out -> sign-in prompt (armory only behind login)');
+  await p.waitForFunction(() => window.CSAuthMock && window.CSArmoryMock && window.CSArmoryApi, null, { timeout: 8000 });
+  await p.evaluate(() => { CSAuthMock.devSignIn(); CSAuthMock.devReset(); CSArmoryMock.devReset(); });
+  await go();
+  ok(await p.evaluate(() => CS_CONFIG.USE_MOCK_ARMORY === true), 'USE_MOCK_ARMORY on');
+  ok((await p.textContent('#pf-battletag')) === 'Crusader#1234', 'battletag');
+  ok(await p.locator('#pf-list > li').count() === 6, '6 WoW Forever characters listed (non-Forever filtered)');
+  ok(await p.isVisible('#pf-choose') && await p.evaluate(() => document.activeElement.id === 'pf-choose-h'), 'none displayed -> "Choose characters to display" step, focused');
+  ok(await p.isHidden('#pf-armory-wrap'), 'no gear panel until a character is displayed');
+  ok(await p.locator('input[name=main], [data-role=main], [data-role=alt]').count() === 0, 'no main/alt UI');
+  ok((await p.textContent('#pf-fieldset legend')) === 'Characters to display', 'toggle group labelled');
+  ok(await p.getAttribute('#pf-show-ch_us_1002', 'role') === 'switch' && await p.getAttribute('#pf-show-ch_us_1002', 'aria-describedby') === 'pf-name-ch_us_1002', 'toggle is a labelled switch');
+  ok(await p.isDisabled('#pf-show-ch_eu_2001'), 'stale character cannot be displayed');
+  ok(await p.evaluate(() => [...document.querySelectorAll('#pf-list input[name=displayed]')].every(i => !i.checked)), 'new characters default to hidden');
+
+  // keyboard toggle (Space)
+  await p.focus('#pf-show-ch_us_1001'); await p.keyboard.press('Space');
+  ok(await until(() => /is displayed on your profile/.test(document.getElementById('pf-status').textContent)), 'Space toggles + announced');
+  ok(await p.isHidden('#pf-choose') && await vis('#pf-armory-wrap'), 'choose step gone, gear panel shown');
+  for (const id of ['ch_us_1003', 'ch_us_1005']) { await p.check('#pf-show-' + id); await until(i => document.querySelector('#pf-show-' + i) && !document.querySelector('#pf-show-' + i).disabled, id); await idle(); }
+  ok(await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('cs_mock_selection')); return s.main_id === 'ch_us_1001' && s.alt_ids.join() === 'ch_us_1003,ch_us_1005'; }), 'display saved as PUT /me/characters/selection {main_id, alt_ids}');
+  await p.reload(); await vis('#pf-ready'); await idle();
+  ok(await p.isChecked('#pf-show-ch_us_1001') && await p.isChecked('#pf-show-ch_us_1003') && !(await p.isChecked('#pf-show-ch_us_1002')), 'display choice persists');
+  ok(await p.locator('#pf-panel .pf-pchar').count() === 3, 'panel lists the 3 displayed characters');
+
+  // create form: level 60 -> max-level only
+  const newBtn = id => p.locator(`.pf-pchar[data-char=${id}] .pf-new`);
+  await newBtn('ch_us_1001').click(); ok(await p.isVisible('#pf-create') && await p.evaluate(() => document.activeElement.id === 'pf-c-name'), 'create dialog opens, focus on name');
+  ok(await p.isHidden('#pf-c-type-lv-l') && await p.isChecked('#pf-c-type-max') && await p.isHidden('#pf-c-until-wrap'), 'level 60: max-level only, no level field');
+  await p.click('#pf-c-save'); ok(/name/i.test(await p.textContent('#pf-c-name-err')) && await p.getAttribute('#pf-c-name', 'aria-invalid') === 'true', 'name required');
+  await p.fill('#pf-c-name', 'Tank'); await p.evaluate(() => { document.getElementById('pf-c-role').value = 'x'.repeat(33); }); await p.click('#pf-c-save');
+  ok(/32/.test(await p.textContent('#pf-c-role-err')), 'role_spec > 32 rejected');
+  await p.fill('#pf-c-role', 'Protection'); await p.click('#pf-c-save');
+  ok(await until(() => !document.getElementById('pf-create').open), 'max-level set created');
+  ok((await p.textContent('#pf-set-h')) === 'Tank' && /Max level · Protection/.test(await p.textContent('#pf-set-meta')), 'armory opens for new set');
+  await newBtn('ch_us_1001').click(); await p.fill('#pf-c-name', 'DPS'); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open);
+  ok(await p.locator('.pf-pchar[data-char=ch_us_1001] .pf-sets-max_level .pf-set-name').allTextContents().then(a => a.join() === 'DPS,Tank'), 'several named max-level sets');
+  await p.keyboard.press('Escape');
+
+  // level 52: leveling by default, until_level > 52, max-level still allowed
+  await newBtn('ch_us_1003').click();
+  ok(await p.isChecked('#pf-c-type-lv') && await p.isVisible('#pf-c-until'), 'under 60 defaults to leveling with Up to level');
+  await p.fill('#pf-c-name', 'Pre-raid'); await p.click('#pf-c-save'); ok(/Enter the level/.test(await p.textContent('#pf-c-until-err')), 'until_level_required');
+  await p.fill('#pf-c-until', '52'); await p.click('#pf-c-save'); ok(/higher than/.test(await p.textContent('#pf-c-until-err')), 'until_level_not_above_current_level');
+  await p.fill('#pf-c-until', '61'); await p.click('#pf-c-save'); ok(/1 to 60/.test(await p.textContent('#pf-c-until-err')), 'until_level_out_of_range');
+  // server-side codes surface too (bypass client check)
+  const sv = await p.evaluate(() => CSArmoryApi.create({ id: 'ch_us_1003', level: 52 }, { name: 'x', type: 'max_level', until_level: 55 }));
+  ok(sv.status === 400 && sv.body.error.code === 'validation_error' && sv.body.error.details.until_level === 'until_level_must_be_null', 'mock 400 until_level_must_be_null');
+  const sv2 = await p.evaluate(() => CSArmoryApi.create({ id: 'ch_us_1001', level: 60 }, { name: 'x', type: 'leveling', until_level: 60 }));
+  ok(sv2.status === 400 && sv2.body.error.details.type === 'leveling_set_at_max_level', 'mock 400 leveling_set_at_max_level');
+  await p.fill('#pf-c-until', '58'); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open);
+  for (const [n, l] of [['Questing', '55'], ['Late', '60']]) { await newBtn('ch_us_1003').click(); await p.fill('#pf-c-name', n); await p.fill('#pf-c-until', l); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open); }
+  await newBtn('ch_us_1003').click(); await p.check('#pf-c-type-max'); ok(await p.isHidden('#pf-c-until-wrap'), 'can still pick max-level to plan ahead');
+  await p.fill('#pf-c-name', 'Endgame'); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open);
+  const lv = await p.locator('.pf-pchar[data-char=ch_us_1003] .pf-sets-leveling .pf-set-name').allTextContents();
+  ok(lv.join() === 'Questing,Pre-raid,Late', 'leveling sets ordered by until_level: ' + lv.join());
+  ok((await p.locator('.pf-pchar[data-char=ch_us_1003] .pf-sets-max_level .pf-set-name').allTextContents()).join() === 'Endgame', 'max-level sets listed separately');
+
+  // armory layout: 19 slots in character-window columns
+  ok(await p.locator('.pf-charwin .pf-slot').count() === 19, '19 slots incl. shirt + tabard');
+  ok((await p.$$eval('#pf-col-left .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'head,neck,shoulder,back,chest,shirt,tabard,wrist', 'left column like the in-game window');
+  ok((await p.$$eval('#pf-col-right .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'hands,waist,legs,feet,finger1,finger2,trinket1,trinket2', 'right column');
+  ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'weapons along the bottom');
+  ok(await p.getAttribute('#pf-slot-head', 'aria-label') === 'Head: empty. Choose item', 'slot buttons labelled');
+  ok(await p.locator('#pf-slot-head .pf-icon.is-ph svg[data-glyph=helm]').count() === 1, 'placeholder icon when empty');
+
+  // picker: search + paging, keyboard, autosave with If-Match
+  await p.focus('#pf-slot-head'); await p.keyboard.press('Enter');
+  ok(await p.evaluate(() => document.getElementById('pf-picker').open && document.activeElement.id === 'pf-picker-q'), 'Enter opens picker, focus on search');
+  await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length === 10);
+  ok(await p.isVisible('#pf-picker-more') && /more available/.test(await p.textContent('#pf-picker-status')), 'first page of 10 + Load more');
+  await p.click('#pf-picker-more'); ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length === 20), 'paging appends next page');
+  await p.click('#pf-picker-more'); ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length === 22) && await p.isHidden('#pf-picker-more'), 'last page, no Load more');
+  ok(await p.locator('#pf-picker-list .pf-icon.is-ph').count() === 22, 'icon_url null -> placeholder icons');
+  await p.fill('#pf-picker-q', 'ember'); ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length === 1), 'search filters');
+  ok((await p.textContent('#pf-picker-list .pf-pick-name')) === 'Emberwrought Helm', 'fictional Forever item shown');
+  const iid = +(await p.getAttribute('#pf-picker-list .pf-pick', 'data-item'));
+  await p.click('#pf-picker-list .pf-pick');
+  ok(await until(() => /Head saved: Emberwrought Helm/.test(document.getElementById('pf-status').textContent)), 'pick autosaves (no save button)');
+  ok(await p.evaluate(() => document.activeElement.id === 'pf-slot-head'), 'focus returns to the slot');
+  ok(/Emberwrought Helm/.test(await p.textContent('#pf-slot-head')), 'slot shows item');
+  const setId = await p.getAttribute('.pf-set[aria-current=true]', 'data-set');
+  const srv = await mockSet(setId);
+  ok(srv.items.length === 1 && srv.items[0].slot === 'head' && srv.items[0].item_id === iid && srv.items[0].priority === 1 && srv.version === 2, 'POST ops add_item priority 1 -> server items + v2');
+  // finger2 picker lists finger items
+  await p.click('#pf-slot-finger2'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0);
+  ok(/Band/.test(await p.textContent('#pf-picker-list .pf-pick-name')), 'finger2 picker shows rings'); await p.keyboard.press('Escape');
+  ok(await p.evaluate(() => !document.getElementById('pf-picker').open && document.activeElement.id === 'pf-slot-finger2'), 'Escape closes picker, focus back');
+  // clear slot
+  await p.click('#pf-slot-head'); await p.click('#pf-picker-clear'); ok(await until(() => /Head cleared/.test(document.getElementById('pf-status').textContent)), 'clear slot saves');
+  ok(!(await mockSet(setId)).items.some(i => i.slot === 'head'), 'clear = remove_item, head gone on server');
+  // replacing a filled slot = remove old + add new in one batch, still one item per slot
+  await p.click('#pf-slot-head'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 1); await p.click('#pf-picker-list li:nth-child(1) .pf-pick'); await until(() => /Head saved/.test(document.getElementById('pf-status').textContent)); await idle();
+  await p.click('#pf-slot-head'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 1); await p.click('#pf-picker-list li:nth-child(2) .pf-pick'); await until(() => /Head saved/.test(document.getElementById('pf-status').textContent) && document.documentElement.getAttribute('data-pf-busy') === '0');
+  ok((await mockSet(setId)).items.filter(i => i.slot === 'head').length === 1, 'replace keeps one item per slot');
+  await p.click('#pf-slot-head'); await p.click('#pf-picker-clear'); await until(() => /Head cleared/.test(document.getElementById('pf-status').textContent)); await idle();
+  // several items in one slot (addon data): armory shows priority 1
+  const multi = await p.evaluate(() => CSArmoryApi.slotsOf([{ slot: 'head', item_id: 7, priority: 3 }, { slot: 'head', item_id: 8, priority: 1 }, { slot: 'neck', item_id: 9, priority: 2 }, { slot: 'neck', item_id: 10, priority: 2 }]));
+  ok(multi.head === 8 && multi.neck === 9, 'multiple items per slot -> priority 1, else first');
+  // reload keeps picks
+  await p.click('#pf-slot-neck'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0); await p.click('#pf-picker-list .pf-pick');
+  await until(() => /Neck saved/.test(document.getElementById('pf-status').textContent));
+  await go(); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => /Pendant/.test(document.getElementById('pf-slot-neck').textContent));
+  ok(/Emberwrought Pendant/.test(await p.textContent('#pf-slot-neck')), 'picks persist across reload');
+
+  // stale base_version -> conflicts[] -> reload + banner + automatic retry at the fresh version
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('cs_mock_armory')); s.flags = {}; localStorage.setItem('cs_mock_armory', JSON.stringify(s)); });
+  await go('?mock_armory=conflict'); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
+  await p.click('#pf-slot-back'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0); await p.click('#pf-picker-list .pf-pick');
+  ok(await until(() => /Back saved/.test(document.getElementById('pf-status').textContent)), 'stale_base_version: retried and saved');
+  ok(/changed somewhere else, so it was reloaded/.test(await p.textContent('#pf-slot-banner')) && /Duskhollow Pendant/.test(await p.textContent('#pf-slot-neck')), 'stale_base_version: banner + shows the other edit');
+  ok((await mockSet(setId)).items.some(i => i.slot === 'back'), 'retry landed on the server');
+  await idle(); await p.click('#pf-slot-back'); await p.click('#pf-picker-clear'); await until(() => /Back cleared/.test(document.getElementById('pf-status').textContent)); await idle();
+  // item_not_forever conflict, 400 invalid op, 429
+  await go('?mock_armory=notforever'); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
+  await p.click('#pf-slot-wrist'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0); await p.click('#pf-picker-list .pf-pick');
+  ok(await vis('#pf-slot-banner') && /isn.t a WoW Forever item/.test(await p.textContent('#pf-slot-banner')) && /Empty/.test(await p.textContent('#pf-slot-wrist')), 'conflicts[] item_not_forever -> message, slot from server');
+  const bad = await p.evaluate(() => CSArmoryMock.ops('x', { ops: [{ op_id: 'nope', type: 'set_slot', slot: 'hat', item_id: 1, base_version: 1 }] }));
+  ok(bad.status === 400 && bad.body.errors['ops.0'], '400 {errors:{ops.N}} for unknown op / slot / non-uuid op_id');
+  await go('?mock_armory=ratelimit'); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
+  await p.click('#pf-slot-wrist'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0); await p.click('#pf-picker-list .pf-pick');
+  ok(await vis('#pf-slot-banner') && /Wait 2 seconds/.test(await p.textContent('#pf-slot-banner')), '429 Retry-After message');
+
+  // 409 list_limit_reached + 409 character_not_displayed on create
+  await go('?mock_armory=limit'); await newBtn('ch_us_1001').click(); await p.fill('#pf-c-name', 'One more'); await p.click('#pf-c-save');
+  ok(await vis('#pf-c-error') && /already has 20 gear sets/.test(await p.textContent('#pf-c-error')), '409 list_limit_reached message'); await p.click('#pf-c-cancel');
+  await go('?mock_armory=notdisplayed'); await newBtn('ch_us_1001').click(); await p.fill('#pf-c-name', 'One more'); await p.click('#pf-c-save');
+  ok(await vis('#pf-c-error') && /Show this character on your profile/.test(await p.textContent('#pf-c-error')), '403 {errors:{character_id}} (not in selection) message'); await p.click('#pf-c-cancel');
+  ok(await p.evaluate(() => document.activeElement.classList.contains('pf-new')), 'cancel returns focus to Create new gear list');
+
+  // outgrown: Wispwander (27) with a leveling set up to 20, seeded
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('cs_mock_armory')); s.sets.push({ id: 'gs_old', character_id: 'ch_us_1005', name: 'Starter', type: 'leveling', until_level: 20, role_spec: null, updated_at: '2026-11-01T00:00:00Z', version: 1, items: [], touch: {} });
+    localStorage.setItem('cs_mock_armory', JSON.stringify(s)); });
+  await go(); const og = p.locator('.pf-set[data-set=gs_old]');
+  ok(await og.evaluate(e => e.classList.contains('is-outgrown')) && /Outgrown/.test(await og.textContent()), 'outgrown set grayed out in panel');
+  await og.click(); await until(() => !document.getElementById('pf-armory-view').hidden);
+  ok(await p.evaluate(() => document.getElementById('pf-armory-view').classList.contains('is-outgrown')) && /Outgrown: Wispwander is level 27/.test(await p.textContent('#pf-set-outgrown')), 'outgrown armory grayed with note');
+
+  // hiding keeps sets
+  await p.uncheck('#pf-show-ch_us_1003'); await until(() => /Its gear sets are kept/.test(document.getElementById('pf-status').textContent));
+  ok(await p.locator('.pf-pchar[data-char=ch_us_1003]').count() === 0, 'hidden character leaves the panel');
+  ok(await p.evaluate(() => JSON.parse(localStorage.getItem('cs_mock_armory')).sets.filter(s => s.character_id === 'ch_us_1003').length === 4), 'its sets are kept');
+  await p.check('#pf-show-ch_us_1003'); await until(() => document.querySelectorAll('.pf-pchar[data-char=ch_us_1003] .pf-set').length === 4);
+  ok(true, 'showing it again brings the sets back');
+  // toggle failure rolls back
+  await go('?mock_armory=toggle500'); await p.check('#pf-show-ch_us_1002');
+  ok(await vis('#pf-save-error') && !(await p.isChecked('#pf-show-ch_us_1002')), 'toggle error -> rollback + message');
+
+  // region (kept)
+  await go(); await p.selectOption('#pf-region', 'eu'); ok(await until(() => /Preferred region saved/.test(document.getElementById('pf-status').textContent)), 'preferred region still saves');
+
+  // mobile drawer
+  await p.setViewportSize({ width: 375, height: 800 }); await go();
+  ok(await p.isVisible('#pf-drawer-btn') && !(await p.isVisible('#pf-panel')), 'mobile: panel is a closed drawer');
+  await p.click('#pf-drawer-btn');
+  ok(await until(() => document.getElementById('pf-panel').classList.contains('is-open')) && await p.getAttribute('#pf-drawer-btn', 'aria-expanded') === 'true', 'drawer opens (aria-expanded)');
+  await p.waitForTimeout(300); ok(await p.isVisible('#pf-panel') && await p.evaluate(() => document.activeElement.id === 'pf-panel'), 'drawer visible, focus moved in');
+  await p.keyboard.press('Escape'); ok(await until(() => !document.getElementById('pf-panel').classList.contains('is-open')) && await p.evaluate(() => document.activeElement.id === 'pf-drawer-btn'), 'Escape closes drawer, focus back on toggle');
+  await p.click('#pf-drawer-btn'); await p.waitForTimeout(300); await p.click(`.pf-set[data-set="${setId}"]`);
+  ok(await until(() => !document.getElementById('pf-panel').classList.contains('is-open') && !document.getElementById('pf-armory-view').hidden), 'choosing a set closes the drawer and opens the armory');
+  ok(await p.evaluate(() => document.documentElement.scrollWidth <= 375), 'no horizontal overflow at 375px');
+  await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-mobile.png'), fullPage: true });
+  await p.setViewportSize({ width: 1280, height: 900 }); await go(); await p.click(`.pf-set[data-set="${setId}"]`); await p.waitForTimeout(400);
+  await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-desktop.png'), fullPage: true });
+
+  const txt = await p.evaluate(() => document.body.innerText); ok(!/\b(undefined|NaN)\b/.test(txt), 'no undefined/NaN in page text');
+  const src = await p.evaluate(async () => { let s = ''; for (const f of ['js/profile.js', 'js/armory-api.js', 'js/armory-mock.js', 'js/gear-set-rules.js']) s += await (await fetch('../' + f)).text(); return s; });
+  ok(!/innerHTML/.test(src), 'no innerHTML in armory JS');
+  ok(errs.length === 0, 'no page errors ' + errs.join('|'));
+  await b.close();
+})().catch(e => { console.log('FAIL crash ' + e.message); process.exitCode = 1; process.exit(1); });

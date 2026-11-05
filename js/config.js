@@ -1,5 +1,15 @@
 /** Site config. API_BASE is shared by the auth, profile, gear and rankings clients. */
-window.CS_CONFIG = Object.freeze({
+/** Production hosts: the armory/auth/profile/gear-lists mocks never run here, whatever the flags below say (see csProdGuard). */
+window.CS_PROD_HOSTS = Object.freeze(['crusaderstrike.com', 'www.crusaderstrike.com']);
+/** Mock flags forced off on CS_PROD_HOSTS (Product scope). USE_MOCK_GEAR and USE_MOCK_RANKINGS are NOT forced: they stay as configured (on) in prod today. */
+window.CS_PROD_FORCED_OFF = Object.freeze(['USE_MOCK_ARMORY', 'USE_MOCK_AUTH', 'USE_MOCK_PROFILE', 'USE_MOCK_GEAR_LISTS']);
+function csProdGuard(c) {
+  var h = ''; try { h = String(location.hostname || '').toLowerCase(); } catch (e) {}
+  c.IS_PROD_HOST = window.CS_PROD_HOSTS.indexOf(h) >= 0;
+  if (c.IS_PROD_HOST) window.CS_PROD_FORCED_OFF.forEach(function (k) { c[k] = false; });  // gear + rankings mocks intentionally keep their configured value on prod
+  return c;
+}
+window.CS_CONFIG = Object.freeze(csProdGuard({
   API_BASE: 'https://api.crusaderstrike.com',
   // web#17: Battle.net sign-in + main/alt picker. OFF in production.
   // Dev/preview override (non-production hosts only): ?ff_bnet=1 or localStorage cs_ff_bnet=1.
@@ -11,7 +21,7 @@ window.CS_CONFIG = Object.freeze({
   // web#18 gear UI: true = js/gear-mock.js; false = real API GET /characters/{id}/gear.
   USE_MOCK_GEAR: true,
   GEAR_PATH: '/api/v1/characters/{id}/gear',      // platform#30 getCharacterGear
-  // web#18 gear lists (platform#17, per character, max 5). true = js/gear-lists-mock.js (?mock= scenarios); false = real API.
+  // web#18 gear lists (platform#17, per character; server cap answers 409 list_limit_reached, no client cap). true = js/gear-lists-mock.js (?mock= scenarios); false = real API.
   // web#40: live against platform main src/routes/gear-lists.ts (signed-in only; cs_session cookie + X-CSRF-Token on writes).
   USE_MOCK_GEAR_LISTS: false,
   GEAR_LISTS_PATHS: Object.freeze({
@@ -20,7 +30,21 @@ window.CS_CONFIG = Object.freeze({
     OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops[]} -> 200 {version, applied, duplicates, conflicts, list}
     EVENTS: '/api/v1/gear-lists/{id}/events'          // GET ?after_version=&limit=
   }),
-  GEAR_LISTS_MAX: 5,
+  // web#42 profile display toggles + armory gear sets. Contract: platform main openapi/v1.yaml + src/routes/{profile,gear-lists}.ts,
+  // gear-list schema v1. Display = PUT selection; slot edits = POST ops.
+  // true = js/armory-mock.js (fictional Forever items, ?mock_armory= scenarios); false = real API at API_BASE.
+  USE_MOCK_ARMORY: false,  // forced false on CS_PROD_HOSTS regardless (CS_PROD_FORCED_OFF); e2e suites force true via _test-config.js
+  ARMORY_PATHS: Object.freeze({
+    SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, visibility?} (shipped); type/until_level/role_spec sent for platform#43
+    SET: '/api/v1/gear-lists/{id}',                   // GET (ETag "v<version>")
+    OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops:[add_item|remove_item, op_id, slot, item_id, base_version]} -> {version, applied, duplicates, conflicts, list}
+    ITEMS: '/api/v1/items',                           // GET ?slot=&q=&max_required_level=&cursor= -> {items, next_cursor}
+    ITEM: '/api/v1/items/{id}'
+  }),
+  ARMORY_MAX_SETS: 20,  // UI hint only; never blocks a create. The server's 409 list_limit_reached is the source of truth.
+  ARMORY_MAX_LEVEL: 60,
+  ARMORY_SLOTS: Object.freeze(['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist', 'hands', 'waist', 'legs', 'feet',
+    'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand', 'ranged']),
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}
@@ -61,7 +85,7 @@ window.CS_CONFIG = Object.freeze({
       })
     })
   })
-});
+}));
 
 /** Resolves the Battle.net sign-in flag. Production hosts ignore overrides. */
 window.csBnetEnabled = function () {

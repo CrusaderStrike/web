@@ -11,7 +11,7 @@
   'use strict';
   var KEY = 'cs_mock_gear_lists';
   var SPEC = window.CSGearListsSpec, L = SPEC.limits;
-  var MAX = L.lists_per_character;
+  var MAX = (window.CS_CONFIG && window.CS_CONFIG.ARMORY_MAX_SETS) || 20;  // web#42: platform cap 20 (409 list_limit_reached)
   var OWNED = ['ch_us_1001', 'ch_us_1002', 'ch_us_1003', 'ch_us_1004', 'ch_us_1005', 'ch_eu_2001'];
   var SLOTS = SPEC.slots;
   // Forever item fixtures (fictional). Unknown ids still pass; name comes back null.
@@ -96,7 +96,12 @@
       if (mock() === 'limit' || mine.length >= MAX) return err(409, 'list_limit_reached', 'You already have ' + MAX + ' lists for this character.');
       if (!body || !validName(body.name)) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { name: 'Name must be 1–64 characters.' } });
       var vis = body.visibility === 'guild' ? 'guild' : 'private';
-      var l = { id: uid(), character_id: charId, owner_user_id: OWNER, name: body.name.trim(), visibility: vis, version: 0, updated_at: now(), updated_source: 'web', items: [] };
+      var tp = body.type === 'leveling' ? 'leveling' : 'max_level';
+      if (tp === 'leveling' && body.until_level == null) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { until_level: 'until_level_required' } });
+      if (tp === 'max_level' && body.until_level != null) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { until_level: 'until_level_must_be_null' } });
+      var l = { id: uid(), character_id: charId, owner_user_id: OWNER, name: body.name.trim(), visibility: vis, type: tp,
+        until_level: tp === 'leveling' ? body.until_level : null, role_spec: body.role_spec || null, outgrown: false,
+        version: 0, updated_at: now(), edited_at: now(), updated_source: 'web', items: [] };
       s.lists.push(l); s.events[l.id] = [];
       bump(s, l, 'GearListCreated', { name: l.name, character_id: charId, visibility: vis }); save(s);
       return res(201, strip(l), etag(l));
@@ -159,7 +164,7 @@
         if (o.type === 'add_item') {
           if (NOT_FOREVER.indexOf(o.item_id) >= 0) { reject(o, 'item_not_forever', 'Not a WoW Forever item.'); return; }
           if (it) { reject(o, 'superseded_by_newer_edit'); return; }
-          if (l.items.length >= L.items_per_list) { reject(o, 'superseded_by_newer_edit', 'list_items_limit: a list holds at most ' + L.items_per_list + ' items.'); return; }
+          if (l.items.length >= L.items_per_list) { reject(o, 'list_items_limit', 'A list holds at most ' + L.items_per_list + ' items.'); return; }
           var pr = Math.max(L.priority_min, Math.min(L.priority_max, Math.floor(o.priority) || 1));
           var note = o.note ? String(o.note).slice(0, L.note_max) : null;
           l.items.push(item(o.slot, o.item_id, pr, note));

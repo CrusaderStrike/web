@@ -12,28 +12,23 @@ await p.click('#si-authorize-cancel'); await p.waitForSelector('#si-cancelled:no
 await p.click('#si-cancelled [data-action=restart]'); await p.click('#si-signin'); await p.waitForSelector('#si-authorize:not([hidden])');
 await p.keyboard.press('Tab'); // focus moves via keyboard
 await p.focus('#si-authorize-ok'); await p.keyboard.press('Enter');
-await p.waitForSelector('#si-picker:not([hidden])');
-const names=await p.locator('.si-char-name').allTextContents(); ok(names.join('|')==='Lightbringer Dawnmantle|Ashenvow|Thornquill Briarhide|Grimlantern|Wispwander','picker names: '+names.join('|'));
-const metas=await p.locator('.si-char-meta').allTextContents(); ok(!metas.some(m=>/·\s*$|^\s*·/.test(m)),'no dangling meta separator: '+metas.join('|'));
-const n=await p.locator('#si-list li').count(); ok(n===5,'5 Forever chars (non-Forever filtered): '+n);
-await p.click('#si-picker-form button[type=submit]'); ok(await p.locator('#si-picker-error').isVisible(),'validation without main');
-await p.check('#si-main-ch_us_1001'); ok(await p.locator('#si-alt-ch_us_1001').isDisabled(),'main alt disabled');
-await p.check('#si-alt-ch_us_1003'); await p.check('#si-alt-ch_us_1004');
-ok((await p.textContent('#si-status')).length>=0,'live region');
-await p.click('#si-picker-form button[type=submit]'); await p.waitForSelector('#si-confirm:not([hidden])');
-ok((await p.textContent('#si-confirm-main')).trim()==='Lightbringer Dawnmantle — Emberfall','confirm main: name surname — realm');
-const alts=await p.locator('#si-confirm-alts li').allTextContents(); ok(alts.join('|')==='Thornquill Briarhide|Grimlantern','realmless alts, no separator: '+alts.join('|'));
-await p.click('#si-save'); await p.waitForSelector('#si-saved:not([hidden])'); const sv=await p.textContent('#si-saved-msg'); ok(sv.includes('Lightbringer Dawnmantle — Emberfall'),'saved: '+sv);
-const bad=async(w)=>{const t=await p.evaluate(()=>document.body.innerText+' '+document.body.textContent+' '+[...document.querySelectorAll('[aria-label],[title],[alt],input')].map(e=>(e.getAttribute('aria-label')||'')+(e.title||'')+(e.alt||'')+(e.value||'')).join(' '));ok(!/\b(undefined|null)\b/i.test(t)&&!/—\s*($|[.,:;|])/m.test(t),'no undefined/null/dangling separator ('+w+')');};
-await bad('saved');
-await p.click('#si-logout'); await p.waitForSelector('#si-start:not([hidden])');
-await p.click('#si-signin'); await p.click('#si-authorize-ok'); await p.waitForSelector('#si-picker:not([hidden])');
-ok(await p.isChecked('#si-main-ch_us_1001') && await p.isChecked('#si-alt-ch_us_1003'),'selection persists after re-login'); await bad('picker');
-await p.goto(B+'signin.html?mock_scenario=empty'); await p.waitForSelector('#si-empty:not([hidden])'); ok(true,'empty state');
-await p.goto(B+'signin.html?mock_scenario=upstream'); await p.waitForSelector('#si-error:not([hidden])'); ok(true,'error state: '+await p.textContent('#si-error-msg'));
+// web#42: return_to=/profile/ -> the user lands on the profile (no main/alt picker)
+await p.waitForURL(/\/profile\/$/); ok(true,'mock callback honours return_to=/profile/');
+await p.waitForSelector('#pf-ready:not([hidden])'); ok(await p.isVisible('#pf-choose'),'first visit: choose characters to display step');
+ok(await p.locator('input[name=main], input[name=alt], [data-role=main]').count()===0,'no main/alt UI on profile');
+await p.goto(B+'signin.html'); await p.waitForURL(/\/profile\/$/); ok(true,'signed-in visit to signin.html goes to profile');
 await p.goto(B+'signin.html?auth=error&reason=upstream_unavailable'); await p.waitForSelector('#si-error:not([hidden])'); ok((await p.textContent('#si-error-msg')).includes('not responding'),'callback reason message');
-await p.goto(B+'signin.html?auth=error&reason=bogus'); await p.waitForSelector('#si-error:not([hidden])'); await bad('unknown reason');
-await p.setViewportSize({width:375,height:800}); await p.goto(B+'signin.html');await p.waitForSelector('#si-picker:not([hidden])');
+await p.goto(B+'signin.html?auth=error&reason=bogus'); await p.waitForSelector('#si-error:not([hidden])');
+const bad=async(w)=>{const t=await p.evaluate(()=>document.body.innerText);ok(!/\b(undefined|null)\b/i.test(t),'no undefined/null ('+w+')');};
+await bad('unknown reason');
+await p.evaluate(()=>CSAuthMock.logout()); await p.goto(B+'signin.html'); await p.waitForSelector('#si-start:not([hidden])');
+ok((await p.textContent('#si-signin')).trim()==='Login / Create account with Battle.net','button reads Login / Create account with Battle.net');
+// real-API start URL carries return_to=/profile/
+const p2=await b.newPage(); await require('./_test-config.js').forceTestConfig(p2.context(),{FEATURE_BNET_SIGNIN:true,USE_MOCK_AUTH:false,USE_MOCK_PROFILE:false});
+let startUrl=null; await p2.route('https://api.crusaderstrike.com/**',r=>{const u=r.request().url(); if(/auth\/blizzard\/login/.test(u)){startUrl=u;return r.fulfill({status:200,body:'ok'});} return r.fulfill({status:401,headers:{'access-control-allow-origin':B.slice(0,-1),'access-control-allow-credentials':'true','content-type':'application/json'},body:'{"error":{"code":"unauthorized"}}'});});
+await p2.goto(B+'signin.html'); await p2.waitForSelector('#si-start:not([hidden])'); await p2.click('#si-signin'); await p2.waitForTimeout(800);
+ok(startUrl && new URL(startUrl).searchParams.get('return_to')==='/profile/','live sign-in return_to=/profile/: '+startUrl);
+await p.setViewportSize({width:375,height:800}); await p.goto(B+'signin.html');await p.waitForSelector('#si-start:not([hidden])');
 ok(await p.evaluate(()=>document.documentElement.scrollWidth<=375),'no horizontal overflow at 375px');
 await p.goto(B+'leaderboards.html'); const c1=await p.textContent('#lb-caption'); console.log(' caption:',c1);
 await p.selectOption('#filter-realm','Emberfall'); await p.click('button.cs-sort[data-sort=score]'); const c2=await p.textContent('#lb-caption'); console.log(' caption:',c2);

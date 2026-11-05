@@ -75,7 +75,7 @@ await p.goto(B+'gear/?character=ch_us_1001&ff_bnet=1'); await vis('#gr-ready');
 ok(await p.$('#gr-h .gr-stale')===null,'no stale badge when fresh');
 {await p.goto(B+'gear/?character=ch_us_1001&ff_bnet=1'); await vis('#gr-ready');
 await p.evaluate(()=>{const o=CSGearMock.gear;});
-for(const [w,h,f,dpr] of [[1280,900,(process.env.SHOT_DIR||'/workspace')+'/gear-placeholder-desktop.png',2],[375,812,(process.env.SHOT_DIR||'/workspace')+'/gear-placeholder-mobile.png',2]]){
+for(const [w,h,f,dpr] of [[1280,900,(process.env.SHOT_DIR||process.env.CS_E2E_SHOTS||require('os').tmpdir())+'/gear-placeholder-desktop.png',2],[375,812,(process.env.SHOT_DIR||process.env.CS_E2E_SHOTS||require('os').tmpdir())+'/gear-placeholder-mobile.png',2]]){
  const c=await b.newContext({viewport:{width:w,height:h},deviceScaleFactor:dpr});const q=await c.newPage();
  await q.route('https://render.worldofwarcraft.com/**',r=>r.fulfill({status:404,body:''}));
  await q.goto(B+'gear/?character=ch_us_1001&ff_bnet=1');await q.evaluate(()=>{CSAuthMock.devSignIn();localStorage.setItem('cs_mock_selection',JSON.stringify({main_id:'ch_us_1001',alt_ids:[],updated_at:'2026-11-04T18:00:00Z'}));});
