@@ -25,10 +25,11 @@ const CH = 'ch_us_1001';
     if (!S.signedIn) return J(401, { error: { code: 'unauthorized', message: 'Sign in required.', request_id: 'r' } });
     if (m !== 'GET' && h['x-csrf-token'] !== CSRF) return J(403, { error: { code: 'csrf_failed', message: 'Security check failed.', request_id: 'r' } });
     if (u.pathname === '/api/v1/auth/session') return J(200, { battletag: 'Drew#1234', active_guild_id: null, memberships: [], csrf_token: CSRF });
-    if (u.pathname === '/api/v1/me/characters') return J(200, { characters: [{ id: CH, character_name: 'Lightbringer', surname: 'Dawnmantle', realm: 'Emberfall', region: 'us', game: 'wow_forever' }] });
+    if (u.pathname === '/api/v1/me/characters') return J(200, { characters: [{ id: CH, character_name: 'Lightbringer', surname: 'Dawnmantle', realm: 'Emberfall', region: 'us', level: 42, game: 'wow_forever', displayed: true }] });
     if (u.pathname === '/api/v1/characters/' + CH + '/gear-lists') {
       if (m === 'GET') return J(200, { items: S.lists });
       if (S.next429) { const s = S.next429; S.next429 = null; return J(429, { error: { code: 'rate_limited', message: 'Gear write is rate-limited. Try again shortly.', request_id: 'r' } }, { 'retry-after': String(s) }); }
+      if (S.nextLimit) { S.nextLimit = false; return J(409, { error: { code: 'list_limit_reached', message: 'At most 20 lists.', request_id: 'r' } }); }
       if (S.next400) { S.next400 = false; return J(400, { errors: { name: '1..64 chars, no control characters.' } }); }
       if (S.next403) { S.next403 = false; return J(403, { errors: { character_id: 'Character is not displayed.' } }); }
       const body = JSON.parse(rq.postData() || '{}'); const l = mk(body.name, body.visibility); S.lists.push(l);
@@ -61,12 +62,18 @@ const CH = 'ch_us_1001';
   ok(await vis('#gl-none'), 'empty state: no gear lists yet');
   ok((await p.textContent('#gl-h')).startsWith('Lightbringer Dawnmantle'), 'heading from /me/characters');
 
-  // create (201, {name, visibility}) with CSRF
+  // web#42 level rule: level 42 -> leveling by default, until_level must be > 42
+  ok(await p.isChecked('#gl-new-type-leveling') && await p.isVisible('#gl-new-until'), 'under 60 defaults to leveling with Up to level');
+  await p.fill('#gl-new-name', 'Too low'); await p.fill('#gl-new-until', '42'); await p.click('#gl-new-btn');
+  ok(/higher than/.test(await p.textContent('#gl-new-until-err')), 'until_level <= level rejected client-side');
+  await p.check('#gl-new-type-max'); ok(await p.isHidden('#gl-new-until'), 'max-level hides Up to level'); await p.check('#gl-new-type-leveling');
+  await p.fill('#gl-new-until', '50');
+  // create (201, {name, type, until_level, role_spec, visibility}) with CSRF
   await p.fill('#gl-new-name', 'Emberfall BiS'); await p.selectOption('#gl-new-vis', 'guild'); await p.click('#gl-new-btn');
   await p.waitForFunction(() => document.getElementById('gl-detail-h').textContent === 'Emberfall BiS');
   const c = writes().find(x => x.m === 'POST');
   ok(c && c.csrf === CSRF, 'create sends X-CSRF-Token from /auth/session');
-  ok(c && JSON.stringify(JSON.parse(c.body)) === JSON.stringify({ name: 'Emberfall BiS', visibility: 'guild' }), 'create body {name, visibility}: ' + (c && c.body));
+  ok(c && JSON.stringify(JSON.parse(c.body)) === JSON.stringify({ name: 'Emberfall BiS', type: 'leveling', until_level: 50, role_spec: null, visibility: 'guild' }), 'create body {name, type, until_level, role_spec, visibility}: ' + (c && c.body));
   ok(await count() === 1, 'one list after create');
 
   // rename (PATCH If-Match "v1")
@@ -84,6 +91,11 @@ const CH = 'ch_us_1001';
   S.next429 = 1; await p.fill('#gl-new-name', 'Duskhollow pre-raid'); await p.click('#gl-new-btn');
   ok(await vis('#gl-banner') && /Retrying in 1 second/.test(await p.textContent('#gl-banner-msg')), '429 honours Retry-After: ' + await p.textContent('#gl-banner-msg'));
   ok(await p.waitForFunction(() => document.querySelectorAll('#gl-index button').length === 2, null, { timeout: 4000 }).then(() => true, () => false), 'auto-retry after Retry-After creates list');
+
+  // 409 list_limit_reached (server owns the 20 cap; no client cap)
+  ok(await p.isEnabled('#gl-new-btn') && (await p.textContent('#gl-count')) === '(2)', 'no client-side 5-list cap');
+  S.nextLimit = true; await p.fill('#gl-new-name', 'Twenty-first'); await p.click('#gl-new-btn');
+  ok(await p.waitForFunction(() => /already have 20 lists/.test(document.getElementById('gl-banner-msg').textContent), null, { timeout: 3000 }).then(() => true, () => false), '409 list_limit_reached banner');
 
   // delete (DELETE If-Match, 204)
   await p.click('#gl-delete'); await p.click('#gl-delete-confirm');

@@ -30,7 +30,7 @@
 
   <main id="main" class="cs-wrap cs-section si-main">
     <h1 class="cs-display">Your characters</h1>
-    <p class="cs-section-intro">Sign in with Battle.net, then pick your World of Warcraft Forever main and mark any alts.</p>
+    <p class="cs-section-intro">Sign in with Battle.net. You land on your profile, where you choose which World of Warcraft Forever characters to display.</p>
     <p id="si-mock-note" class="si-note" hidden>Preview: this uses a mock API with fake characters. No real Battle.net sign-in happens.</p>
 
     <div id="si-status" class="si-sr-only" role="status" aria-live="polite"></div>
@@ -43,7 +43,7 @@
     <section id="si-start" class="si-step cs-form-panel" aria-labelledby="si-start-h" hidden>
       <h2 id="si-start-h" tabindex="-1">Sign in</h2>
       <p>We only read your World of Warcraft Forever characters. We never see your Battle.net password.</p>
-      <button type="button" class="cs-btn cs-btn-primary si-bnet" id="si-signin">Sign in with Battle.net</button>
+      <button type="button" class="cs-btn cs-btn-primary si-bnet" id="si-signin">Login / Create account with Battle.net</button>
     </section>
 
     <section id="si-authorize" class="si-step cs-form-panel" aria-labelledby="si-authorize-h" hidden>
@@ -81,42 +81,6 @@
       <button type="button" class="cs-btn cs-btn-primary" data-action="retry">Refresh</button>
     </section>
 
-    <section id="si-picker" class="si-step" aria-labelledby="si-picker-h" hidden>
-      <h2 id="si-picker-h" tabindex="-1">Pick your main and alts</h2>
-      <p class="cs-muted" id="si-picker-help">Choose exactly one main. Mark any other characters as alts.</p>
-      <form id="si-picker-form" novalidate>
-        <fieldset class="si-fieldset" aria-describedby="si-picker-help si-picker-error">
-          <legend>Characters on <span id="si-battletag"></span></legend>
-          <ul class="si-list" id="si-list"></ul>
-        </fieldset>
-        <p id="si-picker-error" class="si-error" hidden></p>
-        <div class="si-actions">
-          <button type="submit" class="cs-btn cs-btn-primary">Review choice</button>
-        </div>
-      </form>
-    </section>
-
-    <section id="si-confirm" class="si-step cs-form-panel" aria-labelledby="si-confirm-h" hidden>
-      <h2 id="si-confirm-h" tabindex="-1">Confirm your choice</h2>
-      <dl class="si-summary">
-        <dt>Main</dt><dd id="si-confirm-main"></dd>
-        <dt>Alts</dt><dd><ul id="si-confirm-alts"></ul></dd>
-      </dl>
-      <div class="si-actions">
-        <button type="button" class="cs-btn cs-btn-primary" id="si-save">Save</button>
-        <button type="button" class="cs-btn cs-btn-ghost" id="si-back">Back</button>
-      </div>
-    </section>
-
-    <section id="si-saved" class="si-step cs-form-panel si-ok" aria-labelledby="si-saved-h" hidden>
-      <h2 id="si-saved-h" tabindex="-1">Characters saved</h2>
-      <p id="si-saved-msg"></p>
-      <p><a href="profile/" id="si-profile-link">Go to your profile</a></p>
-      <div class="si-actions">
-        <button type="button" class="cs-btn cs-btn-ghost" id="si-edit">Change selection</button>
-        <button type="button" class="cs-btn cs-btn-ghost" id="si-logout">Sign out</button>
-      </div>
-    </section>
   </main>
 
   <footer class="cs-wrap cs-footer">

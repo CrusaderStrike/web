@@ -1,5 +1,5 @@
 /**
- * web#17: Battle.net sign-in + main/alt character picker.
+ * web#17/web#42: Battle.net sign-in. After sign-in the user lands on /profile/ (no main/alt picker).
  * Contract: docs/auth-characters-api.md. Renders API data with DOM APIs only (createElement + textContent only).
  */
 (function () {
@@ -9,7 +9,7 @@
   var useMock = cfg.USE_MOCK_AUTH;
   var $ = function (id) { return document.getElementById(id); };
   var status = $('si-status');
-  var steps = ['disabled', 'start', 'authorize', 'loading', 'cancelled', 'error', 'empty', 'picker', 'confirm', 'saved'];
+  var steps = ['disabled', 'start', 'authorize', 'loading', 'cancelled', 'error', 'empty'];
   var state = { csrf: null, battletag: '', characters: [], mainId: null, altIds: [], retry: null };
 
   // ---- API adapter: mock or real (same response shape) ----
@@ -67,136 +67,18 @@
 
   // ---- Flow ----
   function signIn() {
-    var returnTo = '/signin.html'; // spec: relative path starting with a single '/'
+    var returnTo = '/profile/'; // web#42: land on the profile after Battle.net (allowlisted relative path)
     if (useMock) { location.assign(mock.start(returnTo)); return; }
     location.assign(cfg.API_BASE + cfg.AUTH_PATHS.START + '?return_to=' + encodeURIComponent(returnTo));
   }
-  function loadCharacters() {
-    state.retry = loadCharacters;
-    show('loading', 'Loading your characters.');
-    api.session().then(function (r) {
-      if (!r.ok) return fail(r, loadCharacters);
-      state.csrf = r.body.csrf_token;
-      state.battletag = r.body.battletag;
-      return api.characters().then(function (cr) {
-        if (!cr.ok) return fail(cr, loadCharacters);
-        var sel = cr.body.selection;
-        state.characters = (cr.body.characters || []).filter(function (c) { return c.game === 'wow_forever' && !c.stale; });
-        if (!state.characters.length) { show('empty', 'No World of Warcraft Forever characters found.'); return; }
-        state.mainId = sel && byId(sel.main_id) ? sel.main_id : null;
-        state.altIds = sel ? (sel.alt_ids || []).filter(function (id) { return byId(id) && id !== state.mainId; }) : [];
-        renderPicker();
-        show('picker', state.characters.length + ' characters loaded. Pick your main.');
-      });
-    }).catch(function () { fail(null, loadCharacters); });
-  }
-
-  function renderPicker() {
-    $('si-battletag').textContent = state.battletag;
-    var list = $('si-list');
-    var frag = document.createDocumentFragment();
-    state.characters.forEach(function (c) {
-      var li = el('li', 'si-char' + (c.id === state.mainId ? ' is-main' : ''));
-      var info = el('div', 'si-char-info');
-      var nameId = 'si-name-' + c.id;
-      var name = el('span', 'si-char-name', fullName(c)); name.id = nameId;
-      info.appendChild(name);
-      var meta = el('span', 'si-char-meta', metaText(c));
-      info.appendChild(meta);
-      var badge = window.csFactionBadge(c.faction);
-      info.appendChild(badge);
-      li.appendChild(info);
-
-      var controls = el('div', 'si-char-controls');
-      var r = el('input'); r.type = 'radio'; r.name = 'main'; r.value = c.id; r.id = 'si-main-' + c.id;
-      r.checked = c.id === state.mainId;
-      var rl = el('label', 'si-choice'); rl.htmlFor = r.id;
-      rl.appendChild(r); rl.appendChild(el('span', null, 'Main'));
-      rl.appendChild(el('span', 'si-sr-only', ': ' + label(c)));
-      controls.appendChild(rl);
-
-      var cb = el('input'); cb.type = 'checkbox'; cb.name = 'alt'; cb.value = c.id; cb.id = 'si-alt-' + c.id;
-      cb.checked = state.altIds.indexOf(c.id) !== -1;
-      cb.disabled = c.id === state.mainId;
-      var cl = el('label', 'si-choice'); cl.htmlFor = cb.id;
-      cl.appendChild(cb); cl.appendChild(el('span', null, 'Alt'));
-      cl.appendChild(el('span', 'si-sr-only', ': ' + label(c)));
-      controls.appendChild(cl);
-      li.appendChild(controls);
-      frag.appendChild(li);
-    });
-    list.replaceChildren(frag);
-  }
-
-  $('si-list').addEventListener('change', function (e) {
-    var t = e.target;
-    if (t.name === 'main') {
-      state.mainId = t.value;
-      state.altIds = state.altIds.filter(function (id) { return id !== t.value; });
-      document.querySelectorAll('#si-list input[name="alt"]').forEach(function (cb) {
-        var isMain = cb.value === state.mainId;
-        cb.disabled = isMain;
-        if (isMain) cb.checked = false;
-        cb.closest('.si-char').classList.toggle('is-main', isMain);
-      });
-      $('si-picker-error').hidden = true;
-      announce(fullName(byId(t.value)) + ' is now your main.');
-    } else if (t.name === 'alt') {
-      if (t.checked) state.altIds.push(t.value);
-      else state.altIds = state.altIds.filter(function (id) { return id !== t.value; });
-      announce(fullName(byId(t.value)) + (t.checked ? ' marked as alt.' : ' is no longer an alt.') +
-        ' ' + state.altIds.length + ' alts selected.');
-    }
-  });
-
-  $('si-picker-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var errEl = $('si-picker-error');
-    if (!state.mainId) {
-      errEl.textContent = 'Choose a main before continuing.';
-      errEl.hidden = false;
-      announce('Error: choose a main before continuing.');
-      var first = document.querySelector('#si-list input[name="main"]');
-      if (first) first.focus();
-      return;
-    }
-    errEl.hidden = true;
-    $('si-confirm-main').textContent = label(byId(state.mainId));
-    var ul = $('si-confirm-alts');
-    var frag = document.createDocumentFragment();
-    if (!state.altIds.length) frag.appendChild(el('li', 'cs-muted', 'None'));
-    state.altIds.forEach(function (id) { frag.appendChild(el('li', null, label(byId(id)))); });
-    ul.replaceChildren(frag);
-    show('confirm', 'Review your choice, then save.');
-  });
-
-  function save() {
-    var btn = $('si-save');
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    announce('Saving…');
-    api.save({ main_id: state.mainId, alt_ids: state.altIds.slice() }).then(function (r) {
-      btn.disabled = false; btn.removeAttribute('aria-busy');
-      if (!r.ok) return fail(r, save);
-      var n = r.body.selection.alt_ids.length;
-      $('si-saved-msg').textContent = 'Main: ' + label(byId(r.body.selection.main_id)) + '. ' +
-        (n ? n + (n === 1 ? ' alt' : ' alts') + ' saved.' : 'No alts.');
-      show('saved', 'Characters saved.');
-    }).catch(function () { btn.disabled = false; btn.removeAttribute('aria-busy'); fail(null, save); });
-  }
-
+  // web#42: no main/alt picker any more. Once signed in, the profile page is where characters are chosen for display.
+  function goProfile() { location.replace('profile/'); }
   $('si-signin').addEventListener('click', signIn);
-  $('si-save').addEventListener('click', save);
-  $('si-back').addEventListener('click', function () { show('picker', 'Back to character list.'); });
-  $('si-edit').addEventListener('click', loadCharacters);
-  $('si-logout').addEventListener('click', function () {
-    api.logout().then(function () { history.replaceState(null, '', 'signin.html'); show('start', 'Signed out.'); });
-  });
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('[data-action]');
     if (!a) return;
     if (a.getAttribute('data-action') === 'restart') { history.replaceState(null, '', 'signin.html'); show('start'); }
-    if (a.getAttribute('data-action') === 'retry') (state.retry || loadCharacters)();
+    if (a.getAttribute('data-action') === 'retry') (state.retry || signIn)();
   });
 
   // ---- Entry ----
@@ -226,6 +108,6 @@
   }
   // auth=ok or a returning visit: try the session; 401 falls back to the start step.
   api.session().then(function (r) {
-    if (r.ok) loadCharacters(); else show('start');
+    if (r.ok) goProfile(); else show('start');
   }).catch(function () { show('start'); });
 })();

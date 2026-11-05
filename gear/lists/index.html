@@ -80,6 +80,22 @@
               <input id="gl-new-name" name="name" type="text" maxlength="64" required aria-describedby="gl-new-name-err">
               <span class="cs-error" id="gl-new-name-err"></span>
             </div>
+            <fieldset class="cs-field gl-type">
+              <legend>Set type</legend>
+              <label><input type="radio" name="gl-new-type" id="gl-new-type-leveling" value="leveling"> Leveling</label>
+              <label><input type="radio" name="gl-new-type" id="gl-new-type-max" value="max_level"> Max-level ideal</label>
+              <span class="cs-error" id="gl-new-type-leveling-err"></span>
+            </fieldset>
+            <div class="cs-field" id="gl-new-until-wrap">
+              <label for="gl-new-until">Up to level</label>
+              <input id="gl-new-until" name="until_level" type="number" inputmode="numeric" min="1" max="60" aria-describedby="gl-new-until-err">
+              <span class="cs-error" id="gl-new-until-err"></span>
+            </div>
+            <div class="cs-field">
+              <label for="gl-new-role">Role or spec <span class="cs-muted">(optional)</span></label>
+              <input id="gl-new-role" name="role_spec" type="text" maxlength="32" aria-describedby="gl-new-role-err">
+              <span class="cs-error" id="gl-new-role-err"></span>
+            </div>
             <div class="cs-field">
               <label for="gl-new-vis">Who can see it</label>
               <select id="gl-new-vis" name="visibility"></select>
@@ -180,6 +196,7 @@
   <script src="../../js/gear-api.js"></script>
   <script src="../../js/gear-icons.js"></script>
   <script src="../../js/gear-lists-api.js"></script>
+  <script src="../../js/gear-set-rules.js"></script>
   <script src="../../js/gear-lists.js"></script>
 </body>
 </html>

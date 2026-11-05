@@ -3,7 +3,7 @@
  * Battle.net sign-in flag OFF (suites turn it on per test with ?ff_bnet=1) and every USE_MOCK_* flag ON.
  * Set CS_E2E_SHIPPED_CONFIG=1 to run against the config as committed instead.
  */
-const FORCED = { FEATURE_BNET_SIGNIN: false, USE_MOCK_AUTH: true, USE_MOCK_PROFILE: true, USE_MOCK_GEAR: true, USE_MOCK_GEAR_LISTS: true, USE_MOCK_RANKINGS: true };
+const FORCED = { FEATURE_BNET_SIGNIN: false, USE_MOCK_AUTH: true, USE_MOCK_PROFILE: true, USE_MOCK_GEAR: true, USE_MOCK_GEAR_LISTS: true, USE_MOCK_RANKINGS: true, USE_MOCK_ARMORY: true };
 async function forceTestConfig(target, overrides) {
   if (process.env.CS_E2E_SHIPPED_CONFIG === '1' && !overrides) return;
   const flags = Object.assign({}, FORCED, overrides || {});

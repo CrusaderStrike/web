@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Your World of Warcraft Forever characters and main/alt selection on Crusader Strike.">
+  <meta name="description" content="Your World of Warcraft Forever characters and gear sets on Crusader Strike.">
   <meta name="theme-color" content="#0b0907">
   <meta name="robots" content="noindex">
   <title>Profile — Crusader Strike</title>
@@ -30,7 +30,7 @@
 
   <main id="main" class="cs-wrap cs-section">
     <h1 class="cs-display" id="pf-h" tabindex="-1">Your profile</h1>
-    <p class="cs-section-intro">Your World of Warcraft Forever characters. Pick one main; the rest are your alts.</p>
+    <p class="cs-section-intro">Your World of Warcraft Forever characters. Choose which ones to display, then plan gear sets for each.</p>
     <p id="pf-status" class="cs-muted" role="status" aria-live="polite"></p>
 
     <section id="pf-loading" class="cs-card pf-state" aria-labelledby="pf-loading-h">
@@ -77,12 +77,106 @@
         <p>Log in to a character in WoW Forever, then use Refresh characters.</p>
       </div>
 
+      <section id="pf-choose" class="cs-card pf-state pf-choose" aria-labelledby="pf-choose-h" hidden>
+        <h2 id="pf-choose-h" class="pf-state-h" tabindex="-1">Choose characters to display</h2>
+        <p>New characters start hidden. Switch on the characters you want on your profile; you can plan gear sets for any character you display.</p>
+      </section>
+
       <fieldset id="pf-fieldset" class="pf-fieldset">
-        <legend>Main character</legend>
+        <legend>Characters to display</legend>
         <ul id="pf-list" class="pf-list"></ul>
       </fieldset>
+
+      <section id="pf-armory-wrap" class="pf-armory-wrap" aria-labelledby="pf-sets-h" hidden>
+        <h2 id="pf-sets-h" class="cs-display pf-sets-h">Gear sets</h2>
+        <button type="button" class="cs-btn cs-btn-ghost pf-drawer-btn" id="pf-drawer-btn" aria-expanded="false" aria-controls="pf-panel">Show gear sets</button>
+        <div class="pf-armory-layout">
+          <aside id="pf-panel" class="pf-panel" aria-label="Gear sets by character" tabindex="-1">
+            <div class="pf-panel-top">
+              <h3 class="pf-panel-title">Your gear sets</h3>
+              <button type="button" class="cs-btn cs-btn-sm cs-btn-ghost pf-drawer-close" id="pf-drawer-close">Close</button>
+            </div>
+            <div id="pf-panel-body"></div>
+          </aside>
+          <div class="pf-drawer-scrim" id="pf-scrim" hidden></div>
+          <section id="pf-armory" class="pf-armory" aria-labelledby="pf-armory-h">
+            <div id="pf-armory-empty" class="pf-armory-empty">
+              <h3 id="pf-armory-h" tabindex="-1">Pick a gear set</h3>
+              <p class="cs-muted">Choose a set from the panel, or use Create new gear list on a character.</p>
+            </div>
+            <div id="pf-armory-view" hidden>
+              <div class="pf-armory-head">
+                <h3 id="pf-set-h" tabindex="-1"></h3>
+                <p id="pf-set-meta" class="cs-muted"></p>
+                <p id="pf-set-outgrown" class="pf-outgrown-note" hidden></p>
+              </div>
+              <p id="pf-slot-banner" class="pf-slot-banner" role="alert" hidden></p>
+              <div class="pf-charwin" role="group" aria-labelledby="pf-set-h">
+                <ul class="pf-col pf-col-left" id="pf-col-left" aria-label="Armor slots, left"></ul>
+                <div class="pf-model" aria-hidden="true">
+                  <div class="pf-model-name" id="pf-model-name"></div>
+                  <div class="pf-model-sub" id="pf-model-sub"></div>
+                  <svg class="pf-silhouette" viewBox="0 0 100 200" focusable="false"><path d="M50 8c9 0 16 7 16 17s-7 18-16 18-16-8-16-18S41 8 50 8zM30 48h40l14 10 6 48-10 2-6-34-2 48 6 70H62l-6-58h-12l-6 58H22l6-70-2-48-6 34-10-2 6-48z"/></svg>
+                </div>
+                <ul class="pf-col pf-col-right" id="pf-col-right" aria-label="Armor slots, right"></ul>
+                <ul class="pf-row-weapons" id="pf-row-weapons" aria-label="Weapon slots"></ul>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
     </section>
   </main>
+
+  <dialog id="pf-create" class="pf-dialog" aria-labelledby="pf-create-h">
+    <form id="pf-create-form" method="dialog" novalidate>
+      <h2 id="pf-create-h">Create new gear list</h2>
+      <p id="pf-create-for" class="cs-muted"></p>
+      <div class="cs-field">
+        <label for="pf-c-name">Name</label>
+        <input id="pf-c-name" type="text" maxlength="64" required aria-describedby="pf-c-name-err" autocomplete="off">
+        <span class="cs-error" id="pf-c-name-err"></span>
+      </div>
+      <fieldset class="cs-field pf-c-type" aria-describedby="pf-c-type-err">
+        <legend>Set type</legend>
+        <label id="pf-c-type-lv-l"><input type="radio" name="pf-c-type" id="pf-c-type-lv" value="leveling"> Leveling</label>
+        <label><input type="radio" name="pf-c-type" id="pf-c-type-max" value="max_level"> Max-level ideal</label>
+        <span class="cs-error" id="pf-c-type-err"></span>
+      </fieldset>
+      <div class="cs-field" id="pf-c-until-wrap">
+        <label for="pf-c-until">Up to level</label>
+        <input id="pf-c-until" type="number" inputmode="numeric" min="1" max="60" aria-describedby="pf-c-until-hint pf-c-until-err">
+        <span class="cs-hint" id="pf-c-until-hint"></span>
+        <span class="cs-error" id="pf-c-until-err"></span>
+      </div>
+      <div class="cs-field">
+        <label for="pf-c-role">Role or spec <span class="cs-muted">(optional)</span></label>
+        <input id="pf-c-role" type="text" maxlength="32" placeholder="Tank, DPS, Healer…" aria-describedby="pf-c-role-err" autocomplete="off">
+        <span class="cs-error" id="pf-c-role-err"></span>
+      </div>
+      <p id="pf-c-error" class="pf-inline-error" role="alert" hidden></p>
+      <div class="pf-dialog-actions">
+        <button type="submit" class="cs-btn cs-btn-primary" id="pf-c-save" value="save">Create</button>
+        <button type="button" class="cs-btn cs-btn-ghost" id="pf-c-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="pf-picker" class="pf-dialog pf-picker" aria-labelledby="pf-picker-h">
+    <h2 id="pf-picker-h">Choose an item</h2>
+    <p id="pf-picker-current" class="cs-muted"></p>
+    <form id="pf-picker-search" role="search" class="cs-field">
+      <label for="pf-picker-q">Search WoW Forever items</label>
+      <input id="pf-picker-q" type="search" autocomplete="off" aria-controls="pf-picker-list">
+    </form>
+    <p id="pf-picker-status" class="cs-muted" role="status" aria-live="polite"></p>
+    <ul id="pf-picker-list" class="pf-picker-list" aria-labelledby="pf-picker-h"></ul>
+    <div class="pf-dialog-actions">
+      <button type="button" class="cs-btn cs-btn-ghost" id="pf-picker-more" hidden>Load more</button>
+      <button type="button" class="cs-btn cs-btn-ghost" id="pf-picker-clear">Clear slot</button>
+      <button type="button" class="cs-btn cs-btn-ghost" id="pf-picker-close">Close</button>
+    </div>
+  </dialog>
 
   <footer class="cs-wrap cs-footer">
     <span>© Crusader Strike — World of Warcraft Forever</span>
@@ -93,6 +187,10 @@
   <script src="../js/auth-mock.js"></script>
   <script src="../js/faction-badge.js"></script>
   <script src="../js/profile-api.js"></script>
+  <script src="../js/gear-icons.js"></script>
+  <script src="../js/gear-set-rules.js"></script>
+  <script src="../js/armory-mock.js"></script>
+  <script src="../js/armory-api.js"></script>
   <script src="../js/profile.js"></script>
 </body>
 </html>

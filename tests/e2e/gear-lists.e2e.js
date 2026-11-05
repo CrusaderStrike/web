@@ -20,7 +20,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.click('#gr-lists-link'); await p.waitForURL(/gear\/lists\/\?character=ch_us_1001/); ok(await vis('#gl-ready'), 'ready via gear page link');
   ok((await p.textContent('#gl-h')) === 'Lightbringer Dawnmantle — gear lists', 'heading');
   ok((await p.$$eval('#gl-index button', x => x.length)) === 2, 'two fixture lists');
-  ok((await p.textContent('#gl-count')) === '(2 of 5)', 'count of max 5');
+  ok((await p.textContent('#gl-count')) === '(2)', 'count, no client cap'); ok(await p.isChecked('#gl-new-type-max') && await p.isHidden('#gl-new-type-leveling') && await p.isHidden('#gl-new-until'), 'level 60: max-level only, no level field');
   ok((await p.textContent('#gl-detail-h')) === 'Emberfall BiS', 'first list selected');
   ok(/from in game$/.test(await p.textContent('#gl-meta')), 'updated_source shown: ' + await p.textContent('#gl-meta'));
   ok((await rows()).join('|') === 'head:910001:1:Wanted|back:940002:1:Wanted|finger1:940003:2:Obtained', 'items in slot order: ' + (await rows()).join('|'));
@@ -67,12 +67,12 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.click('#gl-delete'); ok(await p.evaluate(() => document.activeElement.id === 'gl-delete-confirm'), 'delete asks to confirm');
   await p.click('#gl-delete-confirm'); await p.waitForFunction(() => document.querySelectorAll('#gl-index button').length === 2); ok(true, 'list deleted');
 
-  // 5-list cap (client) and 409 list_limit_reached (server)
+  // web#42: no client cap past 5; server cap 20 -> 409 list_limit_reached
   await fresh();
-  for (const n of ['Three', 'Four', 'Five']) { await p.fill('#gl-new-name', n); await p.click('#gl-new-btn'); await p.waitForFunction(t => document.getElementById('gl-detail-h').textContent === t, n); }
-  ok(await p.isDisabled('#gl-new-btn') && await p.isVisible('#gl-limit'), 'create disabled at 5 lists');
-  await fresh('&mock=limit'); await p.fill('#gl-new-name', 'Sixth'); await p.click('#gl-new-btn'); await vis('#gl-banner');
-  ok((await banner()).includes('already have 5 lists'), '409 list_limit_reached message');
+  for (const n of ['Three', 'Four', 'Five', 'Six']) { await p.fill('#gl-new-name', n); await p.click('#gl-new-btn'); await p.waitForFunction(t => document.getElementById('gl-detail-h').textContent === t, n); }
+  ok(await p.isEnabled('#gl-new-btn') && await p.isHidden('#gl-limit'), 'a sixth list is allowed (cap is the server\'s 20)');
+  await fresh('&mock=limit'); await p.fill('#gl-new-name', 'Twenty-first'); await p.click('#gl-new-btn'); await vis('#gl-banner');
+  ok((await banner()).includes('already have 20 lists'), '409 list_limit_reached message');
 
   // 409 version_mismatch: current {version, list} applied, re-apply works
   await fresh('&mock=stale'); await p.fill('#gl-name', 'Emberfall BiS v2'); await p.click('#gl-meta-form button[type=submit]'); await vis('#gl-banner');

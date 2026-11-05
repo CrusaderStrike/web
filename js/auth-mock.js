@@ -46,6 +46,7 @@
     start: function (returnTo) {
       var state = randomToken();
       sessionStorage.setItem('cs_mock_oauth_state', state);
+      sessionStorage.setItem('cs_mock_return_to', returnTo || '/signin.html');
       return 'signin.html?mock_authorize=1&state=' + encodeURIComponent(state) +
         '&return_to=' + encodeURIComponent(returnTo || '/signin.html');
     },
@@ -56,7 +57,10 @@
       if (outcome === 'access_denied') return 'signin.html?auth=cancelled';
       if (!expected || expected !== state) return 'signin.html?auth=error&reason=invalid_state';
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ battletag: 'Crusader#1234', csrf_token: randomToken() }));
-      return 'signin.html?auth=ok';
+      // Like the real callback: redirect to the allowlisted return_to (web#42 sends /profile/).
+      var rt = sessionStorage.getItem('cs_mock_return_to') || '/signin.html';
+      sessionStorage.removeItem('cs_mock_return_to');
+      return /^\/(?!\/)/.test(rt) ? rt.slice(1) || 'index.html' : 'signin.html?auth=ok';
     },
     /** GET /auth/session -> Session (incl. csrf_token). */
     session: function () {

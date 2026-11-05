@@ -21,6 +21,21 @@ window.CS_CONFIG = Object.freeze({
     EVENTS: '/api/v1/gear-lists/{id}/events'          // GET ?after_version=&limit=
   }),
   GEAR_LISTS_MAX: 5,
+  // web#42 profile display toggles + armory gear sets (contract: platform gear-sets-and-items.md, snake_case).
+  // true = js/armory-mock.js (fictional Forever items, ?mock_armory= scenarios); false = real API at API_BASE.
+  USE_MOCK_ARMORY: true,
+  ARMORY_PATHS: Object.freeze({
+    CHARACTER: '/api/v1/me/characters/{id}',          // PATCH {displayed} (owner, CSRF)
+    SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, type, until_level, role_spec, slots?}
+    SET: '/api/v1/gear-lists/{id}',                   // GET (ETag)
+    SLOT: '/api/v1/gear-lists/{id}/slots/{slot}',     // PUT {item_id|null}, If-Match
+    ITEMS: '/api/v1/items',                           // GET ?slot=&q=&cursor= -> {items, next_cursor}
+    ITEM: '/api/v1/items/{id}'
+  }),
+  ARMORY_MAX_SETS: 20,
+  ARMORY_MAX_LEVEL: 60,
+  ARMORY_SLOTS: Object.freeze(['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist', 'hands', 'waist', 'legs', 'feet',
+    'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand', 'ranged']),
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}
