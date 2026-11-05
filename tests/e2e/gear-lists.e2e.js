@@ -8,7 +8,7 @@ const B = 'http://localhost:8765/';
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   const vis = s => p.waitForSelector(s + ':not([hidden])', { timeout: 5000 }).then(() => true, () => false);
   const U = (q = '') => B + 'gear/lists/?character=ch_us_1001' + q;
-  const fresh = async (q = '') => { await p.evaluate(() => { sessionStorage.removeItem('cs_mock_gear_lists'); window.__glOpsLog = []; }); await p.goto(U(q)); return vis('#gl-ready'); };
+  const fresh = async (q = '') => { await p.evaluate(() => { sessionStorage.removeItem('cs_mock_gear_lists'); Object.keys(localStorage).filter(k => k.startsWith('cs_gl_queue:')).forEach(k => localStorage.removeItem(k)); window.__glOpsLog = []; window.__glOpsLists = []; }); await p.goto(U(q)); return vis('#gl-ready'); };
   const banner = () => p.textContent('#gl-banner-msg');
   const rows = () => p.$$eval('#gl-items tr', t => t.map(r => r.dataset.slot + ':' + r.dataset.item + ':' + r.cells[2].textContent + ':' + r.cells[3].textContent));
 
@@ -155,6 +155,37 @@ const B = 'http://localhost:8765/';
   ok(await p.$$eval('#gl-items tr', t => t.every(r => r.querySelector('.gr-icon svg') && !r.querySelector('.gr-icon img') && r.querySelector('.gr-icon').getAttribute('aria-hidden') === 'true')), 'slot placeholder icon when icon_url null');
   ok((await p.getAttribute('#gl-banner', 'role')) === 'alert', 'banner role=alert');
   ok(await p.evaluate(() => CSGearListsSpec.limits.sync_ops_per_request === 500 && CSGearListsSpec.limits.ops_per_request === 200), 'spec caps (200 per list, 500 per sync)');
+
+  // ---- round 2: queued edits survive leaving the page; leave warnings; re-apply targets the original list ----
+  await fresh('&mock=ratelimit&rl=50'); await row('head').locator('[data-act=down]').click(); await vis('#gl-banner');
+  const stored = await p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('cs_gl_queue:')).map(k => [k, JSON.parse(localStorage.getItem(k))]));
+  ok(stored.length === 1 && stored[0][0].endsWith(':gl_emberfall_bis') && stored[0][1].length === 1, 'queue persisted to localStorage keyed by user+list: ' + (stored[0] || [''])[0]);
+  ok(await p.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); dispatchEvent(e); return e.defaultPrevented; }), 'beforeunload warns while queue non-empty');
+  let dlg = 0; const dismiss = d => { dlg++; d.dismiss(); }; p.on('dialog', dismiss);
+  await p.click('#gl-back'); await p.waitForTimeout(300); p.off('dialog', dismiss);
+  ok(dlg === 1 && p.url().includes('/gear/lists/'), 'in-app link asks before leaving; cancel stays');
+  const accept = d => d.accept(); p.on('dialog', accept);
+  await p.click('#gl-back'); await p.waitForURL(u => !u.toString().includes('/gear/lists/')); p.off('dialog', accept);
+  ok(true, 'confirm leaves the page');
+  await p.goto(U()); await vis('#gl-ready');
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '', null, { timeout: 10000 });
+  const resent = (await log()).flat();
+  ok(resent.length === 1 && resent[0].op_id === stored[0][1][0].op_id, 'restored queue resumed with the same op_id');
+  ok(await cell('head', 2) === '2', 'edit queued before leaving was saved');
+  ok(await p.evaluate(() => !Object.keys(localStorage).some(k => k.startsWith('cs_gl_queue:'))), 'stored queue cleared once sent');
+  ok(!(await p.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); dispatchEvent(e); return e.defaultPrevented; })), 'no leave warning when queue empty');
+  // re-apply after switching lists goes to the list the conflict came from
+  await fresh('&mock=conflict'); await row('head').locator('[data-act=down]').click(); await vis('#gl-banner');
+  await p.click('#gl-index button:has-text("Duskhollow pre-raid")'); await p.waitForFunction(() => document.getElementById('gl-detail-h').textContent === 'Duskhollow pre-raid');
+  await p.click('#gl-banner-reapply');
+  await p.waitForFunction(() => (window.__glOpsLists || []).length === 2 && document.getElementById('gl-queue').textContent === '', null, { timeout: 10000 });
+  ok((await p.evaluate(() => window.__glOpsLists)).every(x => x === 'gl_emberfall_bis'), 're-apply sent to original list: ' + await p.evaluate(() => window.__glOpsLists.join(',')));
+  ok(await p.isVisible('#gl-items-empty'), 'open list untouched by re-apply');
+  await p.click('#gl-index button:has-text("Emberfall BiS")'); await p.waitForFunction(() => document.getElementById('gl-detail-h').textContent === 'Emberfall BiS');
+  ok(await cell('head', 2) === '2', 're-applied change landed on the original list');
+  // non-200 ops surfaces the dropped count
+  await fresh('&mock=ops422'); await row('head').locator('[data-act=down]').click(); await vis('#gl-banner');
+  ok((await banner()).includes('1 change was not saved'), 'non-200 ops shows dropped count: ' + await banner());
   // mobile
   await p.setViewportSize({ width: 375, height: 800 }); await fresh();
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= 375), 'no horizontal scroll at 375px');

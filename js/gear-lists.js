@@ -207,11 +207,39 @@
     upsert(view);
     if (current && current.id === listId) { renderIndex(); renderDetail(); }
     var n = queuedOps(Q).length;
+    persist(listId);
     $('gl-queue').textContent = current && current.id === listId && n ? (n === 1 ? '1 change saving…' : n + ' changes saving…') : '';
   }
-  function enqueue(o) {
-    var listId = current.id, Q = q(listId);
-    if (!Q.server) Q.server = current;
+  /* Persistence: queued ops survive leaving/reloading the page (localStorage, keyed by user + list). Same op_ids are
+   * kept, so a request that did reach the server before the page closed dedupes on retry. */
+  var userKey = '';
+  function storeKey(listId) { return 'cs_gl_queue:' + userKey + ':' + listId; }
+  function persist(listId) {
+    if (!userKey) return;
+    var ops = queuedOps(q(listId));
+    try { if (ops.length) localStorage.setItem(storeKey(listId), JSON.stringify(ops)); else localStorage.removeItem(storeKey(listId)); } catch (e) { /* storage full/blocked: in-memory only */ }
+  }
+  function restore(listId) {
+    var Q = q(listId);
+    if (Q.restored || !userKey) return; Q.restored = true;
+    try {
+      var ops = JSON.parse(localStorage.getItem(storeKey(listId)) || '[]');
+      if (Array.isArray(ops) && ops.length) Q.pending = ops.filter(function (o) { return o && o.op_id && o.type; }).concat(Q.pending);
+    } catch (e) { /* corrupt entry: ignore */ }
+  }
+  function anyQueued() { return Object.keys(queues).some(function (k) { return queuedOps(queues[k]).length > 0; }); }
+  var LEAVE_MSG = 'Some gear list changes are still saving. If you leave now they will be sent the next time you open this page.';
+  window.addEventListener('beforeunload', function (e) { if (anyQueued()) { e.preventDefault(); e.returnValue = LEAVE_MSG; return LEAVE_MSG; } });
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a || a.target === '_blank' || a.getAttribute('href').charAt(0) === '#' || !anyQueued()) return;
+    if (!window.confirm(LEAVE_MSG + ' Leave anyway?')) { e.preventDefault(); e.stopPropagation(); }
+    else window.__glLeaveOk = true;
+  }, true);
+
+  function enqueue(o, targetId) {
+    var listId = targetId || current.id, Q = q(listId);
+    if (!Q.server) Q.server = lists.filter(function (l) { return l.id === listId; })[0] || current;
     coalesce(Q.pending, o);
     refreshView(listId);
     pump(listId);
@@ -260,7 +288,9 @@
         Q.inflight = null; Q.pending = [];
         refreshView(listId);
         failed(r, null);
-        if (r.status === 403) banner('Only the list owner can change this list. ' + dropped + ' change(s) were not saved.');
+        var lost = dropped === 1 ? '1 change was not saved.' : dropped + ' changes were not saved.';
+        if (r.status === 403 && code(r) === 'forbidden') banner('Only the list owner can change this list. ' + lost);
+        else if ($('gl-ready') && !$('gl-ready').hidden) banner(errMsg(r) + ' ' + lost);
         return;
       }
       var b = r.body || {};
@@ -273,7 +303,7 @@
         var why = cf.reason === 'item_not_forever' ? REASON.item_not_forever :
           (cf.reason === 'list_items_limit' || /list_items_limit/.test(m)) ? 'this list already has ' + L.items_per_list + ' items' : (REASON[cf.reason] || 'it conflicted with another edit');
         var again = /^(item_not_forever|item_removed|list_items_limit)$/.test(cf.reason) || /list_items_limit/.test(m) ? null : function () {
-          var n = wire(o); delete n.base_version; n.op_id = api.opId(); enqueue(n);
+          var n = wire(o); delete n.base_version; n.op_id = api.opId(); enqueue(n, listId);  // the list the conflict came from
         };
         banner((cfs.length === 1 ? '1 change' : cfs.length + ' changes') + ' didn\u2019t apply: ' + why + '.', again);
         say('Change not applied.');
@@ -414,11 +444,13 @@
       if (r.status === 404) { show('notfound'); return; }
       if (!r.ok) throw r;
       lists = [];
-      (r.body && Array.isArray(r.body.items) ? r.body.items : []).slice(0, L.lists_per_character).forEach(serverUpdate);
+      var got = (r.body && Array.isArray(r.body.items) ? r.body.items : []).slice(0, L.lists_per_character);
+      got.forEach(function (l) { restore(l.id); var Q = q(l.id); if (!queuedOps(Q).length) delete queues[l.id]; serverUpdate(l); });
       show('ready');
       var keep = selectId || (current && current.id);
       current = null;
       select(lists.some(function (l) { return l.id === keep; }) ? keep : (lists[0] && lists[0].id), false);
+      Object.keys(queues).forEach(function (id) { if (queuedOps(queues[id]).length) { refreshView(id); pump(id); } });
     });
   }
   function load() {
@@ -429,6 +461,7 @@
     api.session().then(function (s) {
       if (s.status === 401) { show('signedout'); return null; }
       if (!s.ok) throw s;
+      userKey = (s.body && (s.body.user_id || s.body.battletag)) || '';
       return window.CSProfileApi.characters().then(function (r) {
         var ch = r.ok && r.body && Array.isArray(r.body.characters) ? r.body.characters.filter(function (c) { return c.id === charId; })[0] : null;
         var nm = ch ? [txt(ch.character_name), txt(ch.surname)].filter(Boolean).join(' ') : '';

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Generates js/gear-lists-spec.js from the vendored platform OpenAPI (platform#34 @ d96d644).
+ * Generates js/gear-lists-spec.js from the vendored platform OpenAPI (platform#34 @ 1b5320e).
  * Usage: NODE_PATH=<dir with js-yaml> node tools/gen-gear-lists-spec.js [path/to/v1.yaml]
  * The mock (js/gear-lists-mock.js) and the UI read enums and limits from the generated file only.
  */
 'use strict';
 const fs = require('fs'), path = require('path'), yaml = require('js-yaml');
-const src = process.argv[2] || path.join(__dirname, '../docs/vendor/platform-openapi-v1@d96d644.yaml');
+const src = process.argv[2] || path.join(__dirname, '../docs/vendor/platform-openapi-v1@1b5320e.yaml');
 const doc = yaml.load(fs.readFileSync(src, 'utf8'));
 const S = doc.components.schemas;
 const paths = doc.paths;
@@ -14,7 +14,7 @@ const need = (c, m) => { if (!c) throw new Error('spec missing: ' + m); return c
 const listsOp = need(paths['/characters/{character_id}/gear-lists'], 'gear-lists path');
 const maxLists = need(listsOp.get.responses['200'].content['application/json'].schema.properties.items.maxItems, 'lists maxItems');
 const out = {
-  source: 'CrusaderStrike/platform openapi/v1.yaml @ d96d644 (platform#34)',
+  source: 'CrusaderStrike/platform openapi/v1.yaml @ 1b5320e (platform#34 merged; head ce41942)',
   paths: Object.keys(paths).filter(p => /gear-lists|items\/search/.test(p)),
   slots: need(S.GearSlot.enum, 'GearSlot'),
   visibility: need(S.GearList.properties.visibility.enum, 'visibility'),

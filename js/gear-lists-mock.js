@@ -133,7 +133,10 @@
       if (mock() === 'ratelimit' && (s.flags.rl || 0) < rlN) { s.flags.rl = (s.flags.rl || 0) + 1; save(s); return err(429, 'rate_limited', 'Too many changes.', null, { 'retry-after': '3' }); }
       // ?mock=csrf: the first write gets 403 csrf_failed (client refreshes the session and retries once).
       if (mock() === 'csrf' && !s.flags.csrf) { s.flags.csrf = 1; save(s); return err(403, 'csrf_failed', 'Security check failed.'); }
+      // ?mock=ops422: ops rejected as a whole (non-200), so the client reports how many changes were dropped.
+      if (mock() === 'ops422') return err(422, 'validation_failed', 'The request was invalid.');
       (window.__glOpsLog = window.__glOpsLog || []).push(JSON.parse(JSON.stringify(ops0(body))));
+      (window.__glOpsLists = window.__glOpsLists || []).push(id);
       var ops = body && Array.isArray(body.ops) ? body.ops : [];
       if (ops.length < 1 || ops.length > L.ops_per_request) return err(400, 'validation_error', 'Send 1–200 ops.');
       var out = { applied: [], duplicates: [], conflicts: [], ignored: [] }, bad = false;
