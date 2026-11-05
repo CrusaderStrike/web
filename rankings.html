@@ -30,54 +30,34 @@
 
   <main id="main" class="cs-wrap-wide cs-section">
     <h1 class="cs-display">Rankings</h1>
-    <p class="cs-section-intro">Dungeon Run and World PvP rankings for World of Warcraft Forever guilds. Only completed, valid runs count.</p>
+    <p class="cs-section-intro">Dungeon Run rankings for your World of Warcraft Forever guild. Only completed, valid runs count.</p>
 
-    <div class="lb-tabs" role="tablist" aria-label="Ranking type">
+    <div class="lb-tabs" role="tablist" aria-label="Ranking type" id="rk-tabs" hidden>
       <button type="button" role="tab" id="rk-tab-dungeon" data-tab="dungeon" aria-selected="true" aria-controls="rk-panel" tabindex="0">Dungeon Runs</button>
       <button type="button" role="tab" id="rk-tab-pvp" data-tab="pvp" aria-selected="false" aria-controls="rk-panel" tabindex="-1">World PvP</button>
     </div>
 
     <div class="cs-toolbar" id="rk-filters" role="search" aria-label="Ranking filters">
-      <div class="cs-field">
-        <label for="rk-scope">Ladder</label>
-        <select id="rk-scope" name="scope">
-          <option value="guild">My guild</option>
-          <option value="all">All guilds</option>
-        </select>
-      </div>
       <div class="cs-field" data-for="dungeon">
         <label for="rk-board">Ranking</label>
-        <select id="rk-board" name="board">
-          <option value="fastest_clear">Fastest clear</option>
-          <option value="runs_completed">Runs completed</option>
-        </select>
+        <select id="rk-board" name="board"></select>
       </div>
       <div class="cs-field" data-for="dungeon">
-        <label for="rk-dungeon">Dungeon</label>
-        <select id="rk-dungeon" name="dungeon_id">
-          <option value="">All dungeons</option>
-          <option value="36">Deadmines</option>
-          <option value="43">Wailing Caverns</option>
-          <option value="33">Shadowfang Keep</option>
-          <option value="189">Scarlet Monastery</option>
-          <option value="230">Blackrock Depths</option>
-        </select>
+        <label for="rk-dungeon">Dungeon ID</label>
+        <input id="rk-dungeon" name="dungeon_id" type="text" inputmode="numeric" pattern="[1-9][0-9]{0,9}" autocomplete="off" placeholder="Any" aria-describedby="rk-dungeon-hint">
+        <span class="cs-muted rk-hint" id="rk-dungeon-hint">Instance map ID, e.g. 36. Leave empty for all.</span>
       </div>
-      <div class="cs-field" data-for="pvp" hidden>
-        <label for="rk-bracket">Bracket</label>
-        <select id="rk-bracket" name="bracket">
-          <option value="">All brackets</option>
-          <option value="solo">Solo</option>
-          <option value="group">Group</option>
-        </select>
+      <div class="cs-field" data-ext hidden>
+        <label for="rk-scope">Ladder</label>
+        <select id="rk-scope" name="scope"></select>
       </div>
-      <div class="cs-field">
+      <div class="cs-field" data-for="dungeon" data-ext hidden>
+        <label for="rk-bracket">Difficulty</label>
+        <select id="rk-bracket" name="bracket"></select>
+      </div>
+      <div class="cs-field" data-ext hidden>
         <label for="rk-period">Time</label>
-        <select id="rk-period" name="period">
-          <option value="7d">Last 7 days</option>
-          <option value="30d">Last 30 days</option>
-          <option value="season">This season</option>
-        </select>
+        <select id="rk-period" name="period"></select>
       </div>
     </div>
 
@@ -90,7 +70,7 @@
       </div>
       <div id="rk-empty" class="cs-card rk-state" hidden>
         <h2 class="rk-state-h">No rankings yet</h2>
-        <p>No completed runs match these filters. Try a wider time range or another dungeon.</p>
+        <p>No completed runs match these filters. Try another dungeon or ranking.</p>
       </div>
       <div class="cs-table-wrap" id="rk-table-wrap">
         <table class="cs-table" id="rk-table" aria-busy="true">
@@ -105,6 +85,7 @@
           <tbody id="rk-body"></tbody>
         </table>
       </div>
+      <p class="cs-muted" id="rk-sort-note">Ranks come from the server. Sorting a column reorders only the rows loaded so far.</p>
       <p><button type="button" class="cs-btn cs-btn-ghost" id="rk-more" hidden>Load more</button></p>
       <p class="cs-muted" id="rk-refreshed"></p>
     </div>

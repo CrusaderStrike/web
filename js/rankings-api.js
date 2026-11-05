@@ -9,6 +9,7 @@
     var b = e && e.body && e.body.error;
     var out = new Error((b && b.message) || (e && e.message) || 'Request failed');
     out.status = (e && e.status) || 0;
+    out.retryAfter = (e && e.retryAfter) || '';
     out.code = (b && b.code) || (out.status ? 'http_' + out.status : 'network_error');
     return out;
   }
@@ -21,7 +22,7 @@
       var params = new URLSearchParams();
       params.set('board', q.board);
       if (q.dungeon_id != null && q.dungeon_id !== '') params.set('dungeon_id', String(q.dungeon_id));
-      // Proposed (not yet in openapi/v1.yaml): scope, period, bracket. See docs/rankings-api.md.
+      // Draft-contract params: the page only passes them when RANKINGS_EXTENDED_FILTERS is on and the user set them.
       ['scope', 'period', 'bracket'].forEach(function (k) { if (q[k]) params.set(k, q[k]); });
       if (q.cursor) params.set('cursor', q.cursor);
       if (q.limit) params.set('limit', String(q.limit));
@@ -29,7 +30,7 @@
         credentials: 'include', headers: { Accept: 'application/json' }
       }).then(function (res) {
         return res.json().catch(function () { return null; }).then(function (body) {
-          if (!res.ok) { var e = new Error(res.statusText); e.status = res.status; e.body = body; throw e; }
+          if (!res.ok) { var e = new Error(res.statusText); e.status = res.status; e.body = body; e.retryAfter = res.headers.get('Retry-After') || ''; throw e; }
           return body;
         });
       }).catch(function (e) { throw normalize(e); });

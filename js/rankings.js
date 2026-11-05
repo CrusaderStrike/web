@@ -3,25 +3,55 @@
   'use strict';
   var api = window.CSRankingsApi;
   var $ = function (id) { return document.getElementById(id); };
-  var DEFAULTS = { tab: 'dungeon', scope: 'guild', board: 'fastest_clear', dungeon_id: '', bracket: '', period: '7d', sort: 'rank', dir: 'asc' };
-  var ALLOWED = {
-    tab: ['dungeon', 'pvp'], scope: ['guild', 'all'], board: ['fastest_clear', 'runs_completed'],
-    dungeon_id: ['', '36', '43', '33', '189', '230'], bracket: ['', 'solo', 'group'],
-    period: ['7d', '30d', 'season'], sort: ['rank', 'character_name', 'value'], dir: ['asc', 'desc']
-  };
+  var cfg = window.CS_CONFIG, F = cfg.RANKINGS_FILTERS, EXT = !!cfg.RANKINGS_EXTENDED_FILTERS;
+  var DEFAULTS = { tab: 'dungeon', board: F.board[0], dungeon_id: '', scope: '', bracket: '', period: '', sort: 'rank', dir: 'asc' };
+  var EXT_KEYS = ['scope', 'bracket', 'period'];
+  // Allowed values come from CS_CONFIG.RANKINGS_FILTERS only. '' = not set (nothing is sent; server default applies).
+  function allowed(k, v) {
+    if (k === 'dungeon_id') return v === '' || /^[1-9][0-9]{0,9}$/.test(v);
+    if (k === 'board') return F.board.indexOf(v) >= 0;
+    if (k === 'sort') return ['rank', 'character_name', 'value'].indexOf(v) >= 0;
+    if (k === 'dir') return v === 'asc' || v === 'desc';
+    if (!EXT) return v === DEFAULTS[k];
+    if (k === 'tab') return v === 'dungeon' || v === 'pvp';
+    if (k === 'bracket') return v === '' || F.extended.bracket.dungeon.indexOf(v) >= 0;
+    return v === '' || F.extended[k].indexOf(v) >= 0;
+  }
+  // Presentation labels only (values live in config).
   var LABELS = {
-    scope: { guild: 'my guild', all: 'all guilds' },
-    period: { '7d': 'last 7 days', '30d': 'last 30 days', season: 'this season' },
-    sort: { rank: 'rank', character_name: 'character', value: null },
-    bracket: { solo: 'solo bracket', group: 'group bracket' }
+    board: { fastest_clear: 'Fastest clear', runs_completed: 'Runs completed' },
+    scope: { guild: 'My guild', realm: 'My realm', global: 'All realms' },
+    period: { week: 'This week', month: 'This month', season: 'This season', all: 'All time' },
+    sort: { rank: 'rank', character_name: 'character', value: null }
   };
+  function cap(v) { return v.charAt(0).toUpperCase() + v.slice(1); }
+  function label(k, v) { return (LABELS[k] && LABELS[k][v]) || cap(v); }
   var state = {}, items = [], nextCursor = null, reqSeq = 0;
+
+  function fillSelect(id, k, values, withDefault) {
+    var sel = $(id);
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    if (withDefault) { var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Default'; sel.appendChild(o0); }
+    values.forEach(function (v) { var o = document.createElement('option'); o.value = v; o.textContent = label(k, v); sel.appendChild(o); });
+  }
+  fillSelect('rk-board', 'board', F.board, false);
+  if (EXT) {
+    $('rk-tabs').hidden = false;
+    document.querySelectorAll('[data-ext]:not([data-for])').forEach(function (n) { n.hidden = false; });
+    fillSelect('rk-scope', 'scope', F.extended.scope, true);
+    fillSelect('rk-period', 'period', F.extended.period, true);
+    fillSelect('rk-bracket', 'bracket', F.extended.bracket.dungeon, true);
+  } else {
+    // Flag off: remove the unspecced controls entirely so none of their labels can show.
+    document.querySelectorAll('[data-ext]').forEach(function (n) { n.parentNode.removeChild(n); });
+    var tabs0 = $('rk-tabs'); tabs0.parentNode.removeChild(tabs0);
+  }
 
   function readUrl() {
     var p = new URLSearchParams(location.search);
     Object.keys(DEFAULTS).forEach(function (k) {
       var v = p.get(k);
-      state[k] = v !== null && ALLOWED[k].indexOf(v) >= 0 ? v : DEFAULTS[k];
+      state[k] = v !== null && allowed(k, v) ? v : DEFAULTS[k];
     });
   }
   function writeUrl() {
@@ -30,7 +60,7 @@
     var qs = p.toString();
     history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
   }
-  function board() { return state.tab === 'pvp' ? 'world_pvp' : state.board; }
+  function board() { return EXT && state.tab === 'pvp' ? F.extended.tab_board.world_pvp : state.board; }
   function valueLabel() { return { fastest_clear: 'Time', runs_completed: 'Runs', world_pvp: 'Honorable kills' }[board()]; }
   function fmtValue(v) {
     if (board() !== 'fastest_clear') return String(v);
@@ -38,22 +68,24 @@
     var pad = function (n) { return (n < 10 ? '0' : '') + n; };
     return (h ? h + ':' + pad(m) : m) + ':' + pad(sec);
   }
-  function optText(id) { var s = $(id); return s.options[s.selectedIndex].text; }
 
   function captionText() {
     var parts = [state.tab === 'pvp' ? 'World PvP' : 'Dungeon Runs'];
     if (state.tab === 'dungeon') {
-      parts.push(optText('rk-board').toLowerCase());
-      if (state.dungeon_id) parts.push(optText('rk-dungeon'));
-    } else if (state.bracket) parts.push(LABELS.bracket[state.bracket]);
-    parts.push(LABELS.scope[state.scope]);
-    parts.push(LABELS.period[state.period]);
+      parts.push(label('board', state.board).toLowerCase());
+      parts.push(state.dungeon_id ? 'dungeon ' + state.dungeon_id : 'all dungeons');
+      if (EXT && state.bracket) parts.push(label('bracket', state.bracket).toLowerCase());
+    }
+    if (EXT && state.scope) parts.push(label('scope', state.scope).toLowerCase());
+    if (EXT && state.period) parts.push(label('period', state.period).toLowerCase());
     var col = LABELS.sort[state.sort] || valueLabel().toLowerCase();
-    return parts.join(', ') + ', sorted by ' + col + ' ' + (state.dir === 'asc' ? 'ascending' : 'descending');
+    var sortTxt = state.sort === 'rank' && state.dir === 'asc' ? 'by rank' :
+      'loaded rows sorted by ' + col + ' ' + (state.dir === 'asc' ? 'ascending' : 'descending');
+    return parts.join(', ') + ', ' + sortTxt;
   }
 
   function syncControls() {
-    ['scope', 'board', 'dungeon_id', 'bracket', 'period'].forEach(function (k) {
+    ['board', 'dungeon_id'].concat(EXT ? EXT_KEYS : []).forEach(function (k) {
       $('rk-' + (k === 'dungeon_id' ? 'dungeon' : k)).value = state[k];
     });
     document.querySelectorAll('[role=tab]').forEach(function (t) {
@@ -62,6 +94,7 @@
       t.tabIndex = on ? 0 : -1;
       if (on) $('rk-panel').setAttribute('aria-labelledby', t.id);
     });
+    if (!EXT) { $('rk-panel').removeAttribute('role'); $('rk-panel').removeAttribute('aria-labelledby'); $('rk-panel').removeAttribute('tabindex'); }
     document.querySelectorAll('[data-for]').forEach(function (f) { f.hidden = f.getAttribute('data-for') !== state.tab; });
     $('rk-value-h').textContent = valueLabel();
     document.querySelectorAll('th[aria-sort]').forEach(function (th) {
@@ -108,7 +141,12 @@
   function errorMessage(e) {
     if (e.status === 401) return 'Sign in with Battle.net to see guild rankings.';
     if (e.status === 400) return 'Those filters are not supported yet. Try different filters.';
-    if (e.status === 429) return 'Too many requests. Wait a moment and try again.';
+    if (e.status === 429) {
+      var ra = parseInt(e.retryAfter, 10);
+      return 'Too many requests. Try again in ' + (ra > 0 && ra < 3600 ? ra : 30) + ' seconds.';
+    }
+    if (e.status === 502 || e.status === 503) return 'Rankings are temporarily unavailable. Please try again in a few minutes.';
+    if (!e.status) return 'Could not reach Crusader Strike. Check your connection and try again.';
     return 'Something went wrong on our side. Please try again.';
   }
 
@@ -117,9 +155,12 @@
     if (!append) { items = []; nextCursor = null; renderRows(); }
     $('rk-more').hidden = true;
     show('loading');
-    var q = { board: board(), scope: state.scope, period: state.period, limit: 25 };
+    // Only spec params by default; extended ones only when the flag is on AND the user set them.
+    var q = { board: board(), limit: F.limit };
     if (state.tab === 'dungeon' && state.dungeon_id) q.dungeon_id = parseInt(state.dungeon_id, 10);
-    if (state.tab === 'pvp' && state.bracket) q.bracket = state.bracket;
+    if (EXT) EXT_KEYS.forEach(function (k) {
+      if (state[k] && (k !== 'bracket' || state.tab === 'dungeon')) q[k] = state[k];
+    });
     if (append && nextCursor) q.cursor = nextCursor;
     api.getRankings(q).then(function (res) {
       if (seq !== reqSeq) return;
@@ -146,8 +187,8 @@
   readUrl(); writeUrl(); syncControls(); load(false);
 
   $('rk-filters').addEventListener('change', function (e) {
-    var k = e.target.name, v = e.target.value;
-    if (!k || ALLOWED[k].indexOf(v) < 0) return;
+    var k = e.target.name, v = String(e.target.value).trim();
+    if (!k || !allowed(k, v)) { if (k === 'dungeon_id') syncControls(); return; }
     var c = {}; c[k] = v; update(c, true);
   });
   document.querySelectorAll('.cs-sort').forEach(function (b) {
@@ -157,7 +198,7 @@
       update({ sort: k, dir: dir }, false);
     });
   });
-  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role=tab]'));
+  var tabs = EXT ? Array.prototype.slice.call(document.querySelectorAll('[role=tab]')) : [];
   tabs.forEach(function (t, i) {
     t.addEventListener('click', function () { if (state.tab !== t.getAttribute('data-tab')) update({ tab: t.getAttribute('data-tab'), sort: 'rank', dir: 'asc' }, true); });
     t.addEventListener('keydown', function (e) {

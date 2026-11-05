@@ -33,7 +33,9 @@
 .rk-state { margin: 0 0 1rem; }
 .rk-state-h { margin: 0 0 0.5rem; font-size: 1.1rem; }
 .rk-state .cs-btn { margin-top: 0.75rem; }
-.cs-field[hidden], .rk-state[hidden], #rk-table-wrap[hidden], #rk-more[hidden] { display: none !important; }
+.lb-tabs[hidden], .cs-field[hidden], .rk-state[hidden], #rk-table-wrap[hidden], #rk-more[hidden] { display: none !important; }
 @media (max-width: 480px) {
   #rk-filters { flex-direction: column; align-items: stretch; }
 }
+.rk-hint { display: block; font-size: 0.8rem; margin-top: 0.25rem; }
+#rk-dungeon { max-width: 10rem; }
