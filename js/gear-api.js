@@ -6,7 +6,18 @@
   'use strict';
   var cfg = window.CS_CONFIG;
   window.CSGearApi = {
-    /** Icon URL for a Blizzard icon asset name, or the local placeholder. */
+    /**
+     * Icon URL for an item: the platform's icon_url when it is an absolute https URL;
+     * otherwise the TEMPORARY fallback below (GEAR_ICON_URL + icon asset name), or the local placeholder.
+     */
+    iconFor: function (item) {
+      var u = item && item.icon_url;
+      if (typeof u === 'string') {
+        try { var p = new URL(u); if (p.protocol === 'https:') return p.href; } catch (e) { /* invalid -> fallback */ }
+      }
+      return this.iconUrl(item && item.icon);
+    },
+    /** TEMPORARY fallback until every item carries icon_url: Blizzard icon asset name -> GEAR_ICON_URL, or the placeholder. */
     iconUrl: function (name) {
       var ph = '/assets/icons/item.svg';
       if (cfg.USE_MOCK_GEAR || typeof name !== 'string' || !/^[a-z0-9_]{1,128}$/i.test(name)) return ph;

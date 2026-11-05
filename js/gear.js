@@ -38,7 +38,7 @@
       var wrap = el('span', 'gr-item q-' + q);
       var img = el('img', 'gr-icon'); img.alt = ''; img.width = 36; img.height = 36; img.loading = 'lazy';
       img.addEventListener('error', function () { if (img.src.indexOf('/assets/icons/item.svg') < 0) img.src = '/assets/icons/item.svg'; });
-      img.src = window.CSGearApi.iconUrl(i.icon);
+      img.src = window.CSGearApi.iconFor(i);
       wrap.appendChild(img);
       wrap.appendChild(el('span', 'gr-name', txt(i.name) || 'Unknown item'));
       it.appendChild(wrap); tr.appendChild(it);
