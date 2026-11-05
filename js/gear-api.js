@@ -1,23 +1,26 @@
 /**
- * web#18 thin client: GET /characters/{character_id}/gear (platform#30 at ff99462). Resolves { status, ok, body }.
+ * web#18 thin client: GET /characters/{character_id}/gear (platform main openapi/v1.yaml). Resolves { status, ok, body }.
  * Flip CS_CONFIG.USE_MOCK_GEAR for the real API. PUT (owner-only, X-CSRF-Token) is not used yet (read-only UI).
  */
 (function () {
   'use strict';
   var cfg = window.CS_CONFIG;
+  var ICON_HOST = 'render.worldofwarcraft.com';  // only host allowed for platform-provided icon_url
   window.CSGearApi = {
+    /** The one local placeholder icon path used everywhere on the gear page. */
+    PLACEHOLDER_ICON: '/assets/icons/item.svg',
     /**
      * Icon URL for an item: the platform's icon_url only when it is https: on exactly
-     * render.worldofwarcraft.com; otherwise the local placeholder. Clients must not build
+     * ICON_HOST; otherwise the local placeholder. Clients must not build
      * icon URLs themselves (platform#31).
      */
     iconFor: function (item) {
-      var ph = '/assets/icons/item.svg';
+      var ph = this.PLACEHOLDER_ICON;
       var u = item && item.icon_url;
       if (typeof u !== 'string') return ph;
       try {
         var p = new URL(u);
-        if (p.protocol === 'https:' && p.hostname === 'render.worldofwarcraft.com') return p.href;
+        if (p.protocol === 'https:' && p.hostname === ICON_HOST) return p.href;
       } catch (e) { /* invalid URL -> placeholder */ }
       return ph;
     },

@@ -21,6 +21,14 @@
   function render(body, ch) {
     var name = ch ? fullName(ch) : 'Character';
     $('gr-h').textContent = name + ' — gear';
+    if (ch && ch.stale) {
+      var sb = document.createElement('span');
+      sb.className = 'cs-badge cs-badge-neutral gr-stale';
+      sb.textContent = 'Stale';
+      sb.setAttribute('aria-label', 'Stale: missing from the latest Battle.net refresh');
+      $('gr-h').appendChild(document.createTextNode(' '));
+      $('gr-h').appendChild(sb);
+    }
     document.title = name + ' gear — Crusader Strike';
     var d = body.updated_at ? new Date(body.updated_at) : null;
     $('gr-updated').textContent = d && !isNaN(d) ? 'Last updated ' + d.toLocaleString() : 'Last updated: unknown';
@@ -37,7 +45,8 @@
       var it = el('td'); it.setAttribute('data-label', 'Item');
       var wrap = el('span', 'gr-item q-' + q);
       var img = el('img', 'gr-icon'); img.alt = ''; img.width = 36; img.height = 36; img.loading = 'lazy';
-      img.addEventListener('error', function () { if (img.src.indexOf('/assets/icons/item.svg') < 0) img.src = '/assets/icons/item.svg'; });
+      var ph = window.CSGearApi.PLACEHOLDER_ICON;
+      img.addEventListener('error', function () { if (img.getAttribute('src') !== ph) img.src = ph; });
       img.src = window.CSGearApi.iconFor(i);
       wrap.appendChild(img);
       wrap.appendChild(el('span', 'gr-name', txt(i.name) || 'Unknown item'));

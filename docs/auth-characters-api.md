@@ -2,7 +2,7 @@
 
 Front-end contract for Battle.net sign-in and main/alt character selection.
 Matches the OpenAPI v1 spec in
-[platform#30](https://github.com/CrusaderStrike/platform/pull/30) (`openapi/v1.yaml` at `ff99462`). **The spec is the source of truth**; this page only summarizes what the web UI uses. The web UI ships against an in-browser
+[platform#30](https://github.com/CrusaderStrike/platform/pull/30) (`openapi/v1.yaml` on platform main). **The spec is the source of truth**; this page only summarizes what the web UI uses. The web UI ships against an in-browser
 mock (`js/auth-mock.js`); Platform Dev's real API should match this document so
 switching is a config change only. **World of Warcraft Forever only.** The API
 must never return characters from any other game version.
@@ -120,6 +120,6 @@ Mock-only profile scenarios: `mock_scenario=empty|error|upstream|nomain|save_err
 - Slots: `head … ranged` incl. `finger1/2`, `trinket1/2`, `main_hand`, `off_hand`. Empty slots are omitted; unknown slots are dropped. Rows are ordered by slot.
 - `quality` is lowercase `poor|common|uncommon|rare|epic|legendary|null`, shown by color and as text; null/unknown shows "Unknown".
 - `name`, `ilvl`, `icon`, `icon_url` may be null. `icon` (asset name) is not used for rendering; only `icon_url` is (platform#31).
-- Icons: render `icon_url` only when it is `https:` on exactly `render.worldofwarcraft.com` (set via `img.src`); anything else, or a missing value, shows the local placeholder. Clients never build icon URLs (platform#31).
-- `401` → sign in; `404` (non-owner or not visible; platform#30 ff99462 also returns 404, not 403, for a gear PUT on another user's character — the web UI never PUTs gear) → "Character not found"; a stray `403` is treated the same; `429` → Retry-After message; `502` → "Battle.net is unavailable, try again later".
+- Icons: placeholder path is `CSGearApi.PLACEHOLDER_ICON` (`/assets/icons/item.svg`). Render `icon_url` only when it is `https:` on exactly `render.worldofwarcraft.com` (set via `img.src`); anything else, or a missing value, shows the local placeholder. Clients never build icon URLs (platform#31). A stale character shows a Stale badge in the gear header.
+- `401` → sign in; `404` (non-owner or not visible; the spec also returns 404, not 403, for a gear PUT on another user's character — the web UI never PUTs gear) → "Character not found"; a stray `403` is treated the same; `429` → Retry-After message; `502` → "Battle.net is unavailable, try again later".
 - Mock scenarios: `mock_scenario=gear_empty|gear_error|gear_upstream|gear_ratelimit|slow`; ids not in the mock's character list return 404.

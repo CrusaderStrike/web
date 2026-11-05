@@ -1,5 +1,5 @@
 /**
- * Mock for the Battle.net auth, characters and profile API (platform#30 openapi/v1.yaml at ff99462; docs/auth-characters-api.md).
+ * Mock for the Battle.net auth, characters and profile API (platform main openapi/v1.yaml; docs/auth-characters-api.md).
  * Character ids are opaque (ch_<region>_<id>); never parse them.
  * No network calls, no OAuth, no secrets. State lives in sessionStorage/localStorage.
  * Dev scenarios: ?mock_scenario=empty | error | upstream (characters endpoint).

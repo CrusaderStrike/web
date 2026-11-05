@@ -1,7 +1,7 @@
 /**
- * web#18 mock for GET /characters/{character_id}/gear (platform#30 openapi/v1.yaml at ff99462, getCharacterGear):
+ * web#18 mock for GET /characters/{character_id}/gear (platform main openapi/v1.yaml, getCharacterGear):
  * { character_id, updated_at, items: [{ slot, itemId, name, quality, ilvl, icon, icon_url }] }
- * icon = Blizzard icon asset name (no extension); icon_url = full https URL from the platform (shirt omits it to exercise the fallback). Empty slots omitted. Ids are opaque; never parsed.
+ * icon = Blizzard icon asset name (no extension); icon_url = full https URL from the platform (shirt has only icon, so it must get the placeholder). Empty slots omitted. Ids are opaque; never parsed.
  * Fictional WoW Forever items. Dev scenarios: ?mock_scenario=gear_empty|gear_error|gear_upstream|gear_ratelimit|slow
  */
 (function () {

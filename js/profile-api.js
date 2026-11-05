@@ -1,6 +1,6 @@
 /**
  * Thin client for the profile page. Shapes follow platform openapi/v1.yaml
- * platform#30 at ff99462
+ * platform main openapi/v1.yaml
  * (getSession, getMyProfile/updateMyProfile, listMyCharacters, setMyCharacterSelection, refreshMyCharacters).
  * Every call resolves { status, ok, body }. Flip CS_CONFIG.USE_MOCK_PROFILE to use the real API.
  * When Platform Dev's profile OpenAPI lands, adapt only PROFILE_PATHS and setMain() here.
