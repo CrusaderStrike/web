@@ -19,8 +19,8 @@ window.CS_CONFIG = Object.freeze({
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     CHARACTERS: '/api/v1/me/characters',              // spec listMyCharacters
-    SELECTION: '/api/v1/me/characters/selection',     // spec setMyCharacterSelection (ticket says PUT /me/main)
-    REFRESH: '/api/v1/me/characters/refresh'          // NOT in spec yet; proposed POST
+    SELECTION: '/api/v1/me/characters/selection',     // spec setMyCharacterSelection (confirmed)
+    REFRESH: '/api/v1/me/characters/refresh'          // POST, X-CSRF-Token; confirmed by Platform Dev
   }),
   AUTH_PATHS: Object.freeze({
     // Paths per platform PR #18 openapi/v1.yaml (server base https://api.crusaderstrike.com/api/v1)

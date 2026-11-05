@@ -1,10 +1,14 @@
-/** Shared faction badge (web#26). Unknown or missing faction -> neutral badge, never Horde. */
+/**
+ * Shared faction badge (web#26). Contract: faction is "ALLIANCE" | "HORDE" | null.
+ * Missing, null or unknown -> neutral "No faction" badge, never Horde. Case-insensitive.
+ */
 window.csFactionBadge = function (faction) {
   var known = { alliance: 'Alliance', horde: 'Horde' };
-  var label = known[faction] || 'No faction';
+  var f = typeof faction === 'string' ? faction.toLowerCase() : '';
+  var ok = Object.prototype.hasOwnProperty.call(known, f);
   var b = document.createElement('span');
-  b.className = 'cs-badge ' + (known[faction] ? 'cs-badge-' + faction : 'cs-badge-neutral');
-  b.textContent = label;
-  b.setAttribute('aria-label', 'Faction: ' + (known[faction] ? label : 'none'));
+  b.className = 'cs-badge ' + (ok ? 'cs-badge-' + f : 'cs-badge-neutral');
+  b.textContent = ok ? known[f] : 'No faction';
+  b.setAttribute('aria-label', 'Faction: ' + (ok ? known[f] : 'none'));
   return b;
 };

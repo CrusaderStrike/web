@@ -57,9 +57,9 @@ Always `302`s to `{return_to}` with `auth=ok`, `auth=cancelled`, or `auth=error&
 {
   "game": "wow_forever",
   "characters": [
-    { "id": "ch_1001", "character_name": "Lightbringer", "surname": "Dawnmantle", "realm": "Emberfall", "faction": "alliance",
+    { "id": "ch_1001", "character_name": "Lightbringer", "surname": "Dawnmantle", "realm": "Emberfall", "faction": "ALLIANCE",
       "class": "Paladin", "race": "Human", "level": 60, "game": "wow_forever" },
-    { "id": "ch_1003", "character_name": "Thornquill", "surname": "Briarhide", "realm": null, "faction": "horde",
+    { "id": "ch_1003", "character_name": "Thornquill", "surname": "Briarhide", "realm": null, "faction": "HORDE",
       "class": "Druid", "race": "Tauren", "level": 52, "game": "wow_forever" }
   ],
   "selection": { "main_id": "ch_1001", "alt_ids": ["ch_1003"], "updated_at": "2026-11-04T18:00:00Z" }
@@ -95,12 +95,13 @@ Gated by the same `FEATURE_BNET_SIGNIN` / `csBnetEnabled()` flag as sign-in.
 
 - Loads `GET /auth/session` (battletag, csrf_token) and `GET /me/characters`.
 - Setting a main saves `PUT /me/characters/selection` with `{ main_id, alt_ids: <every other character> }`, optimistic, rolled back on error.
-  The slice-1 ticket names this `PUT /me/main`; the spec has no such path, so the client uses the spec path. Change `PROFILE_PATHS.SELECTION` and `setMain()` if Platform Dev's profile OpenAPI differs.
+  Platform Dev confirmed this path (the slice-1 ticket's `PUT /me/main` is superseded).
 - A signed-in user with characters but `selection: null` is sent to `signin.html` (the picker).
-- **Proposed, not in the spec:** `POST /me/characters/refresh` (X-CSRF-Token) re-syncs from Battle.net and returns `CharacterList`. Errors as for `GET /me/characters`.
+- `POST /me/characters/refresh` (confirmed by Platform Dev; X-CSRF-Token) re-syncs from Battle.net and returns `200` with the `GET /me/characters` body.
+  `502 upstream_unavailable` → "Battle.net is unavailable, try again later". `429` → the button is disabled with a countdown from `Retry-After` (seconds; 30 if missing).
 
 ### Faction (web#26)
-`Character.faction` is optional. A missing or unknown faction shows a neutral "No faction" badge (`aria-label="Faction: none"`), never Horde.
-Fixture `ch_1005` (Wispwander — Duskhollow) has no `faction` key.
+`Character.faction` is `"ALLIANCE" | "HORDE" | null` (confirmed by Platform Dev). Null, missing or unknown shows a neutral "No faction" badge (`aria-label="Faction: none"`), never Horde.
+Fixture `ch_1005` (Wispwander — Duskhollow) has `faction: null`.
 
-Mock-only profile scenarios: `mock_scenario=empty|error|upstream|nomain|save_error|refresh_error`.
+Mock-only profile scenarios: `mock_scenario=empty|error|upstream|nomain|save_error|refresh_error|refresh_ratelimit`.

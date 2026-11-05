@@ -110,18 +110,37 @@
 
   $('pf-list').addEventListener('change', function (e) { if (e.target.name === 'main') setMain(e.target.value); });
   $('pf-retry').addEventListener('click', load);
+  var cooldown = null;
+  function refreshIdle() { var b = $('pf-refresh'); b.disabled = st.saving; b.removeAttribute('aria-busy'); b.textContent = 'Refresh characters'; }
+  function startCooldown(sec) {
+    var b = $('pf-refresh'), left = sec;
+    clearInterval(cooldown);
+    b.disabled = true;
+    var tick = function () {
+      if (left <= 0) { clearInterval(cooldown); cooldown = null; refreshIdle(); $('pf-refresh-error').hidden = true; return; }
+      b.textContent = 'Refresh again in ' + left + 's';
+      left--;
+    };
+    tick(); cooldown = setInterval(tick, 1000);
+  }
+  function refreshError(m) { $('pf-refresh-error').textContent = m; $('pf-refresh-error').hidden = false; }
   $('pf-refresh').addEventListener('click', function () {
     var b = $('pf-refresh');
+    if (cooldown) return;
     b.disabled = true; b.setAttribute('aria-busy', 'true'); b.textContent = 'Refreshing…';
     $('pf-refresh-error').hidden = true;
     announce('Refreshing characters…');
     api.refresh().then(function (r) {
-      b.disabled = false; b.removeAttribute('aria-busy'); b.textContent = 'Refresh characters';
+      refreshIdle();
       if (r.status === 401) { show('signedout'); return; }
-      if (!r.ok) {
-        $('pf-refresh-error').textContent = 'Refresh failed: ' + errMsg(r, 'please try again.');
-        $('pf-refresh-error').hidden = false; return;
+      if (r.status === 429) {
+        var ra = parseInt(r.headers && r.headers['retry-after'], 10);
+        var sec = ra > 0 && ra < 3600 ? ra : 30;
+        refreshError('Too many refreshes. You can refresh again in ' + sec + ' seconds.');
+        startCooldown(sec); return;
       }
+      if (r.status === 502) { refreshError('Battle.net is unavailable, try again later'); return; }
+      if (!r.ok) { refreshError('Refresh failed: ' + errMsg(r, 'please try again.')); return; }
       applyList(r.body); render(); announce('Characters refreshed.');
     });
   });

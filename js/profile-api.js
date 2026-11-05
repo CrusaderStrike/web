@@ -1,6 +1,6 @@
 /**
  * Thin client for the profile page. Shapes follow platform openapi/v1.yaml
- * (listMyCharacters, setMyCharacterSelection, getSession); refresh is proposed (docs/auth-characters-api.md).
+ * (listMyCharacters, setMyCharacterSelection, getSession); refresh is POST /me/characters/refresh (confirmed by Platform Dev, X-CSRF-Token).
  * Every call resolves { status, ok, body }. Flip CS_CONFIG.USE_MOCK_PROFILE to use the real API.
  * When Platform Dev's profile OpenAPI lands, adapt only PROFILE_PATHS and setMain() here.
  */
@@ -17,7 +17,8 @@
     return fetch(cfg.API_BASE + path, { method: method, credentials: 'include', headers: h, body: body ? JSON.stringify(body) : undefined })
       .then(function (r) {
         if (r.status === 204) return { status: 204, ok: true, body: null };
-        return r.json().catch(function () { return null; }).then(function (b) { return { status: r.status, ok: r.ok, body: b }; });
+        var hd = { 'retry-after': r.headers.get('Retry-After') || '' };
+        return r.json().catch(function () { return null; }).then(function (b) { return { status: r.status, ok: r.ok, body: b, headers: hd }; });
       }, function () { return { status: 0, ok: false, body: null }; });
   }
   var m = cfg.USE_MOCK_PROFILE;

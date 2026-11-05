@@ -8,21 +8,21 @@
   var SESSION_KEY = 'cs_mock_session';
   var SELECTION_KEY = 'cs_mock_selection';
   var FIXTURES = [
-    { id: 'ch_1001', character_name: 'Lightbringer', surname: 'Dawnmantle', realm: 'Emberfall', faction: 'alliance', class: 'Paladin', race: 'Human', level: 60, game: 'wow_forever' },
-    { id: 'ch_1002', character_name: 'Ashenvow', surname: null, realm: 'Emberfall', faction: 'alliance', class: 'Priest', race: 'Dwarf', level: 60, game: 'wow_forever' },
-    { id: 'ch_1003', character_name: 'Thornquill', surname: 'Briarhide', realm: null, faction: 'horde', class: 'Druid', race: 'Tauren', level: 52, game: 'wow_forever' },
-    { id: 'ch_1004', character_name: 'Grimlantern', faction: 'horde', class: 'Warlock', race: 'Undead', level: 38, game: 'wow_forever' },
-    // web#26: faction omitted (Forever profile may not return it) -> neutral badge, never Horde.
-    { id: 'ch_1005', character_name: 'Wispwander', surname: null, realm: 'Duskhollow', class: 'Rogue', race: 'Gnome', level: 27, game: 'wow_forever' },
+    { id: 'ch_1001', character_name: 'Lightbringer', surname: 'Dawnmantle', realm: 'Emberfall', faction: 'ALLIANCE', class: 'Paladin', race: 'Human', level: 60, game: 'wow_forever' },
+    { id: 'ch_1002', character_name: 'Ashenvow', surname: null, realm: 'Emberfall', faction: 'ALLIANCE', class: 'Priest', race: 'Dwarf', level: 60, game: 'wow_forever' },
+    { id: 'ch_1003', character_name: 'Thornquill', surname: 'Briarhide', realm: null, faction: 'HORDE', class: 'Druid', race: 'Tauren', level: 52, game: 'wow_forever' },
+    { id: 'ch_1004', character_name: 'Grimlantern', faction: 'HORDE', class: 'Warlock', race: 'Undead', level: 38, game: 'wow_forever' },
+    // web#26: faction null (Forever profile may not return it) -> neutral badge, never Horde.
+    { id: 'ch_1005', character_name: 'Wispwander', surname: null, realm: 'Duskhollow', faction: null, class: 'Rogue', race: 'Gnome', level: 27, game: 'wow_forever' },
     // Non-Forever entries the server must filter out; the mock filters too, to prove the UI never shows them.
-    { id: 'ch_9001', character_name: 'Filtered', surname: null, realm: 'Emberfall', faction: 'alliance', class: 'Mage', race: 'Gnome', level: 10, game: 'other' }
+    { id: 'ch_9001', character_name: 'Filtered', surname: null, realm: 'Emberfall', faction: 'ALLIANCE', class: 'Mage', race: 'Gnome', level: 10, game: 'other' }
   ];
 
   function scenario() {
     try { return new URLSearchParams(location.search).get('mock_scenario') || ''; } catch (e) { return ''; }
   }
   function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 350); }); }
-  function res(status, body) { return delay({ status: status, ok: status >= 200 && status < 300, body: body }); }
+  function res(status, body, headers) { return delay({ status: status, ok: status >= 200 && status < 300, body: body, headers: headers || {} }); }
   // Error shapes per openapi/v1.yaml: Error {error:{code,message,request_id}} and ValidationErrors {errors:{field:msg}}.
   function err(status, code, message) { return res(status, { error: { code: code, message: message, request_id: 'req_mock' } }); }
   function invalid(field, message) { var e = {}; e[field] = message; return res(400, { errors: e }); }
@@ -88,8 +88,11 @@
     refresh: function (csrf) {
       var s = session();
       if (!s) return err(401, 'unauthenticated', 'Sign in required.');
-      if (scenario() === 'refresh_error') return err(502, 'upstream_unavailable', 'Battle.net is not responding.');
       if (!csrf || csrf !== s.csrf_token) return err(403, 'csrf_failed', 'Security check failed. Reload and try again.');
+      if (scenario() === 'refresh_error') return err(502, 'upstream_unavailable', 'Battle.net is not responding.');
+      if (scenario() === 'refresh_ratelimit') {
+        return res(429, { error: { code: 'rate_limited', message: 'Too many refreshes.', request_id: 'req_mock' } }, { 'retry-after': '3' });
+      }
       return this.characters();
     },
     /** Test/dev helper: start a mock session without the OAuth screens. */
