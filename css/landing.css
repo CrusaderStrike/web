@@ -26,31 +26,8 @@
   filter: drop-shadow(0 0 28px rgba(212, 175, 55, 0.4));
 }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-.signup {
-  background: linear-gradient(180deg, rgba(36, 25, 16, 0.9), rgba(12, 9, 7, 0.95));
-  border-top: 1px solid var(--cs-border);
-  border-bottom: 1px solid var(--cs-border);
-}
-.signup-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  align-items: start;
-}
-.interest-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.35rem 1rem;
-}
-.confirm-panel {
-  max-width: 32rem;
-  margin: 3rem auto;
-  text-align: center;
-}
-.confirm-panel .hero-mark { padding-bottom: 0; }
-.confirm-panel .hero-mark img { width: 120px; margin-inline: auto; }
 @media (max-width: 860px) {
-  .hero, .signup-grid, .cards, .interest-grid { grid-template-columns: 1fr; }
+  .hero, .cards { grid-template-columns: 1fr; }
   .hero { padding-top: 1.25rem; }
   .hero-mark { order: -1; }
   .hero-mark img { width: min(180px, 45%); }
