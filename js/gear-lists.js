@@ -301,7 +301,7 @@
       if (cfs.length) {
         var cf = cfs[0], o = chunk.filter(function (x) { return x.op_id === cf.op_id; })[0], m = txt(cf.message);
         var why = cf.reason === 'item_not_forever' ? REASON.item_not_forever :
-          // Stopgap: platform@1b5320e has no list_items_limit GearConflict.reason, so also match the message (follow-up tracked in web nits issue).
+          // Stopgap (still needed): platform@ad03a2c still has no list_items_limit GearConflict.reason, so also match the message. Remove once platform ships the reason code.
           (cf.reason === 'list_items_limit' || /list_items_limit/.test(m)) ? 'this list already has ' + L.items_per_list + ' items' : (REASON[cf.reason] || 'it conflicted with another edit');
         var again = /^(item_not_forever|item_removed|list_items_limit)$/.test(cf.reason) || /list_items_limit/.test(m) ? null : function () {
           var n = wire(o); delete n.base_version; n.op_id = api.opId(); enqueue(n, listId);  // the list the conflict came from

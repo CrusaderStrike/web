@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /profile/
+Disallow: /gear/
+Disallow: /signin.html
+Disallow: /styleguide.html
+
+Sitemap: https://crusaderstrike.com/sitemap.xml
