@@ -24,11 +24,12 @@
   var REGIONS = ['us', 'eu', 'kr', 'tw'];
   var SLOT_LABEL = { head: 'Head', neck: 'Neck', shoulder: 'Shoulder', back: 'Back', chest: 'Chest', shirt: 'Shirt', tabard: 'Tabard',
     wrist: 'Wrist', hands: 'Hands', waist: 'Waist', legs: 'Legs', feet: 'Feet', finger1: 'Finger 1', finger2: 'Finger 2',
-    trinket1: 'Trinket 1', trinket2: 'Trinket 2', main_hand: 'Main hand', off_hand: 'Off hand', ranged: 'Ranged' };
-  // In-game character window: left column, right column, weapons along the bottom.
+    trinket1: 'Trinket 1', trinket2: 'Trinket 2', main_hand: 'Main hand', off_hand: 'Off hand', ranged: 'Ranged', ammo: 'Ammo' };
+  // In-game character window: left column, right column, weapons along the bottom. Ammo is not part of that 19.
   var LEFT = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist'];
   var RIGHT = ['hands', 'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2'];
   var WEAPONS = ['main_hand', 'off_hand', 'ranged'];
+  var AMMO_CLASS = { warrior: 1, rogue: 1, hunter: 1 };
   var st = { battletag: '', region: '', characters: [], sets: {}, setErr: {}, current: null, etag: null, items: {}, saving: {}, createFor: null, picker: null,
     planId: null, planSet: {}, miss: {} };
 
@@ -63,6 +64,48 @@
   function charById(id) { return st.characters.filter(function (c) { return c.id === id; })[0] || null; }
   function displayed() { return st.characters.filter(function (c) { return c.displayed && !c.stale; }); }
   function level(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
+  /** Ammo is its own slot, only for Warrior, Rogue, and Hunter. Unknown or any other class stays hidden. */
+  function usesAmmo(c) { return !!AMMO_CLASS[txt(c && c.class).toLowerCase()]; }
+  function num(v) { var n = typeof v === 'number' ? v : parseInt(v, 10); return n === n ? n : null; }
+  function rangedItem(s) {
+    var id = s && s.slots ? s.slots.ranged : null;
+    return id != null && st.items[id] ? st.items[id] : null;
+  }
+  /** Bow and crossbow take arrows; a gun takes bullets. Anything else (none, thrown, wand) does not filter. */
+  function ammoKind(ranged) {
+    if (!ranged || num(ranged.item_class) !== 2) return 'both';
+    var s = num(ranged.subclass);
+    if (s === 2 || s === 18) return 'arrow';
+    if (s === 3) return 'bullet';
+    return 'both';
+  }
+  function isArrow(item) { return !!item && num(item.item_class) === 6 && num(item.subclass) === 2; }
+  function isBullet(item) { return !!item && num(item.item_class) === 6 && num(item.subclass) === 3; }
+  function ammoFits(ammo, ranged) {
+    if (!ammo) return true;
+    var kind = ammoKind(ranged);
+    if (kind === 'both') return true;
+    return kind === 'arrow' ? isArrow(ammo) : isBullet(ammo);
+  }
+  var AMMO_HINT = 'Equip a bow, crossbow or gun to filter ammo.';
+  function showInPicker(slot, item) {
+    if (!item) return false;
+    if (slot === 'ranged' && String(item.inventory_type || '').toUpperCase() === 'AMMO') return false;
+    if (slot === 'ammo') {
+      var id = num(item.item_id);
+      if (id === 19082 || id === 19286) return false;
+      var kind = ammoKind(rangedItem(st.current));
+      if (kind === 'arrow') return isArrow(item);
+      if (kind === 'bullet') return isBullet(item);
+    }
+    return true;
+  }
+  function syncAmmoHint() {
+    var h = $('pf-picker-hint'); if (!h) return;
+    var both = pk.slot === 'ammo' && ammoKind(rangedItem(st.current)) === 'both';
+    h.hidden = !both;
+    h.textContent = both ? AMMO_HINT : '';
+  }
   function safeIcon(u) { try { var x = new URL(u); return x.protocol === 'https:' && x.hostname === 'render.worldofwarcraft.com' ? x.href : null; } catch (e) { return null; } }
   function iconFor(slot, item) {
     var f = el('span', 'pf-icon' + (item ? ' q-' + (txt(item.quality) || 'unknown') : ' is-empty'));
@@ -396,6 +439,27 @@
     return Promise.all(ids.map(function (iid) { return A.item(iid).then(function (r) { if (r.ok && r.body) st.items[iid] = r.body; }); }));
   }
   function slotBanner(m) { var b = $('pf-slot-banner'); b.textContent = m; b.hidden = !m; }
+  function appendSlot(ul, slot, s, missing) {
+    var iid = s.slots ? s.slots[slot] : null, it = iid != null ? st.items[iid] || { item_id: iid, name: 'Item ' + iid } : null;
+    var mismatch = slot === 'ammo' && it && !ammoFits(it, rangedItem(s));
+    var li = el('li'), b = el('button', 'pf-slot' + (it ? ' is-filled' : '') + (mismatch ? ' is-mismatch' : '') + (st.saving[slot] ? ' is-saving' : ''));
+    b.type = 'button'; b.setAttribute('data-slot', slot); b.id = 'pf-slot-' + slot;
+    b.setAttribute('aria-label', (missing
+      ? SLOT_LABEL[slot] + ': empty. That gear set no longer exists.'
+      : SLOT_LABEL[slot] + ': ' + (it ? txt(it.name) : 'empty') + (st.saving[slot] ? ', saving' : '') + '. Choose item')
+      + (mismatch ? ' Doesn\u2019t match the ranged weapon.' : ''));
+    b.appendChild(iconFor(slot, it));
+    var tx = el('span', 'pf-slot-text');
+    tx.appendChild(el('span', 'pf-slot-label', SLOT_LABEL[slot]));
+    tx.appendChild(el('span', 'pf-slot-item' + (it ? ' q-' + (txt(it.quality) || 'unknown') : ''), it ? txt(it.name) : 'Empty'));
+    if (mismatch) tx.appendChild(el('span', 'pf-slot-flag', 'Doesn\u2019t match ranged weapon'));
+    b.appendChild(tx);
+    b.addEventListener('click', function () {
+      if (st.current && st.current.missing) { slotBanner('That gear set no longer exists.'); return; }
+      openPicker(slot, b);
+    });
+    li.appendChild(b); ul.appendChild(li);
+  }
   function renderSet() {
     var s = st.current; if (!s) return;
     var c = charById(s.character_id) || {};
@@ -411,25 +475,12 @@
     $('pf-viewer-sub').textContent = ['Level ' + (level(c) || '?'), txt(c.race), txt(c.class)].filter(Boolean).join(' · ');
     [['pf-col-left', LEFT], ['pf-col-right', RIGHT], ['pf-row-weapons', WEAPONS]].forEach(function (g) {
       var ul = $(g[0]); clear(ul);
-      g[1].forEach(function (slot) {
-        var iid = s.slots ? s.slots[slot] : null, it = iid != null ? st.items[iid] || { item_id: iid, name: 'Item ' + iid } : null;
-        var li = el('li'), b = el('button', 'pf-slot' + (it ? ' is-filled' : '') + (st.saving[slot] ? ' is-saving' : ''));
-        b.type = 'button'; b.setAttribute('data-slot', slot); b.id = 'pf-slot-' + slot;
-        b.setAttribute('aria-label', missing
-          ? SLOT_LABEL[slot] + ': empty. That gear set no longer exists.'
-          : SLOT_LABEL[slot] + ': ' + (it ? txt(it.name) : 'empty') + (st.saving[slot] ? ', saving' : '') + '. Choose item');
-        b.appendChild(iconFor(slot, it));
-        var tx = el('span', 'pf-slot-text');
-        tx.appendChild(el('span', 'pf-slot-label', SLOT_LABEL[slot]));
-        tx.appendChild(el('span', 'pf-slot-item' + (it ? ' q-' + (txt(it.quality) || 'unknown') : ''), it ? txt(it.name) : 'Empty'));
-        b.appendChild(tx);
-        b.addEventListener('click', function () {
-          if (st.current && st.current.missing) { slotBanner('That gear set no longer exists.'); return; }
-          openPicker(slot, b);
-        });
-        li.appendChild(b); ul.appendChild(li);
-      });
+      g[1].forEach(function (slot) { appendSlot(ul, slot, s, missing); });
     });
+    var ammoRow = $('pf-ammo-row'), ammoList = $('pf-ammo');
+    clear(ammoList);
+    if (usesAmmo(c)) { ammoRow.hidden = false; appendSlot(ammoList, 'ammo', s, missing); }
+    else ammoRow.hidden = true;
   }
 
   // ---------- item picker ----------
@@ -440,6 +491,7 @@
     var cur = st.current.slots[slot]; var it = cur != null ? st.items[cur] : null;
     $('pf-picker-current').textContent = 'Current: ' + (it ? txt(it.name) : cur != null ? 'Item ' + cur : 'empty');
     $('pf-picker-clear').disabled = cur == null;
+    var hint = $('pf-picker-hint'); if (hint) { hint.hidden = true; hint.textContent = ''; }
     $('pf-picker').showModal(); $('pf-picker-q').focus();
     fetchItems(false);
   }
@@ -450,12 +502,23 @@
     $('pf-picker-status').textContent = 'Loading items…'; $('pf-picker-more').hidden = true;
     A.items({ slot: pk.slot, q: pk.q, max_required_level: null, cursor: more ? pk.cursor : null }).then(function (r) {
       if (seq !== pk.seq) return;
-      if (!r.ok) { $('pf-picker-status').textContent = 'Items could not load: ' + errMsg(r, 'please try again.'); return; }
+      if (!r.ok) {
+        // slot=ammo is not in the catalog yet on some APIs: an empty picker, not an error.
+        if (pk.slot === 'ammo' && (r.status === 400 || r.status === 404)) {
+          clear(list); pk.cursor = null; $('pf-picker-more').hidden = true;
+          $('pf-picker-status').textContent = 'No WoW Forever items match.';
+          syncAmmoHint();
+          return;
+        }
+        $('pf-picker-status').textContent = 'Items could not load: ' + errMsg(r, 'please try again.');
+        return;
+      }
       var items = Array.isArray(r.body && r.body.items) ? r.body.items : [];
       var firstNew = null;
       items.forEach(function (i) {
         var iid = i.item_id != null ? i.item_id : i.id; if (iid == null) return;
         i.item_id = iid; st.items[iid] = i;
+        if (!showInPicker(pk.slot, i)) return;
         var li = el('li'), b = el('button', 'pf-pick'); b.type = 'button'; b.setAttribute('data-item', iid);
         if (st.current.slots[pk.slot] === iid) b.setAttribute('aria-pressed', 'true');
         b.appendChild(iconFor(pk.slot, i));
@@ -470,6 +533,7 @@
       $('pf-picker-more').hidden = !pk.cursor;
       var n = list.children.length;
       $('pf-picker-status').textContent = n ? n + (n === 1 ? ' item' : ' items') + (pk.cursor ? ' shown, more available.' : ' found.') : 'No WoW Forever items match.';
+      syncAmmoHint();
       if (more && firstNew) firstNew.focus();
     });
   }

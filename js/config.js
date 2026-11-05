@@ -43,8 +43,9 @@ window.CS_CONFIG = Object.freeze(csProdGuard({
   }),
   ARMORY_MAX_SETS: 20,  // UI hint only; never blocks a create. The server's 409 list_limit_reached is the source of truth.
   ARMORY_MAX_LEVEL: 60,
+  // ammo is its own wire slot (Drew). It is not one of the 19 pane slots; the planner shows it separately.
   ARMORY_SLOTS: Object.freeze(['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist', 'hands', 'waist', 'legs', 'feet',
-    'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand', 'ranged']),
+    'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand', 'ranged', 'ammo']),
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}

@@ -239,6 +239,70 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.setViewportSize({ width: 1280, height: 900 }); await go(); await p.click(`.pf-set[data-set="${setId}"]`); await p.waitForTimeout(400);
   await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-desktop.png'), fullPage: true });
 
+  // ammo is its own slot (not ranged): Hunter shows it, Mage hides it, a class change updates it
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: 'Hunter', ch_us_1003: 'Mage' })));
+  await go(); await idle();
+  ok(/Hunter/.test(await p.textContent('#pf-viewer-sub')) && await p.isVisible('#pf-slot-ammo') && (await p.getAttribute('#pf-slot-ammo', 'data-slot')) === 'ammo', 'hunter shows an ammo slot');
+  ok(await p.locator('.pf-charwin .pf-slot').count() === 19 && (await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'ammo stays outside the 19-slot pane and ranged');
+  await p.evaluate(() => {
+    window.__itemSlots = [];
+    const orig = CSArmoryMock.items;
+    CSArmoryMock.items = function (q) { window.__itemSlots.push(q && q.slot); return orig.apply(this, arguments); };
+  });
+  await p.click('#pf-slot-ranged'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0);
+  ok(await p.evaluate(() => window.__itemSlots.slice(-1)[0] === 'ranged') && !/ammo/i.test(await p.textContent('#pf-picker-list')), 'ranged picker asks for slot=ranged and does not list ammo');
+  await p.fill('#pf-picker-q', 'Misfiled');
+  ok(await until(() => /No WoW Forever items match/.test(document.getElementById('pf-picker-status').textContent) && document.querySelectorAll('#pf-picker-list .pf-pick').length === 0), 'ranged picker drops inventory_type AMMO');
+  await p.click('#pf-picker-close');
+  await until(() => !document.getElementById('pf-picker').open);
+  await p.click('#pf-slot-ammo');
+  ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length >= 2), 'ammo picker loads with no ranged weapon');
+  ok(await p.evaluate(() => window.__itemSlots.slice(-1)[0] === 'ammo'), 'ammo picker asks for slot=ammo');
+  ok((await p.locator('#pf-picker-list .pf-pick-name').allTextContents()).sort().join() === 'Testwood Arrow,Testwood Bullet', 'no ranged weapon shows arrows and bullets');
+  ok(!/Jagged Arrow|Deadly Poison/.test(await p.textContent('#pf-picker-list')), 'ammo picker drops item ids 19082 and 19286');
+  ok((await p.textContent('#pf-picker-hint')) === 'Equip a bow, crossbow or gun to filter ammo.' && await p.isVisible('#pf-picker-hint'), 'hint when ammo is not filtered');
+  await p.click('#pf-picker-close');
+  await until(() => !document.getElementById('pf-picker').open);
+  const pickNamed = async (slot, name) => {
+    await p.click('#pf-slot-' + slot);
+    await until(() => document.getElementById('pf-picker').open);
+    await p.fill('#pf-picker-q', name);
+    await p.waitForFunction(n => [...document.querySelectorAll('#pf-picker-list .pf-pick-name')].some(e => e.textContent === n), name, { timeout: 5000 });
+    await p.locator('#pf-picker-list .pf-pick', { hasText: name }).first().click();
+    await p.waitForFunction(([slot, name]) => { const el = document.getElementById('pf-slot-' + slot); return !!(el && el.textContent.includes(name)); }, [slot, name], { timeout: 5000 });
+    await idle();
+  };
+  await pickNamed('ranged', 'Testwood Bow');
+  await p.click('#pf-slot-ammo');
+  ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick-name').length === 1 && document.querySelector('#pf-picker-list .pf-pick-name').textContent === 'Testwood Arrow'), 'hunter with a bow sees only arrows');
+  ok(await p.isHidden('#pf-picker-hint'), 'bow hides the unfiltered-ammo hint');
+  await p.locator('#pf-picker-list .pf-pick').click();
+  ok(await until(() => /Ammo saved: Testwood Arrow/.test(document.getElementById('pf-status').textContent)), 'arrow saved in the ammo slot');
+  await idle();
+  await pickNamed('ranged', 'Testwood Gun');
+  ok(/Testwood Arrow/.test(await p.textContent('#pf-slot-ammo')) && await p.locator('#pf-slot-ammo').evaluate(e => e.classList.contains('is-mismatch')) && /Doesn.t match ranged weapon/.test(await p.textContent('#pf-slot-ammo')), 'gun leaves the arrow equipped and flags the mismatch');
+  const hunterSet = await p.getAttribute('.pf-set[aria-current=true]', 'data-set');
+  ok((await mockSet(hunterSet)).items.some(i => i.slot === 'ammo' && i.item_id === 91011), 'mismatch does not clear the ammo row');
+  await p.click('#pf-slot-ammo');
+  ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick-name').length === 1 && document.querySelector('#pf-picker-list .pf-pick-name').textContent === 'Testwood Bullet'), 'hunter with a gun sees only bullets');
+  await p.click('#pf-picker-close');
+  await until(() => !document.getElementById('pf-picker').open);
+  await p.click('#pf-plan-ch_us_1003');
+  ok(await until(() => /Mage/.test(document.getElementById('pf-viewer-sub').textContent) && !document.getElementById('pf-slot-ammo')), 'switching to a mage hides ammo');
+  await p.click('#pf-plan-ch_us_1001');
+  ok(await until(() => /Hunter/.test(document.getElementById('pf-viewer-sub').textContent) && !!document.getElementById('pf-slot-ammo')), 'switching back to the hunter shows ammo');
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: 'Mage' })));
+  await go(); await idle();
+  ok(/Mage/.test(await p.textContent('#pf-viewer-sub')) && await p.locator('#pf-slot-ammo').count() === 0, 'changing that character to a mage hides ammo');
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: '' })));
+  await go(); await idle();
+  ok(await p.locator('#pf-slot-ammo').count() === 0, 'an unknown class hides ammo');
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: 'Hunter' })));
+  await go(); await idle();
+  ok(await p.isVisible('#pf-slot-ammo'), 'changing that character back to hunter shows ammo');
+  await p.evaluate(() => localStorage.removeItem('cs_mock_class'));
+  await go(); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => document.getElementById('pf-set-h').textContent === 'Endgame'); await idle();
+
   // web#56 review: switching to a character whose preferred set 404s must not keep the previous character's pane
   await p.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('cs_mock_armory'));

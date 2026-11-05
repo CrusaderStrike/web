@@ -129,6 +129,9 @@
                 <ul class="pf-col pf-col-right" id="pf-col-right" aria-label="Armor slots, right"></ul>
                 <ul class="pf-row-weapons" id="pf-row-weapons" aria-label="Weapon slots"></ul>
               </div>
+              <div id="pf-ammo-row" class="pf-ammo-row" hidden>
+                <ul class="pf-ammo" id="pf-ammo" aria-label="Ammo slot"></ul>
+              </div>
             </div>
           </section>
         </div>
@@ -173,6 +176,7 @@
   <dialog id="pf-picker" class="pf-dialog pf-picker" aria-labelledby="pf-picker-h">
     <h2 id="pf-picker-h">Choose an item</h2>
     <p id="pf-picker-current" class="cs-muted"></p>
+    <p id="pf-picker-hint" class="cs-muted" hidden></p>
     <form id="pf-picker-search" role="search" class="cs-field">
       <label for="pf-picker-q">Search WoW Forever items</label>
       <input id="pf-picker-q" type="search" autocomplete="off" aria-controls="pf-picker-list">

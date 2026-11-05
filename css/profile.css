@@ -72,7 +72,8 @@
 .pf-armory-empty h3, .pf-armory-head h3 { font-family: var(--cs-font-display); color: var(--cs-gold-bright); margin: 0; font-size: var(--cs-text-xl); }
 .pf-armory-head { text-align: center; margin-bottom: .75rem; }
 .pf-armory-head p { margin: .2rem 0 0; }
-#pf-armory-view.is-outgrown .pf-charwin { filter: grayscale(.85); opacity: .7; }
+#pf-armory-view.is-outgrown .pf-charwin,
+#pf-armory-view.is-outgrown .pf-ammo-row { filter: grayscale(.85); opacity: .7; }
 .pf-outgrown-note { color: var(--cs-muted); font-style: italic; }
 .pf-slot-banner { background: var(--cs-err-bg); color: var(--cs-err); border: 1px solid #6a2a20; border-radius: var(--cs-radius); padding: .5rem .75rem; }
 .pf-charwin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, 1.1fr) minmax(0, 1fr); grid-template-areas: "l m r" "w w w"; gap: .6rem; }
@@ -80,6 +81,8 @@
 .pf-col-left { grid-area: l; } .pf-col-right { grid-area: r; }
 .pf-col-right .pf-slot { flex-direction: row-reverse; text-align: right; }
 .pf-row-weapons { grid-area: w; grid-template-columns: repeat(3, minmax(0, 12rem)); justify-content: center; }
+.pf-ammo-row { display: flex; justify-content: center; margin-top: .35rem; }
+.pf-ammo { list-style: none; margin: 0; padding: 0; width: min(100%, 12rem); }
 /* web#56: center slot is an empty 3D viewer mount, not a paper doll. */
 .pf-viewer { grid-area: m; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; min-width: 0; min-height: 14rem;
   border: 1px dashed var(--cs-border-strong); border-radius: var(--cs-radius); padding: .75rem; text-align: center;
@@ -93,7 +96,8 @@
 .pf-slot { width: 100%; display: flex; align-items: center; gap: .5rem; padding: .25rem; min-height: 2.9rem; background: rgba(0,0,0,.35);
   border: 1px solid #3a2e1f; border-radius: var(--cs-radius-sm); color: var(--cs-parchment); font: inherit; cursor: pointer; text-align: left; }
 .pf-slot:hover { border-color: var(--cs-gold-soft); background: rgba(212,175,55,.06); }
-.pf-slot.is-saving { opacity: .7; }
+.pf-slot.is-mismatch { border-color: #e0a060; box-shadow: inset 0 0 0 1px #e0a060; }
+.pf-slot-flag { color: #f0c090; font-size: var(--cs-text-xs); }
 .pf-slot-text { display: flex; flex-direction: column; min-width: 0; }
 .pf-slot-label { font-size: var(--cs-text-xs); color: var(--cs-muted); text-transform: uppercase; letter-spacing: .06em; }
 .pf-slot-item { font-size: var(--cs-text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

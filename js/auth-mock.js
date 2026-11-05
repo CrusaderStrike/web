@@ -76,8 +76,11 @@
       if (sc === 'nomain') { localStorage.removeItem(SELECTION_KEY); }
       if (sc === 'upstream') return err(502, 'upstream_unavailable', 'Battle.net is not responding.');
       var extra = staleIds();
+      var classes = null; try { classes = JSON.parse(localStorage.getItem('cs_mock_class')); } catch (e) { classes = null; }
       var list = sc === 'empty' ? [] : FIXTURES.filter(function (c) { return c.game === 'wow_forever'; }).map(function (c) {
-        var o = JSON.parse(JSON.stringify(c)); if (extra.indexOf(c.id) >= 0) o.stale = true; return o;
+        var o = JSON.parse(JSON.stringify(c)); if (extra.indexOf(c.id) >= 0) o.stale = true;
+        if (classes && typeof classes[c.id] === 'string') o.class = classes[c.id];
+        return o;
       });
       var sel = null;
       try { sel = JSON.parse(localStorage.getItem(SELECTION_KEY)); } catch (e) { sel = null; }

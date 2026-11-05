@@ -55,6 +55,22 @@
         icon_url: null, source: 'blizzard_forever', verified: true });
     });
   });
+  // platform#74: ranged weapons and ammo the planner can tell apart. 19082 and 19286 are dropped in the ammo picker.
+  [
+    { item_id: 91001, name: 'Testwood Bow', slot: 'ranged', slot_group: 'ranged', inventory_type: 'RANGED', item_class: 2, subclass: 2 },
+    { item_id: 91002, name: 'Testwood Crossbow', slot: 'ranged', slot_group: 'ranged', inventory_type: 'RANGED', item_class: 2, subclass: 18 },
+    { item_id: 91003, name: 'Testwood Gun', slot: 'ranged', slot_group: 'ranged', inventory_type: 'RANGED', item_class: 2, subclass: 3 },
+    { item_id: 91004, name: 'Testwood Thrown', slot: 'ranged', slot_group: 'ranged', inventory_type: 'THROWN', item_class: 2, subclass: 16 },
+    { item_id: 91020, name: 'Misfiled Quiver', slot: 'ranged', slot_group: 'ranged', inventory_type: 'AMMO', item_class: 6, subclass: 2 },
+    { item_id: 91011, name: 'Testwood Arrow', slot: 'ammo', slot_group: 'ammo', inventory_type: 'AMMO', item_class: 6, subclass: 2 },
+    { item_id: 91012, name: 'Testwood Bullet', slot: 'ammo', slot_group: 'ammo', inventory_type: 'AMMO', item_class: 6, subclass: 3 },
+    { item_id: 19082, name: 'Jagged Arrow', slot: 'ammo', slot_group: 'ammo', inventory_type: 'AMMO', item_class: 6, subclass: 2 },
+    { item_id: 19286, name: 'Deadly Poison', slot: 'ammo', slot_group: 'ammo', inventory_type: 'AMMO', item_class: 0, subclass: 0 }
+  ].forEach(function (extra) {
+    ITEMS.push({ item_id: extra.item_id, name: extra.name, slot: extra.slot, slot_group: extra.slot_group, inventory_type: extra.inventory_type,
+      item_class: extra.item_class, subclass: extra.subclass, quality: 'common', item_level: 10, required_level: 1, armor_type: null,
+      stats: null, icon_url: null, source: 'blizzard_forever', verified: true });
+  });
   function groupOf(slot) { return GROUP[slot] || slot; }
   function fits(item, slot) { return item && item.slot_group === groupOf(slot); }
   function pub(i) { var o = JSON.parse(JSON.stringify(i)); delete o.slot_group; return o; }
