@@ -237,7 +237,9 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
     const v = await pp.evaluate(() => ({ flags: Object.keys(CS_CONFIG).filter(k => /^USE_MOCK_/.test(k)).map(k => [k, CS_CONFIG[k]]), prodHost: CS_CONFIG.IS_PROD_HOST }));
     const prod = host !== 'staging.crusaderstrike.com';
     ok(v.flags.length === (require('fs').readFileSync(require('path').join(__dirname, '../../js/config.js'), 'utf8').match(/^\s*USE_MOCK_\w+:/mg) || []).length && v.flags.length >= 6, host + ': sees every USE_MOCK_* flag (' + v.flags.map(f => f[0]).join(',') + ')');
-    for (const [k, val] of v.flags) ok(val === !prod, host + ': ' + k + (prod ? ' forced off on prod host' : ' keeps configured true on non-prod host'));
+    const SCOPED = ['USE_MOCK_ARMORY', 'USE_MOCK_AUTH', 'USE_MOCK_PROFILE', 'USE_MOCK_GEAR_LISTS'];
+    ok(JSON.stringify(await pp.evaluate(() => [...CS_PROD_FORCED_OFF].sort())) === JSON.stringify([...SCOPED].sort()), host + ': forced-off scope is exactly armory/auth/profile/gear-lists');
+    for (const [k, val] of v.flags) { const off = prod && SCOPED.includes(k); ok(val === !off, host + ': ' + k + (off ? ' forced off on prod host' : prod ? ' unchanged on prod host (stays on)' : ' keeps configured true on non-prod host')); }
     ok(v.prodHost === prod, host + ': IS_PROD_HOST ' + prod);
     await ctx.close();
   }

@@ -1,10 +1,12 @@
 /** Site config. API_BASE is shared by the auth, profile, gear and rankings clients. */
-/** Production hosts: no in-browser mock (any USE_MOCK_* flag) ever runs here, whatever the flags below say (see csProdGuard). */
+/** Production hosts: the armory/auth/profile/gear-lists mocks never run here, whatever the flags below say (see csProdGuard). */
 window.CS_PROD_HOSTS = Object.freeze(['crusaderstrike.com', 'www.crusaderstrike.com']);
+/** Mock flags forced off on CS_PROD_HOSTS (Product scope). USE_MOCK_GEAR and USE_MOCK_RANKINGS are NOT forced: they stay as configured (on) in prod today. */
+window.CS_PROD_FORCED_OFF = Object.freeze(['USE_MOCK_ARMORY', 'USE_MOCK_AUTH', 'USE_MOCK_PROFILE', 'USE_MOCK_GEAR_LISTS']);
 function csProdGuard(c) {
   var h = ''; try { h = String(location.hostname || '').toLowerCase(); } catch (e) {}
   c.IS_PROD_HOST = window.CS_PROD_HOSTS.indexOf(h) >= 0;
-  if (c.IS_PROD_HOST) Object.keys(c).forEach(function (k) { if (/^USE_MOCK_/.test(k)) c[k] = false; });  // every in-browser mock is dev/test only
+  if (c.IS_PROD_HOST) window.CS_PROD_FORCED_OFF.forEach(function (k) { c[k] = false; });  // gear + rankings mocks intentionally keep their configured value on prod
   return c;
 }
 window.CS_CONFIG = Object.freeze(csProdGuard({
@@ -31,7 +33,7 @@ window.CS_CONFIG = Object.freeze(csProdGuard({
   // web#42 profile display toggles + armory gear sets. Contract: platform main openapi/v1.yaml + src/routes/{profile,gear-lists}.ts,
   // gear-list schema v1. Display = PUT selection; slot edits = POST ops.
   // true = js/armory-mock.js (fictional Forever items, ?mock_armory= scenarios); false = real API at API_BASE.
-  USE_MOCK_ARMORY: false,  // all USE_MOCK_* forced false on CS_PROD_HOSTS regardless; e2e suites force true via _test-config.js
+  USE_MOCK_ARMORY: false,  // forced false on CS_PROD_HOSTS regardless (CS_PROD_FORCED_OFF); e2e suites force true via _test-config.js
   ARMORY_PATHS: Object.freeze({
     SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, visibility?} (shipped); type/until_level/role_spec sent for platform#43
     SET: '/api/v1/gear-lists/{id}',                   // GET (ETag "v<version>")
