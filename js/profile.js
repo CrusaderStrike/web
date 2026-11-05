@@ -2,6 +2,7 @@
  * web#42 profile: per-character display toggles (PUT /me/characters/selection {main_id, alt_ids}; displayed = main + alts), gear-set side panel (drawer on mobile),
  * create form with the level-60 rules, armory view in the in-game character-window layout, per-slot Forever item
  * picker with search + paging, and autosave per slot (POST /gear-lists/{id}/ops set_slot / clear_slot, base_version; stale_base_version -> reload + retry). Contract: platform main openapi/v1.yaml + gear-list schema v1.
+ * web#56: Planning-for selector among displayed characters, the same 19-slot pane, and an empty center mount labelled as a 3D viewer placeholder (a real viewer is a later step). Slot writes stay set_slot / clear_slot.
  * Main/alts are the platform selection; the UI just shows displayed on/off. API data is rendered with createElement + textContent only.
  */
 (function () {
@@ -28,7 +29,8 @@
   var LEFT = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist'];
   var RIGHT = ['hands', 'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2'];
   var WEAPONS = ['main_hand', 'off_hand', 'ranged'];
-  var st = { battletag: '', region: '', characters: [], sets: {}, setErr: {}, current: null, etag: null, items: {}, saving: {}, createFor: null, picker: null };
+  var st = { battletag: '', region: '', characters: [], sets: {}, setErr: {}, current: null, etag: null, items: {}, saving: {}, createFor: null, picker: null,
+    planId: null, planSet: {}, miss: {} };
 
   function txt(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : ''; }
   function fullName(c) { return [txt(c.character_name), txt(c.surname)].filter(Boolean).join(' ') || 'Unnamed character'; }
@@ -135,16 +137,99 @@
   }
 
   // ---------- gear sets panel ----------
-  function loadSets() {
+  function loadSets(opts) {
     var ds = displayed();
     return Promise.all(ds.map(function (c) {
       return A.sets(c).then(function (r) {
         if (r.ok) { st.sets[c.id] = Array.isArray(r.body && r.body.items) ? r.body.items : []; delete st.setErr[c.id]; }
         else st.setErr[c.id] = errMsg(r, 'Gear sets could not load.');
       });
-    })).then(renderPanel);
+    })).then(function () {
+      renderPanel();
+      if (opts && opts.open === false) return;
+      return applyPlan(false);
+    });
+  }
+  /** Keep planId on a displayed character: the open set's character, else the one already chosen, else the first displayed. */
+  function reconcilePlan() {
+    var ds = displayed();
+    if (!ds.length) { st.planId = null; return; }
+    if (st.planId && ds.some(function (c) { return c.id === st.planId; })) return;
+    var cur = st.current && charById(st.current.character_id);
+    if (cur && cur.displayed && !cur.stale) st.planId = cur.id;
+    else st.planId = ds[0].id;
+  }
+  function firstSet(sets) {
+    var g = R.sort(sets || []);
+    return g.leveling[0] || g.max_level[0] || null;
+  }
+  /** Last set opened for this character, else the first in the panel order. Skips ids that 404'd this session. */
+  function preferredSet(id) {
+    var sets = (st.sets[id] || []).filter(function (s) { return s && !st.miss[s.id]; });
+    var keep = sets.filter(function (s) { return s.id === st.planSet[id]; })[0];
+    return keep || firstSet(sets);
+  }
+  function remember(s) { if (s && s.character_id && s.id) st.planSet[s.character_id] = s.id; }
+  function showPlanEmpty(c) {
+    $('pf-armory-view').hidden = true;
+    $('pf-armory-empty').hidden = false;
+    $('pf-armory-h').textContent = c ? 'No gear set for ' + fullName(c) : 'Pick a gear set';
+    $('pf-armory-empty-msg').textContent = c
+      ? fullName(c) + ' has no gear set yet. Create one in the gear sets panel to start planning.'
+      : 'Choose a character to plan for, then pick a set or create one.';
+  }
+  function renderPlan() {
+    var ds = displayed(), box = $('pf-plan-chars'), field = $('pf-plan');
+    if (!box || !field) return;
+    field.hidden = !ds.length;
+    var prev = document.activeElement;
+    var keep = prev && prev.name === 'pf-plan';
+    clear(box);
+    ds.forEach(function (c) {
+      var on = c.id === st.planId;
+      var lab = el('label', 'pf-plan-char' + (on ? ' is-selected' : ''));
+      var inp = el('input');
+      inp.type = 'radio'; inp.name = 'pf-plan'; inp.value = c.id; inp.id = 'pf-plan-' + c.id; inp.checked = on;
+      lab.appendChild(inp);
+      var text = el('span', 'pf-plan-text');
+      text.appendChild(el('span', 'pf-plan-name', fullName(c)));
+      var meta = [txt(c.level) ? 'Level ' + txt(c.level) : '', txt(c.class)].filter(Boolean).join(' · ');
+      if (meta) text.appendChild(el('span', 'pf-plan-meta', meta));
+      if (on) text.appendChild(el('span', 'pf-plan-flag', 'Planning'));
+      lab.appendChild(text);
+      box.appendChild(lab);
+    });
+    document.querySelectorAll('.pf-pchar').forEach(function (n) {
+      n.classList.toggle('is-planning', n.getAttribute('data-char') === st.planId);
+    });
+    if (keep && st.planId) { var back = $('pf-plan-' + st.planId); if (back) back.focus(); }
+  }
+  /** Open the planned character's gear set when they have one. announceIt is for an explicit selector change. */
+  function applyPlan(announceIt) {
+    var c = st.planId ? charById(st.planId) : null;
+    if (!c || !c.displayed || c.stale) { showPlanEmpty(null); return; }
+    if (st.current && st.current.character_id === c.id) return;
+    var pick = preferredSet(c.id);
+    if (!pick) {
+      if (st.current) closeSet();
+      showPlanEmpty(c);
+      if (announceIt) announce('Planning for ' + fullName(c) + '. No gear set yet.');
+      return;
+    }
+    if (announceIt) announce('Planning for ' + fullName(c) + '.');
+    return openSet(pick.id, c.id, false);
+  }
+  function selectPlan(id) {
+    var c = charById(id);
+    if (!c || !c.displayed || c.stale) return;
+    var same = id === st.planId;
+    st.planId = id;
+    renderPanel();
+    if (same && st.current && st.current.character_id === id) { announce('Planning for ' + fullName(c) + '.'); return; }
+    return applyPlan(true);
   }
   function renderPanel() {
+    reconcilePlan();
     var ds = displayed(), body = $('pf-panel-body'); clear(body);
     $('pf-armory-wrap').hidden = !ds.length;
     ds.forEach(function (c) {
@@ -175,6 +260,7 @@
       });
       body.appendChild(sec);
     });
+    renderPlan();
   }
 
   // ---------- mobile drawer ----------
@@ -252,6 +338,7 @@
       $('pf-create').close();
       (st.sets[c.id] = st.sets[c.id] || []).push(r.body);
       st.current = r.body; st.etag = r.headers && r.headers.etag || null;
+      st.planId = c.id; remember(r.body);
       announce('Gear set ' + r.body.name + ' created. Pick items for each slot.');
       renderPanel(); renderSet(); drawer(false, false); $('pf-set-h').focus();
     });
@@ -260,12 +347,26 @@
   // ---------- armory view ----------
   function closeSet() { st.current = null; st.etag = null; $('pf-armory-view').hidden = true; $('pf-armory-empty').hidden = false; renderPanel(); }
   function openSet(id, charId, focus) {
-    var c = charById(charId);
+    if (focus) delete st.miss[id];
+    st.planId = charId;
+    renderPlan();
     return A.get(id).then(function (r) {
       if (r.status === 401) { show('signedout'); return; }
-      if (r.status === 404) { slotBanner('That gear set no longer exists.'); loadSets(); return; }
-      if (!r.ok) { slotBanner('Could not open the set: ' + errMsg(r, 'please try again.')); return; }
+      if (r.status === 404) {
+        st.miss[id] = true;
+        if (st.planSet[charId] === id) delete st.planSet[charId];
+        slotBanner('That gear set no longer exists.');
+        loadSets({ open: false });
+        return;
+      }
+      if (!r.ok) {
+        var msg = 'Could not open the set: ' + errMsg(r, 'please try again.');
+        slotBanner(msg);
+        if ($('pf-armory-view').hidden) { showPlanEmpty(charById(st.planId)); $('pf-armory-empty-msg').textContent = msg; }
+        return;
+      }
       st.current = r.body; st.etag = r.headers && r.headers.etag || null;
+      remember(st.current);
       $('pf-slot-banner').hidden = true;
       return resolveItems(r.body).then(function () {
         renderPanel(); renderSet(); drawer(false, false);
@@ -288,8 +389,8 @@
     $('pf-armory-view').classList.toggle('is-outgrown', out);
     $('pf-set-outgrown').hidden = !out;
     $('pf-set-outgrown').textContent = out ? 'Outgrown: ' + fullName(c) + ' is level ' + level(c) + ', past this set\u2019s level ' + s.until_level + '. It is kept for reference.' : '';
-    $('pf-model-name').textContent = fullName(c);
-    $('pf-model-sub').textContent = ['Level ' + (level(c) || '?'), txt(c.race), txt(c.class)].filter(Boolean).join(' ');
+    $('pf-viewer-char').textContent = fullName(c);
+    $('pf-viewer-sub').textContent = ['Level ' + (level(c) || '?'), txt(c.race), txt(c.class)].filter(Boolean).join(' · ');
     [['pf-col-left', LEFT], ['pf-col-right', RIGHT], ['pf-row-weapons', WEAPONS]].forEach(function (g) {
       var ul = $(g[0]); clear(ul);
       g[1].forEach(function (slot) {
@@ -442,6 +543,7 @@
     });
   }
   $('pf-list').addEventListener('change', function (e) { if (e.target.name === 'displayed') toggle(e.target.value, e.target.checked); });
+  $('pf-plan-chars').addEventListener('change', function (e) { if (e.target && e.target.name === 'pf-plan') selectPlan(e.target.value); });
   $('pf-retry').addEventListener('click', load);
   $('pf-region').addEventListener('change', function (e) {
     var prev = st.region, v = e.target.value;

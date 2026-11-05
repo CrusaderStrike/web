@@ -35,6 +35,19 @@
 /* ---- gear set side panel + armory ---- */
 .pf-armory-wrap { margin-top: 2rem; }
 .pf-sets-h { font-size: var(--cs-text-2xl); margin: 0 0 1rem; }
+.pf-plan { border: 1px solid var(--cs-border-strong); border-radius: var(--cs-radius-lg); margin: 0 0 1rem; padding: .75rem 1rem 1rem; min-width: 0; max-width: 100%; }
+.pf-plan legend { font-family: var(--cs-font-display); color: var(--cs-gold-bright); font-weight: 700; padding: 0 .25rem; }
+.pf-plan-hint { margin: 0 0 .6rem; color: var(--cs-muted); font-size: var(--cs-text-sm); }
+.pf-plan-chars { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pf-plan-char { display: flex; align-items: flex-start; gap: .55rem; min-height: 2.75rem; min-width: 0; margin: 0; padding: .45rem .7rem; max-width: 100%;
+  border: 1px solid var(--cs-border); border-radius: var(--cs-radius); background: var(--cs-bg-elevated); cursor: pointer; }
+.pf-plan-char input { width: 1.15rem; height: 1.15rem; margin-top: .2rem; accent-color: var(--cs-gold); flex: none; }
+.pf-plan-text { display: flex; flex-direction: column; min-width: 0; }
+.pf-plan-name { font-weight: 700; overflow-wrap: anywhere; }
+.pf-plan-meta { color: var(--cs-muted); font-size: var(--cs-text-sm); }
+.pf-plan-flag { color: var(--cs-gold-bright); font-size: var(--cs-text-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.pf-plan-char.is-selected { border-color: var(--cs-gold); box-shadow: 0 0 0 1px var(--cs-gold) inset; background: #2a2114; }
+.pf-pchar.is-planning { box-shadow: inset 3px 0 0 var(--cs-gold); }
 .pf-armory-layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .pf-panel { background: var(--cs-panel); border: 1px solid var(--cs-border-strong); border-radius: var(--cs-radius-lg); padding: 1rem; }
 .pf-panel:focus { outline: none; }
@@ -63,15 +76,20 @@
 .pf-outgrown-note { color: var(--cs-muted); font-style: italic; }
 .pf-slot-banner { background: var(--cs-err-bg); color: var(--cs-err); border: 1px solid #6a2a20; border-radius: var(--cs-radius); padding: .5rem .75rem; }
 .pf-charwin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, 1.1fr) minmax(0, 1fr); grid-template-areas: "l m r" "w w w"; gap: .6rem; }
-.pf-col, .pf-row-weapons { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; align-content: start; }
+.pf-col, .pf-row-weapons { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; align-content: start; min-width: 0; }
 .pf-col-left { grid-area: l; } .pf-col-right { grid-area: r; }
 .pf-col-right .pf-slot { flex-direction: row-reverse; text-align: right; }
 .pf-row-weapons { grid-area: w; grid-template-columns: repeat(3, minmax(0, 12rem)); justify-content: center; }
-.pf-model { grid-area: m; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #3a2e1f; border-radius: var(--cs-radius);
-  background: linear-gradient(#1b140e, #0c0907); padding: .75rem; text-align: center; }
-.pf-model-name { font-family: var(--cs-font-display); color: var(--cs-gold-bright); font-size: 1.1rem; }
-.pf-model-sub { color: var(--cs-muted); font-size: var(--cs-text-sm); }
-.pf-silhouette { width: 60%; max-width: 9rem; margin-top: .5rem; fill: #2c2218; stroke: #5a4828; stroke-width: 1; }
+/* web#56: center slot is an empty 3D viewer mount, not a paper doll. */
+.pf-viewer { grid-area: m; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; min-width: 0; min-height: 14rem;
+  border: 1px dashed var(--cs-border-strong); border-radius: var(--cs-radius); padding: .75rem; text-align: center;
+  background: linear-gradient(180deg, rgba(240, 216, 120, .06), transparent 42%), linear-gradient(#1b140e, #0c0907); }
+.pf-viewer-label { margin: 0; font-family: var(--cs-font-display); color: var(--cs-gold-bright); font-size: 1rem; letter-spacing: .04em; }
+.pf-viewer-char { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.pf-viewer-sub { margin: 0; color: var(--cs-muted); font-size: var(--cs-text-sm); }
+.pf-viewer-mount { width: min(100%, 9rem); flex: 1; min-height: 6rem; margin: .25rem 0; border-radius: var(--cs-radius-sm);
+  background: repeating-linear-gradient(-45deg, rgba(90, 72, 40, .35) 0 6px, transparent 6px 12px); }
+.pf-viewer-note { margin: 0; color: var(--cs-muted); font-size: var(--cs-text-sm); max-width: 16rem; }
 .pf-slot { width: 100%; display: flex; align-items: center; gap: .5rem; padding: .25rem; min-height: 2.9rem; background: rgba(0,0,0,.35);
   border: 1px solid #3a2e1f; border-radius: var(--cs-radius-sm); color: var(--cs-parchment); font: inherit; cursor: pointer; text-align: left; }
 .pf-slot:hover { border-color: var(--cs-gold-soft); background: rgba(212,175,55,.06); }
@@ -112,6 +130,6 @@
   .pf-drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 40; }
   .pf-charwin { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "m m" "l r" "w w"; }
   .pf-row-weapons { grid-template-columns: minmax(0, 1fr); }
-  .pf-silhouette { display: none; }
+  .pf-viewer { min-height: 10rem; }
 }
 @media (prefers-reduced-motion: reduce) { .pf-panel, .pf-toggle-track::after { transition: none; } }

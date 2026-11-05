@@ -1,5 +1,6 @@
 // web#42 profile + armory against the in-browser mocks (USE_MOCK_ARMORY=true; shipped wire shapes: PUT selection, POST ops): display toggles, choose step,
 // gear set side panel (drawer on mobile), create form level rules, 19-slot armory, item picker, autosave + conflicts.
+// web#56: planning-character selector (switch + keyboard), center 3D viewer placeholder, slot click still updates the icon.
 const { chromium } = require('playwright');
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async () => {
@@ -81,6 +82,34 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'weapons along the bottom');
   ok(await p.getAttribute('#pf-slot-head', 'aria-label') === 'Head: empty. Choose item', 'slot buttons labelled');
   ok(await p.locator('#pf-slot-head .pf-icon.is-ph svg[data-glyph=helm]').count() === 1, 'placeholder icon when empty');
+
+  // web#56: selector makes the planning character obvious; center is an empty 3D placeholder; slot click still writes the icon
+  ok(await p.locator('#pf-plan-chars input[name=pf-plan]').count() === 3, 'selector lists displayed characters');
+  ok((await p.textContent('#pf-plan-legend')) === 'Planning for', 'selector labelled Planning for');
+  ok(await p.locator('#pf-plan-ch_us_1003').isChecked() && /Planning/.test(await p.locator('.pf-plan-char.is-selected').textContent()) && (await p.getAttribute('.pf-pchar.is-planning', 'data-char')) === 'ch_us_1003', 'Thornquill is the checked planning character');
+  ok(await p.isVisible('#pf-viewer') && (await p.getAttribute('#pf-viewer', 'role')) === 'region' && (await p.getAttribute('#pf-viewer', 'aria-labelledby')) === 'pf-viewer-label', 'center is a labelled region');
+  ok((await p.textContent('#pf-viewer-label')) === '3D viewer placeholder' && /Thornquill Briarhide/.test(await p.textContent('#pf-viewer-char')), 'placeholder names the planned character');
+  ok(await p.locator('#pf-viewer-mount').evaluate(n => n.childElementCount === 0 && n.getAttribute('data-viewer') === 'placeholder') && await p.locator('.pf-silhouette').count() === 0, 'viewer mount is empty');
+  await p.focus('#pf-plan-ch_us_1003'); await p.keyboard.press('ArrowLeft');
+  ok(await until(() => /Planning for Lightbringer Dawnmantle/.test(document.getElementById('pf-status').textContent) && /Lightbringer Dawnmantle/.test(document.getElementById('pf-set-meta').textContent)), 'ArrowLeft switches the planning character and opens their set');
+  await idle();
+  ok(await p.locator('#pf-plan-ch_us_1001').isChecked() && /Lightbringer Dawnmantle/.test(await p.textContent('#pf-viewer-char')), 'selector and placeholder follow Lightbringer');
+  ok((await p.$$eval('#pf-col-left .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'head,neck,shoulder,back,chest,shirt,tabard,wrist', 'left column stays head through wrist after the switch');
+  ok((await p.$$eval('#pf-col-right .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'hands,waist,legs,feet,finger1,finger2,trinket1,trinket2', 'right column stays hands through trinkets');
+  ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'weapons stay along the bottom');
+  await p.click('#pf-slot-hands'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0);
+  const handsName = (await p.textContent('#pf-picker-list .pf-pick-name')).trim();
+  await p.click('#pf-picker-list .pf-pick');
+  ok(await until(() => /Hands saved/.test(document.getElementById('pf-status').textContent)), 'slot click still saves through set_slot');
+  await idle();
+  ok((await p.textContent('#pf-slot-hands')).includes(handsName) && (await p.textContent('#pf-viewer-label')) === '3D viewer placeholder', 'slotted icon updates and the center stays a placeholder');
+  ok(await p.locator('#pf-viewer-mount').evaluate(n => n.childElementCount === 0), 'placeholder mount stays empty after set_slot');
+  await p.click('#pf-plan-ch_us_1005');
+  ok(await until(() => document.getElementById('pf-armory-view').hidden && /Wispwander/.test(document.getElementById('pf-armory-h').textContent)), 'character with no gear set leaves the pane closed');
+  ok(await p.locator('#pf-plan-ch_us_1005').isChecked() && /no gear set yet/.test(await p.textContent('#pf-armory-empty-msg')), 'empty plan names that character');
+  await p.locator('.pf-set', { hasText: 'Endgame' }).click();
+  ok(await until(() => document.getElementById('pf-set-h').textContent === 'Endgame' && document.getElementById('pf-plan-ch_us_1003').checked), 'opening a set plans for that character again');
+  await idle();
 
   // picker: search + paging, keyboard, autosave with If-Match
   await p.focus('#pf-slot-head'); await p.keyboard.press('Enter');
@@ -179,7 +208,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
     localStorage.setItem('cs_mock_armory', JSON.stringify(s)); });
   await go(); const og = p.locator('.pf-set[data-set=gs_old]');
   ok(await og.evaluate(e => e.classList.contains('is-outgrown')) && /Outgrown/.test(await og.textContent()), 'outgrown set grayed out in panel');
-  await og.click(); await until(() => !document.getElementById('pf-armory-view').hidden);
+  await og.click(); await until(() => /Outgrown: Wispwander is level 27/.test(document.getElementById('pf-set-outgrown').textContent || '')); await idle();
   ok(await p.evaluate(() => document.getElementById('pf-armory-view').classList.contains('is-outgrown')) && /Outgrown: Wispwander is level 27/.test(await p.textContent('#pf-set-outgrown')), 'outgrown armory grayed with note');
 
   // hiding keeps sets
