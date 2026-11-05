@@ -1,11 +1,11 @@
 /**
- * web#18 in-browser mock of the platform#17 gear-list endpoints as finalized in platform#34 @ d96d644.
+ * web#18 in-browser mock of the platform#17 gear-list endpoints as finalized in platform#34 @ 1b5320e.
  * Enums and limits come from the generated js/gear-lists-spec.js (tools/gen-gear-lists-spec.js); nothing is hand-copied.
  * Per character (max 5), If-Match/ETag exactly "v<n>", 409 version_mismatch {error, current:{version, list}},
  * ops always 200 with conflicts[], undo = mark_obtained obtained:false, /events with typed payloads and
  * actor {user_id, display_name}, missing If-Match 428 precondition_required, client source ignored (server sets web), visibility private|guild, only the owner writes (everyone else 403 forbidden).
  * WoW Forever only; fictional realms (Emberfall, Duskhollow). State lives in sessionStorage.
- * ?mock= scenarios: conflict, stale, limit, ratelimit (&rl=N), csrf, offline, forbidden (officer persona), history403, 500.
+ * ?mock= scenarios: conflict, stale, limit, ratelimit (&rl=N), csrf, offline, forbidden (officer persona), history403, char403, 500.
  */
 (function () {
   'use strict';
@@ -83,6 +83,7 @@
     reset: function () { sessionStorage.removeItem(KEY); },
     lists: function (charId) {
       var g = guard(false); if (g) return g;
+      if (mock() === 'char403') return err(403, 'forbidden', 'That character is not in your selection.');
       if (OWNED.indexOf(charId) < 0) return err(404, 'not_found', 'Character not found.');
       var s = load(); save(s);
       return res(200, { items: s.lists.filter(function (l) { return l.character_id === charId; }).map(strip) });
@@ -146,7 +147,7 @@
       }
       ops.forEach(function (o) {
         if (s.seen_ops[o.op_id]) { out.duplicates.push(o.op_id); return; }
-        if (SPEC.op_types.indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 || !(o.item_id >= 1 && o.item_id === Math.floor(o.item_id)) || typeof o.base_version !== 'number' || o.source === 'web' || o.source === 'system') {
+        if (SPEC.op_types.indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 || !(o.item_id >= 1 && o.item_id === Math.floor(o.item_id)) || typeof o.base_version !== 'number') {  // client source is soft-ignored, as on platform /ops
           bad = true; return;
         }
         if (mock() === 'conflict' && !s.flags.cf) { s.flags.cf = 1; reject(o, 'superseded_by_newer_edit'); return; }
@@ -183,7 +184,7 @@
     },
     events: function (id, after, limit) {
       var g = guard(false); if (g) return g;
-      if (mock() === 'history403') return err(403, 'forbidden', 'History for this list is only visible to its owner.');
+      if (mock() === 'history403') return err(403, 'forbidden', 'You can\u2019t view this list\u2019s history.');
       var s = load(), l = find(s, id); if (!l) return err(404, 'not_found', 'List not found.');
       var lim = Math.max(1, Math.min(100, limit || 25));
       var all = (s.events[id] || []).filter(function (e) { return e.version > (after || 0); });

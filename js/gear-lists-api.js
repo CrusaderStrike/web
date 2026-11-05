@@ -19,8 +19,14 @@
   }
   var m = cfg.USE_MOCK_GEAR_LISTS;
   function opId() {
-    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return 'op-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    // platform validates op_id as a UUID, so always produce an RFC 4122 v4 string.
+    var c = window.crypto;
+    if (c && c.randomUUID) return c.randomUUID();
+    var b = new Uint8Array(16);
+    if (c && c.getRandomValues) c.getRandomValues(b); else for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+    b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+    var h = Array.prototype.map.call(b, function (x) { return (x + 0x100).toString(16).slice(1); }).join('');
+    return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
   }
   window.CSGearListsApi = {
     opId: opId,

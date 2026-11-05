@@ -10,4 +10,4 @@ node tests/e2e/gear.e2e.js           # also gear-lists.e2e.js, profile.e2e.js, s
 
 Each script prints PASS/FAIL lines and exits non-zero on any failure. All data comes from the in-browser mocks; no network or credentials are needed. `gear.e2e.js` writes screenshots to `/workspace/gear-placeholder-*.png`.
 
-`gear-lists.e2e.js` (web#18) drives the gear-lists mock through every `?mock=` scenario (conflict, stale, limit, ratelimit, offline, forbidden, history403, 500) and writes `/workspace/gear-lists-{desktop,mobile}.png`. The mock's enums and limits come from `js/gear-lists-spec.js`, generated from the vendored platform spec by `tools/gen-gear-lists-spec.js`.
+`gear-lists.e2e.js` (web#18) drives the gear-lists mock through every `?mock=` scenario (conflict, stale, limit, ratelimit, offline, forbidden, history403, char403, 500) and writes `/workspace/gear-lists-{desktop,mobile}.png`. The mock's enums and limits come from `js/gear-lists-spec.js`, generated from the vendored platform spec by `tools/gen-gear-lists-spec.js`.
