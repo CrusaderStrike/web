@@ -34,7 +34,11 @@ window.CS_CONFIG = Object.freeze({
     // Not yet in the spec; proposed in docs/auth-characters-api.md:
     CHARACTERS: '/api/v1/me/characters',
     SELECTION: '/api/v1/me/characters/selection'
-  })
+  }),
+  // web#20: rankings page. true = in-browser mock (js/rankings-mock.js) shaped like GET /rankings
+  // in platform openapi/v1.yaml; false = real API at API_BASE (platform#25). Config flip only.
+  USE_MOCK_RANKINGS: true,
+  RANKINGS_PATH: '/api/v1/rankings'
 });
 
 /** Resolves the Battle.net sign-in flag. Production hosts ignore overrides. */

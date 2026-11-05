@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Dungeon Run and World PvP rankings for World of Warcraft Forever guilds on Crusader Strike.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Rankings — Crusader Strike</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/leaderboards.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="index.html">
+      <img src="assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="guild.html">Guild</a></li>
+        <li><a href="leaderboards.html">Leaderboards</a></li>
+        <li><a href="rankings.html" aria-current="page">Rankings</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap-wide cs-section">
+    <h1 class="cs-display">Rankings</h1>
+    <p class="cs-section-intro">Dungeon Run and World PvP rankings for World of Warcraft Forever guilds. Only completed, valid runs count.</p>
+
+    <div class="lb-tabs" role="tablist" aria-label="Ranking type">
+      <button type="button" role="tab" id="rk-tab-dungeon" data-tab="dungeon" aria-selected="true" aria-controls="rk-panel" tabindex="0">Dungeon Runs</button>
+      <button type="button" role="tab" id="rk-tab-pvp" data-tab="pvp" aria-selected="false" aria-controls="rk-panel" tabindex="-1">World PvP</button>
+    </div>
+
+    <form class="cs-toolbar" id="rk-filters" role="search" aria-label="Ranking filters">
+      <div class="cs-field">
+        <label for="rk-scope">Ladder</label>
+        <select id="rk-scope" name="scope">
+          <option value="guild">My guild</option>
+          <option value="all">All guilds</option>
+        </select>
+      </div>
+      <div class="cs-field" data-for="dungeon">
+        <label for="rk-board">Ranking</label>
+        <select id="rk-board" name="board">
+          <option value="fastest_clear">Fastest clear</option>
+          <option value="runs_completed">Runs completed</option>
+        </select>
+      </div>
+      <div class="cs-field" data-for="dungeon">
+        <label for="rk-dungeon">Dungeon</label>
+        <select id="rk-dungeon" name="dungeon_id">
+          <option value="">All dungeons</option>
+          <option value="36">Deadmines</option>
+          <option value="43">Wailing Caverns</option>
+          <option value="33">Shadowfang Keep</option>
+          <option value="189">Scarlet Monastery</option>
+          <option value="230">Blackrock Depths</option>
+        </select>
+      </div>
+      <div class="cs-field" data-for="pvp" hidden>
+        <label for="rk-bracket">Bracket</label>
+        <select id="rk-bracket" name="bracket">
+          <option value="">All brackets</option>
+          <option value="solo">Solo</option>
+          <option value="group">Group</option>
+        </select>
+      </div>
+      <div class="cs-field">
+        <label for="rk-period">Time</label>
+        <select id="rk-period" name="period">
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+          <option value="season">This season</option>
+        </select>
+      </div>
+    </form>
+
+    <div id="rk-panel" role="tabpanel" aria-labelledby="rk-tab-dungeon" tabindex="0">
+      <p id="rk-status" class="cs-muted" role="status" aria-live="polite"></p>
+      <div id="rk-error" class="cs-card rk-state" role="alert" hidden>
+        <h2 class="rk-state-h">Rankings could not load</h2>
+        <p id="rk-error-msg"></p>
+        <button type="button" class="cs-btn cs-btn-ghost cs-btn-sm" id="rk-retry">Try again</button>
+      </div>
+      <div id="rk-empty" class="cs-card rk-state" hidden>
+        <h2 class="rk-state-h">No rankings yet</h2>
+        <p>No completed runs match these filters. Try a wider time range or another dungeon.</p>
+      </div>
+      <div class="cs-table-wrap" id="rk-table-wrap">
+        <table class="cs-table" id="rk-table" aria-busy="true">
+          <caption id="rk-caption" class="cs-muted rk-caption">Rankings</caption>
+          <thead>
+            <tr>
+              <th scope="col" aria-sort="ascending"><button type="button" class="cs-sort" data-sort="rank">Rank</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="character_name">Character</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="cs-sort" data-sort="value" id="rk-value-h">Time</button></th>
+            </tr>
+          </thead>
+          <tbody id="rk-body"></tbody>
+        </table>
+      </div>
+      <p><button type="button" class="cs-btn cs-btn-ghost" id="rk-more" hidden>Load more</button></p>
+      <p class="cs-muted" id="rk-refreshed"></p>
+    </div>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — World of Warcraft Forever rankings</span>
+    <span><a href="guild.html">Guild profile</a></span>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/rankings-mock.js"></script>
+  <script src="js/rankings-api.js"></script>
+  <script src="js/rankings.js"></script>
+</body>
+</html>
