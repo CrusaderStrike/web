@@ -8,7 +8,7 @@ const B = 'http://localhost:8765/';
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   const vis = s => p.waitForSelector(s + ':not([hidden])', { timeout: 5000 }).then(() => true, () => false);
   const U = (q = '') => B + 'gear/lists/?character=ch_us_1001' + q;
-  const fresh = async (q = '') => { await p.evaluate(() => sessionStorage.removeItem('cs_mock_gear_lists')); await p.goto(U(q)); return vis('#gl-ready'); };
+  const fresh = async (q = '') => { await p.evaluate(() => { sessionStorage.removeItem('cs_mock_gear_lists'); window.__glOpsLog = []; }); await p.goto(U(q)); return vis('#gl-ready'); };
   const banner = () => p.textContent('#gl-banner-msg');
   const rows = () => p.$$eval('#gl-items tr', t => t.map(r => r.dataset.slot + ':' + r.dataset.item + ':' + r.cells[2].textContent + ':' + r.cells[3].textContent));
 
@@ -44,13 +44,15 @@ const B = 'http://localhost:8765/';
   await p.selectOption('#gl-add-slot', 'back'); await p.fill('#gl-add-pr', '2'); await p.fill('#gl-add-note', 'From Emberfall Dungeon Run');
   await p.click('#gl-add button[type=submit]'); await p.waitForSelector('#gl-items tr');
   ok((await rows())[0] === 'back:940001:2:Wanted', 'item added');
-  ok((await p.textContent('#gl-items tr td:nth-child(2)')).includes('Emberfall Ward of Cinders'), 'item name from fixture');
+  await p.waitForFunction(() => document.querySelector('#gl-items tr td:nth-child(2)').textContent.includes('Emberfall Ward of Cinders'), null, { timeout: 5000 }).catch(() => {});
+  ok((await p.textContent('#gl-items tr td:nth-child(2)')).includes('Emberfall Ward of Cinders'), 'item name from fixture (after server ack)');
   await p.focus('#gl-items tr [data-act=up]'); await p.keyboard.press('Enter'); await p.waitForFunction(() => document.querySelector('#gl-items tr').cells[2].textContent === '1');
   ok(true, 'raise priority via keyboard');
   ok(await p.isDisabled('#gl-items tr [data-act=up]'), 'raise disabled at priority 1');
-  await p.click('#gl-items tr [data-act=obtain]'); await p.waitForFunction(() => document.querySelector('#gl-items tr').cells[3].textContent === 'Obtained'); ok(true, 'mark obtained');
+  await p.click('#gl-items tr [data-act=obtain]'); await p.waitForFunction(() => document.querySelector('#gl-items tr').cells[3].textContent === 'Obtained'); await p.waitForFunction(() => document.getElementById('gl-queue').textContent === ''); ok(true, 'mark obtained');
   await p.click('#gl-items tr [data-act=obtain]'); await p.waitForFunction(() => document.querySelector('#gl-items tr').cells[3].textContent === 'Wanted'); ok(true, 'undo obtained (obtained:false)');
   // history: typed payloads, actor display name
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '');
   await p.click('#gl-hist-btn'); await p.waitForSelector('#gl-hist-list li');
   const h = await p.$$eval('#gl-hist-list li', l => l.map(x => x.textContent));
   ok(h.length === 6, 'history entries: ' + h.length);
@@ -59,6 +61,7 @@ const B = 'http://localhost:8765/';
   ok((await p.getAttribute('#gl-hist-btn', 'aria-expanded')) === 'true', 'history toggle aria-expanded');
   const ops = await p.evaluate(() => { const o = CSGearListsMock.ops; let seen; CSGearListsMock.ops = (id, b) => { seen = b.ops[0]; window.__op = seen; return o(id, b); }; return true; });
   await p.click('#gl-items tr [data-act=remove]'); await p.waitForSelector('#gl-items-empty:not([hidden])');
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '');
   const sent = await p.evaluate(() => window.__op);
   ok(sent && sent.type === 'remove_item' && typeof sent.base_version === 'number' && sent.item_id === 940001 && !('source' in sent) && sent.op_id, 'op shape: op_id, type, slot, item_id (snake), base_version, no client source');
   await p.click('#gl-delete'); ok(await p.evaluate(() => document.activeElement.id === 'gl-delete-confirm'), 'delete asks to confirm');
@@ -89,7 +92,7 @@ const B = 'http://localhost:8765/';
   await p.click('#gl-banner-reapply'); await p.waitForFunction(() => document.querySelector('#gl-items tr').cells[2].textContent === '2'); ok(true, 'conflict re-apply applied');
   // 429 with Retry-After, auto-retry with same op_id
   await fresh('&mock=ratelimit'); await p.click('#gl-items tr [data-act=down]'); await vis('#gl-banner');
-  ok((await banner()).includes('Retrying in 3 seconds'), '429 Retry-After shown');
+  ok((await banner()).includes('will be sent in 3 seconds'), '429 Retry-After shown');
   await p.waitForFunction(() => document.querySelector('#gl-items tr').cells[2].textContent === '2', null, { timeout: 6000 }); ok(true, '429 auto-retry');
   // officer / non-owner: 403 -> read-only
   await fresh('&mock=forbidden'); await p.click('#gl-items tr [data-act=down]'); await vis('#gl-readonly');
@@ -106,6 +109,52 @@ const B = 'http://localhost:8765/';
   await fresh(); await p.fill('#gl-new-name', '<img src=x onerror="window.__x=1">'); await p.click('#gl-new-btn'); await p.waitForTimeout(500);
   ok(await p.evaluate(() => !window.__x && !document.querySelector('#gl-index img, #gl-detail-h img')), 'hostile name rendered as text');
   const src = await (await p.request.get(B + 'js/gear-lists.js')).text(); ok(!/innerHTML|insertAdjacentHTML|document\.write/.test(src), 'no innerHTML in gear-lists.js');
+
+  // ---- write queue (Addon Dev review on web#34) ----
+  const log = () => p.evaluate(() => window.__glOpsLog || []);
+  const row = slot => p.locator('#gl-items tr[data-slot=' + slot + ']');
+  const cell = async (slot, n) => (await row(slot).locator('td').nth(n).textContent()).trim();
+  // two different edits both hit 429 (twice), Dismiss mid-pause: nothing lost
+  await fresh('&mock=ratelimit&rl=2');
+  await row('head').locator('[data-act=down]').click(); await row('back').locator('[data-act=obtain]').click();
+  await vis('#gl-banner'); ok((await banner()).includes('will be sent in 3 seconds'), 'two edits paused by 429');
+  ok(await cell('head', 2) === '2' && await cell('back', 3) === 'Obtained', 'queued edits shown optimistically');
+  ok((await p.textContent('#gl-queue')).includes('2 changes saving'), 'queue indicator: ' + await p.textContent('#gl-queue'));
+  await p.click('#gl-banner-dismiss'); ok(await p.isHidden('#gl-banner'), 'dismiss hides banner');
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '', null, { timeout: 15000 });
+  const L1 = await log(); ok(L1.length >= 1, 'ops eventually sent after Retry-After');
+  await p.goto(U()); await vis('#gl-ready');
+  ok(await cell('head', 2) === '2' && await cell('back', 3) === 'Obtained', 'both 429 edits persisted on the server after dismiss');
+  // coalescing: three priority clicks while paused -> one reprioritize op with the final value
+  await fresh('&mock=ratelimit');
+  for (let k = 0; k < 3; k++) await row('head').locator('[data-act=down]').click();
+  ok(await cell('head', 2) === '4', 'three clicks build on each other locally');
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '', null, { timeout: 10000 });
+  const L2 = await log(); const sent2 = L2.flat().filter(o => o.type === 'reprioritize_item');
+  ok(sent2.length === 1 && sent2[0].priority === 4, 'coalesced to one op priority 4: ' + JSON.stringify(sent2.map(o => o.priority)));
+  await p.goto(U()); await vis('#gl-ready'); ok(await cell('head', 2) === '4', 'coalesced priority persisted');
+  // base_version stamped at send: two ops on the same item queued during a pause both apply (no stale_base_version)
+  await fresh('&mock=ratelimit');
+  await row('head').locator('[data-act=down]').click(); await row('head').locator('[data-act=obtain]').click();
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '', null, { timeout: 10000 });
+  const L3 = (await log()).filter(b => b.length);
+  ok(L3.length === 2 && L3[1][0].base_version > L3[0][0].base_version, 'same-item ops sent one per request, base_version stamped at send: ' + L3.map(b => b[0].base_version).join(','));
+  ok(await p.isHidden('#gl-banner') || !(await banner()).includes('didn’t apply'), 'no stale_base_version rejection');
+  await p.goto(U()); await vis('#gl-ready'); ok(await cell('head', 2) === '2' && await cell('head', 3) === 'Obtained', 'both same-item edits persisted');
+  // add then remove before sending -> nothing sent
+  await fresh('&mock=ratelimit'); await row('back').locator('[data-act=down]').click();
+  await p.fill('#gl-add-id', '940004'); await p.selectOption('#gl-add-slot', 'off_hand'); await p.click('#gl-add button[type=submit]');
+  await row('off_hand').locator('[data-act=remove]').click();
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '', null, { timeout: 10000 });
+  ok(!(await log()).flat().some(o => o.slot === 'off_hand'), 'add+remove before send coalesced away');
+  // 403 csrf_failed -> session refresh + one retry
+  await fresh('&mock=csrf'); await row('head').locator('[data-act=down]').click();
+  await p.waitForFunction(() => document.getElementById('gl-queue').textContent === '', null, { timeout: 10000 });
+  await p.goto(U()); await vis('#gl-ready'); ok(await cell('head', 2) === '2', 'csrf_failed refreshed session and retried once');
+  // placeholder icons for null icon_url
+  ok(await p.$$eval('#gl-items tr', t => t.every(r => r.querySelector('.gr-icon svg') && !r.querySelector('.gr-icon img') && r.querySelector('.gr-icon').getAttribute('aria-hidden') === 'true')), 'slot placeholder icon when icon_url null');
+  ok((await p.getAttribute('#gl-banner', 'role')) === 'alert', 'banner role=alert');
+  ok(await p.evaluate(() => CSGearListsSpec.limits.sync_ops_per_request === 500 && CSGearListsSpec.limits.ops_per_request === 200), 'spec caps (200 per list, 500 per sync)');
   // mobile
   await p.setViewportSize({ width: 375, height: 800 }); await fresh();
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= 375), 'no horizontal scroll at 375px');

@@ -25,3 +25,5 @@
   .gl-table td { border: 0; padding: 0.2rem 0.75rem; text-align: left; }
   .gl-table td[data-label]::before { content: attr(data-label) ": "; color: var(--cs-muted); }
 }
+.gl-pending td { opacity: 0.8; }
+.gl-queue:empty { display: none; }

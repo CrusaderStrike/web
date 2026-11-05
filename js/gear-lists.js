@@ -39,7 +39,7 @@
     $('gl-banner').hidden = false;
   }
   function hideBanner() { $('gl-banner').hidden = true; pendingRetry = null; }
-  $('gl-banner-dismiss').addEventListener('click', hideBanner);
+  $('gl-banner-dismiss').addEventListener('click', function () { $('gl-banner').hidden = true; });  // hides only; queued writes keep going
   $('gl-banner-reapply').addEventListener('click', function () { var f = pendingRetry; hideBanner(); if (f) f(); });
 
   function setReadOnly(on) {
@@ -51,6 +51,9 @@
   function failed(r, retry) {
     if (r.ok) return false;
     if (r.status === 401) { show('signedout'); return true; }
+    if (r.status === 403 && code(r) === 'csrf_failed' && retry && !retry._csrf) {
+      retry._csrf = true; api.session().then(function () { retry(); }); return true;  // refresh the token, retry once
+    }
     if (r.status === 403 && code(r) === 'forbidden') { setReadOnly(true); banner('Only the list owner can change this list. Your change was not saved.'); return true; }
     if (r.status === 404) { banner('That list no longer exists. It may have been deleted elsewhere.'); reloadLists(null); return true; }
     if (r.status === 429) {
@@ -88,6 +91,7 @@
     });
     limitState();
   }
+  function serverUpdate(l) { var Q = queues[l.id]; if (Q) { Q.server = l; l = project(l, queuedOps(Q)); } upsert(l); }
   function upsert(l) {
     var i = lists.map(function (x) { return x.id; }).indexOf(l.id);
     if (i >= 0) lists[i] = l; else lists.push(l);
@@ -115,10 +119,16 @@
     $('gl-items-empty').hidden = items.length > 0; $('gl-items-wrap').hidden = !items.length;
     $('gl-caption').textContent = 'Wishlist items (' + items.length + ' of ' + L.items_per_list + ')';
     items.forEach(function (i) {
-      var tr = el('tr', i.obtained ? 'gl-obtained' : null), nm = itemName(i);
+      var tr = el('tr', (i.obtained ? 'gl-obtained' : '') + (i._pending ? ' gl-pending' : '')), nm = itemName(i);
       var c1 = el('td', null, SLOT_LABEL[i.slot]); c1.setAttribute('data-label', 'Slot'); tr.appendChild(c1);
       var c2 = el('td'); c2.setAttribute('data-label', 'Item');
-      c2.appendChild(el('span', 'gl-itemname gr-name', nm));
+      // icon_url is always null for now (platform#34): slot placeholder in a quality-neutral frame.
+      var wrap = el('span', 'gr-item q-unknown'), frame = el('span', 'gr-icon gr-icon-ph');
+      frame.setAttribute('aria-hidden', 'true');
+      var url = window.CSGearApi && window.CSGearApi.iconFor(i);
+      if (url) { var img = document.createElement('img'); img.src = url; img.alt = ''; img.width = 32; img.height = 32; frame.classList.remove('gr-icon-ph'); frame.appendChild(img); }
+      else frame.appendChild(window.CSGearIcons.placeholder(i.slot));
+      wrap.appendChild(frame); wrap.appendChild(el('span', 'gl-itemname gr-name', nm)); c2.appendChild(wrap);
       c2.appendChild(el('span', 'cs-muted', ' #' + i.item_id));
       if (txt(i.note)) { c2.appendChild(el('br')); c2.appendChild(el('span', 'cs-hint', i.note)); }
       tr.appendChild(c2);
@@ -130,11 +140,11 @@
         var b = el('button', 'cs-btn cs-btn-sm cs-btn-ghost', label); b.type = 'button'; b.setAttribute('aria-label', aria);
         b.disabled = !!dis || readOnly; b.addEventListener('click', fn); box.appendChild(b); return b;
       }
-      btn('Raise', 'Raise priority of ' + nm, function () { send(op('reprioritize_item', i, { priority: i.priority - 1 })); }, i.priority <= L.priority_min).setAttribute('data-act', 'up');
-      btn('Lower', 'Lower priority of ' + nm, function () { send(op('reprioritize_item', i, { priority: i.priority + 1 })); }, i.priority >= L.priority_max).setAttribute('data-act', 'down');
+      btn('Raise', 'Raise priority of ' + nm, function () { enqueue(op('reprioritize_item', i, { priority: i.priority - 1 })); }, i.priority <= L.priority_min).setAttribute('data-act', 'up');
+      btn('Lower', 'Lower priority of ' + nm, function () { enqueue(op('reprioritize_item', i, { priority: i.priority + 1 })); }, i.priority >= L.priority_max).setAttribute('data-act', 'down');
       btn(i.obtained ? 'Undo obtained' : 'Mark obtained', (i.obtained ? 'Undo obtained for ' : 'Mark obtained: ') + nm,
-        function () { send(op('mark_obtained', i, { obtained: !i.obtained })); }).setAttribute('data-act', 'obtain');
-      btn('Remove', 'Remove ' + nm, function () { send(op('remove_item', i, {})); }).setAttribute('data-act', 'remove');
+        function () { enqueue(op('mark_obtained', i, { obtained: !i.obtained })); }).setAttribute('data-act', 'obtain');
+      btn('Remove', 'Remove ' + nm, function () { enqueue(op('remove_item', i, {})); }).setAttribute('data-act', 'remove');
       c5.appendChild(box); tr.appendChild(c5);
       tr.setAttribute('data-slot', i.slot); tr.setAttribute('data-item', String(i.item_id));
       tb.appendChild(tr);
@@ -143,34 +153,132 @@
     if (readOnly) setReadOnly(true);
   }
 
+  /* ---- Per-list serialized write queue ----
+   * Ops wait in queue.pending until sent; one request per list is in flight at a time. Pending (never-sent) ops on the
+   * same item coalesce. base_version is stamped at send time from the latest server version. A 429 pauses the queue
+   * until Retry-After; offline/5xx keep ops queued with a Retry button. Nothing queued is dropped except on 403 forbidden
+   * (the user is told). Dismissing the banner only hides it.
+   */
+  var queues = {};      // listId -> { pending: [], inflight: null, pausedUntil: 0, timer: 0, server: GearList }
+  function q(listId) { return queues[listId] || (queues[listId] = { pending: [], inflight: null, pausedUntil: 0, timer: 0, server: null }); }
   function op(type, i, extra) {
-    var o = { op_id: api.opId(), type: type, slot: i.slot, item_id: i.item_id, base_version: current.version, client_ts: new Date().toISOString() };  // source is server-set
+    var o = { op_id: api.opId(), type: type, slot: i.slot, item_id: i.item_id };  // base_version stamped at send; source is server-set
     Object.keys(extra).forEach(function (k) { o[k] = extra[k]; });
     return o;
   }
-  /** Sends one op. Network/429 retries keep the same op_id (idempotent); re-apply after a conflict uses a new op_id. */
-  function send(o) {
-    var listId = current.id;
-    var retry = function () { send(o); };
-    return api.ops(listId, [o]).then(function (r) {
-      if (failed(r, retry)) return;
+  function same(a, b) { return a.slot === b.slot && a.item_id === b.item_id; }
+  /** Coalesce a new op into never-sent pending ops for the same item. */
+  function coalesce(pending, o) {
+    for (var k = pending.length - 1; k >= 0; k--) {
+      var p = pending[k];
+      if (p._sent || !same(p, o)) continue;
+      if (o.type === p.type && (o.type === 'reprioritize_item' || o.type === 'mark_obtained')) {
+        if (o.type === 'reprioritize_item') p.priority = o.priority; else p.obtained = o.obtained;
+        return;
+      }
+      if (o.type === 'remove_item' && p.type === 'add_item') {
+        // Added and removed before it was ever sent: drop the add and every pending edit of it.
+        for (var j = pending.length - 1; j >= 0; j--) if (!pending[j]._sent && same(pending[j], o)) pending.splice(j, 1);
+        return;
+      }
+      if (o.type === 'remove_item') { pending.splice(k, 1); continue; }  // edits before a remove are moot
+      break;
+    }
+    pending.push(o);
+  }
+  /** Local projection: server list + still-pending ops, so repeated clicks build on each other. */
+  function project(list, ops) {
+    var l = JSON.parse(JSON.stringify(list));
+    ops.forEach(function (o) {
+      var idx = -1; (l.items || []).forEach(function (it, n) { if (same(it, o)) idx = n; });
+      var it = idx >= 0 ? l.items[idx] : null;
+      if (o.type === 'add_item' && !it) l.items.push({ slot: o.slot, item_id: o.item_id, name: null, priority: o.priority, note: o.note || null, obtained: false, icon_url: null, _pending: true });
+      else if (o.type === 'remove_item' && it) l.items.splice(idx, 1);
+      else if (o.type === 'reprioritize_item' && it) { it.priority = o.priority; it._pending = true; }
+      else if (o.type === 'mark_obtained' && it) { it.obtained = o.obtained; it._pending = true; }
+    });
+    return l;
+  }
+  function queuedOps(Q) { return (Q.inflight || []).concat(Q.pending); }
+  function refreshView(listId) {
+    var Q = q(listId);
+    if (!Q.server) return;
+    var view = project(Q.server, queuedOps(Q));
+    upsert(view);
+    if (current && current.id === listId) { renderIndex(); renderDetail(); }
+    var n = queuedOps(Q).length;
+    $('gl-queue').textContent = current && current.id === listId && n ? (n === 1 ? '1 change saving…' : n + ' changes saving…') : '';
+  }
+  function enqueue(o) {
+    var listId = current.id, Q = q(listId);
+    if (!Q.server) Q.server = current;
+    coalesce(Q.pending, o);
+    refreshView(listId);
+    pump(listId);
+  }
+  function pump(listId) {
+    var Q = q(listId);
+    if (Q.inflight || !Q.pending.length || readOnly) return;
+    var wait = Q.pausedUntil - Date.now();
+    if (wait > 0) { clearTimeout(Q.timer); Q.timer = setTimeout(function () { pump(listId); }, wait + 50); return; }
+    // One op per item per request, so every op in a request is based on the version it will actually be applied to.
+    var n = 0, seen = [];
+    while (n < Q.pending.length && n < L.ops_per_request && !seen.some(function (x) { return same(x, Q.pending[n]); })) seen.push(Q.pending[n++]);
+    var chunk = Q.pending.splice(0, n);
+    var base = Q.server.version;
+    chunk.forEach(function (o) { o.base_version = base; o.client_ts = new Date().toISOString(); o._sent = true; });
+    Q.inflight = chunk;
+    sendChunk(listId, chunk, false);
+  }
+  function wire(o) { var w = {}; Object.keys(o).forEach(function (k) { if (k.charAt(0) !== '_') w[k] = o[k]; }); return w; }
+  function requeue(Q, chunk) { Q.inflight = null; Q.pending = chunk.concat(Q.pending); }
+  function sendChunk(listId, chunk, csrfRetried) {
+    var Q = q(listId);
+    api.ops(listId, chunk.map(wire)).then(function (r) {
+      if (r.status === 403 && code(r) === 'csrf_failed' && !csrfRetried) {
+        api.session().then(function () { sendChunk(listId, chunk, true); }); return;
+      }
+      if (r.status === 429) {
+        var sec = retryAfter(r);
+        // 429 means nothing was applied: the ops may coalesce again with newer edits.
+        chunk.forEach(function (o) { o._sent = false; });
+        var back = Q.pending; Q.inflight = null; Q.pending = [];
+        chunk.concat(back).forEach(function (o) { coalesce(Q.pending, o); });
+        Q.pausedUntil = Date.now() + sec * 1000;
+        banner('Too many changes. Your ' + queuedOps(Q).length + ' queued change(s) will be sent in ' + sec + ' seconds.',
+          function () { Q.pausedUntil = 0; pump(listId); }, 'Send now');
+        refreshView(listId); pump(listId); return;
+      }
+      if (r.status === 0 || r.status >= 500) {
+        requeue(Q, chunk); refreshView(listId);
+        banner(r.status === 0 ? 'You appear to be offline. Your changes are kept and will be sent when you retry.' : errMsg(r) + ' Your changes are kept.',
+          function () { pump(listId); }, 'Retry');
+        return;
+      }
+      if (!r.ok) {
+        var dropped = chunk.length + Q.pending.length;
+        Q.inflight = null; Q.pending = [];
+        refreshView(listId);
+        failed(r, null);
+        if (r.status === 403) banner('Only the list owner can change this list. ' + dropped + ' change(s) were not saved.');
+        return;
+      }
       var b = r.body || {};
-      if (b.list) { upsert(b.list); if (current && current.id === listId) { renderIndex(); renderDetail(); } }
-      var cf = (Array.isArray(b.conflicts) ? b.conflicts : []).filter(function (c) { return c && c.op_id === o.op_id; })[0];
-      if (cf) {
-        var m = txt(cf.message);
-        // list_items_limit is not a reason code in platform#34 @ e2a5bb0; matched by reason or message until it is.
+      Q.inflight = null;
+      if (b.list) Q.server = b.list;
+      var cfs = (Array.isArray(b.conflicts) ? b.conflicts : []).filter(function (c) { return c && chunk.some(function (o) { return o.op_id === c.op_id; }); });
+      refreshView(listId);
+      if (cfs.length) {
+        var cf = cfs[0], o = chunk.filter(function (x) { return x.op_id === cf.op_id; })[0], m = txt(cf.message);
         var why = cf.reason === 'item_not_forever' ? REASON.item_not_forever :
           (cf.reason === 'list_items_limit' || /list_items_limit/.test(m)) ? 'this list already has ' + L.items_per_list + ' items' : (REASON[cf.reason] || 'it conflicted with another edit');
         var again = /^(item_not_forever|item_removed|list_items_limit)$/.test(cf.reason) || /list_items_limit/.test(m) ? null : function () {
-          var n = {}; Object.keys(o).forEach(function (k) { n[k] = o[k]; });
-          n.op_id = api.opId(); n.base_version = typeof b.version === 'number' ? b.version : current.version; send(n);
+          var n = wire(o); delete n.base_version; n.op_id = api.opId(); enqueue(n);
         };
-        banner('1 change didn\u2019t apply: ' + why + '.', again);
+        banner((cfs.length === 1 ? '1 change' : cfs.length + ' changes') + ' didn\u2019t apply: ' + why + '.', again);
         say('Change not applied.');
-        return;
-      }
-      hideBanner(); say('Saved.');
+      } else if (!Q.pending.length) { hideBanner(); say('Saved.'); }
+      pump(listId);
     });
   }
 
@@ -184,7 +292,7 @@
     var l = current;
     api.del(l.id, version).then(function (r) {
       if (r.status === 409 && r.body && r.body.current && r.body.current.list) {
-        upsert(r.body.current.list); renderIndex(); renderDetail();
+        serverUpdate(r.body.current.list); renderIndex(); renderDetail();
         banner('This list changed somewhere else. It was not deleted. Review the latest version.', function () { doDelete(r.body.current.version); }, 'Delete anyway');
         return;
       }
@@ -199,14 +307,14 @@
   function doPatch(body, version) {
     api.patch(current.id, body, version).then(function (r) {
       if (r.status === 409 && r.body && r.body.current && r.body.current.list) {
-        upsert(r.body.current.list); renderIndex(); renderDetail();
+        serverUpdate(r.body.current.list); renderIndex(); renderDetail();
         banner('This list changed somewhere else (now \u201c' + (txt(r.body.current.list.name) || 'Untitled') + '\u201d). Your change was not saved.',
           function () { doPatch(body, r.body.current.version); });
         return;
       }
       if (r.status === 400 && r.body && r.body.errors && r.body.errors.name) { fieldErr('gl-name', r.body.errors.name); return; }
       if (failed(r, function () { doPatch(body, version); })) return;
-      upsert(r.body); renderIndex(); renderDetail(); hideBanner(); say('List saved.');
+      serverUpdate(r.body); renderIndex(); renderDetail(); hideBanner(); say('List saved.');
     });
   }
   function fieldErr(id, m) { $(id + '-err').textContent = m; if (m) { $(id).setAttribute('aria-invalid', 'true'); $(id).focus(); } else $(id).removeAttribute('aria-invalid'); }
@@ -256,9 +364,8 @@
     if ((current.items || []).length >= L.items_per_list) { banner('This list already has ' + L.items_per_list + ' items.'); return; }
     var note = $('gl-add-note').value.trim().slice(0, L.note_max);
     var extra = { priority: pr }; if (note) extra.note = note;
-    send(op('add_item', { slot: $('gl-add-slot').value, item_id: id }, extra)).then(function () {
-      if ($('gl-banner').hidden) { $('gl-add-id').value = ''; $('gl-add-note').value = ''; }
-    });
+    enqueue(op('add_item', { slot: $('gl-add-slot').value, item_id: id }, extra));
+    $('gl-add-id').value = ''; $('gl-add-note').value = '';
   });
 
   function describe(e) {
@@ -306,7 +413,8 @@
       if (r.status === 401) { show('signedout'); return; }
       if (r.status === 404) { show('notfound'); return; }
       if (!r.ok) throw r;
-      lists = (r.body && Array.isArray(r.body.items) ? r.body.items : []).slice(0, L.lists_per_character);
+      lists = [];
+      (r.body && Array.isArray(r.body.items) ? r.body.items : []).slice(0, L.lists_per_character).forEach(serverUpdate);
       show('ready');
       var keep = selectId || (current && current.id);
       current = null;

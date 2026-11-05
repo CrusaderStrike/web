@@ -1,11 +1,11 @@
 /**
- * web#18 in-browser mock of the platform#17 gear-list endpoints as finalized in platform#34 @ e2a5bb0.
+ * web#18 in-browser mock of the platform#17 gear-list endpoints as finalized in platform#34 @ d96d644.
  * Enums and limits come from the generated js/gear-lists-spec.js (tools/gen-gear-lists-spec.js); nothing is hand-copied.
  * Per character (max 5), If-Match/ETag exactly "v<n>", 409 version_mismatch {error, current:{version, list}},
  * ops always 200 with conflicts[], undo = mark_obtained obtained:false, /events with typed payloads and
  * actor {user_id, display_name}, missing If-Match 428 precondition_required, client source ignored (server sets web), visibility private|guild, only the owner writes (everyone else 403 forbidden).
  * WoW Forever only; fictional realms (Emberfall, Duskhollow). State lives in sessionStorage.
- * ?mock= scenarios: conflict, stale, limit, ratelimit, offline, forbidden (officer persona), history403, 500.
+ * ?mock= scenarios: conflict, stale, limit, ratelimit (&rl=N), csrf, offline, forbidden (officer persona), history403, 500.
  */
 (function () {
   'use strict';
@@ -62,6 +62,8 @@
     if (write && m === 'forbidden') return err(403, 'forbidden', 'Only the list owner can change this list.');
     return null;
   }
+  function ops0(b) { return b && Array.isArray(b.ops) ? b.ops : []; }
+  function strip(l) { var c = clone(l); c.items.forEach(function (i) { delete i._v; }); return c; }
   function find(s, id) { for (var i = 0; i < s.lists.length; i++) if (s.lists[i].id === id) return s.lists[i]; return null; }
   function bump(s, l, type, payload, source) {
     l.version += 1; l.updated_at = now(); l.updated_source = source || 'web';
@@ -73,7 +75,7 @@
     // ?mock=stale: an in-game (addon) edit lands first, so the client's If-Match is now behind.
     if (typeof version !== 'number' || !(version >= 0)) return err(428, 'precondition_required', 'If-Match "v<n>" is required.');
     if (mock() === 'stale' && !s.flags['stale_' + l.id]) { s.flags['stale_' + l.id] = 1; l.name += ' (in game)'; bump(s, l, 'GearListRenamed', { name: l.name }, 'addon'); save(s); }
-    if ('"v' + version + '"' !== etag(l).etag) return err(409, 'version_mismatch', 'This list changed somewhere else.', { current: { version: l.version, list: clone(l) } }, etag(l));
+    if ('"v' + version + '"' !== etag(l).etag) return err(409, 'version_mismatch', 'This list changed somewhere else.', { current: { version: l.version, list: strip(l) } }, etag(l));
     return null;
   }
 
@@ -83,7 +85,7 @@
       var g = guard(false); if (g) return g;
       if (OWNED.indexOf(charId) < 0) return err(404, 'not_found', 'Character not found.');
       var s = load(); save(s);
-      return res(200, { items: clone(s.lists.filter(function (l) { return l.character_id === charId; })) });
+      return res(200, { items: s.lists.filter(function (l) { return l.character_id === charId; }).map(strip) });
     },
     create: function (charId, body) {
       var g = guard(true); if (g) return g;
@@ -96,12 +98,12 @@
       var l = { id: uid(), character_id: charId, owner_user_id: OWNER, name: body.name.trim(), visibility: vis, version: 0, updated_at: now(), updated_source: 'web', items: [] };
       s.lists.push(l); s.events[l.id] = [];
       bump(s, l, 'GearListCreated', { name: l.name, character_id: charId, visibility: vis }); save(s);
-      return res(201, clone(l), etag(l));
+      return res(201, strip(l), etag(l));
     },
     get: function (id) {
       var g = guard(false); if (g) return g;
       var s = load(), l = find(s, id);
-      return l ? res(200, clone(l), etag(l)) : err(404, 'not_found', 'List not found.');
+      return l ? res(200, strip(l), etag(l)) : err(404, 'not_found', 'List not found.');
     },
     patch: function (id, body, version) {
       var g = guard(true); if (g) return g;
@@ -113,7 +115,7 @@
       if (body.name != null && body.name.trim() !== l.name) { l.name = body.name.trim(); pl.name = l.name; }
       if (body.visibility && body.visibility !== l.visibility) { l.visibility = body.visibility; pl.visibility = l.visibility; }
       if (pl.name || pl.visibility) bump(s, l, 'GearListRenamed', pl);
-      save(s); return res(200, clone(l), etag(l));
+      save(s); return res(200, strip(l), etag(l));
     },
     del: function (id, version) {
       var g = guard(true); if (g) return g;
@@ -126,7 +128,12 @@
     ops: function (id, body) {
       var g = guard(true); if (g) return g;
       var s = load(), l = find(s, id); if (!l) return err(404, 'not_found', 'List not found.');
-      if (mock() === 'ratelimit' && !s.flags.rl) { s.flags.rl = 1; save(s); return err(429, 'rate_limited', 'Too many changes.', null, { 'retry-after': '3' }); }
+      // ?mock=ratelimit: the first N op requests (?rl=N, default 1) get 429 Retry-After 3.
+      var rlN = parseInt(new URLSearchParams(location.search).get('rl'), 10) || 1;
+      if (mock() === 'ratelimit' && (s.flags.rl || 0) < rlN) { s.flags.rl = (s.flags.rl || 0) + 1; save(s); return err(429, 'rate_limited', 'Too many changes.', null, { 'retry-after': '3' }); }
+      // ?mock=csrf: the first write gets 403 csrf_failed (client refreshes the session and retries once).
+      if (mock() === 'csrf' && !s.flags.csrf) { s.flags.csrf = 1; save(s); return err(403, 'csrf_failed', 'Security check failed.'); }
+      (window.__glOpsLog = window.__glOpsLog || []).push(JSON.parse(JSON.stringify(ops0(body))));
       var ops = body && Array.isArray(body.ops) ? body.ops : [];
       if (ops.length < 1 || ops.length > L.ops_per_request) return err(400, 'validation_error', 'Send 1–200 ops.');
       var out = { applied: [], duplicates: [], conflicts: [], ignored: [] }, bad = false;
@@ -143,6 +150,8 @@
         var idx = -1; l.items.forEach(function (it, i) { if (it.slot === o.slot && it.item_id === o.item_id) idx = i; });
         var it = idx >= 0 ? l.items[idx] : null;
         if (o.type !== 'add_item' && !it) { reject(o, 'item_removed'); return; }
+        // Same item edited after the version this op was based on -> the older op loses.
+        if (it && (it._v || 0) > o.base_version) { reject(o, 'stale_base_version'); return; }
         if (o.type === 'add_item') {
           if (NOT_FOREVER.indexOf(o.item_id) >= 0) { reject(o, 'item_not_forever', 'Not a WoW Forever item.'); return; }
           if (it) { reject(o, 'superseded_by_newer_edit'); return; }
@@ -160,11 +169,13 @@
           it.obtained = o.obtained !== false; it.obtained_at = it.obtained ? now() : null;
           bump(s, l, 'GearItemObtained', { slot: o.slot, item_id: o.item_id, obtained: it.obtained, run_id: null });
         }
+        var touched = o.type === 'add_item' ? l.items[l.items.length - 1] : it;
+        if (touched && o.type !== 'remove_item') touched._v = l.version;
         s.seen_ops[o.op_id] = 1; out.applied.push(o.op_id);
       });
       if (bad) return err(400, 'validation_error', 'Invalid op.');
       save(s);
-      out.version = l.version; out.list = clone(l);
+      out.version = l.version; out.list = strip(l);
       return res(200, out, etag(l));
     },
     events: function (id, after, limit) {

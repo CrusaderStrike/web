@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Generates js/gear-lists-spec.js from the vendored platform OpenAPI (platform#34 @ e2a5bb0).
+ * Generates js/gear-lists-spec.js from the vendored platform OpenAPI (platform#34 @ d96d644).
  * Usage: NODE_PATH=<dir with js-yaml> node tools/gen-gear-lists-spec.js [path/to/v1.yaml]
  * The mock (js/gear-lists-mock.js) and the UI read enums and limits from the generated file only.
  */
 'use strict';
 const fs = require('fs'), path = require('path'), yaml = require('js-yaml');
-const src = process.argv[2] || path.join(__dirname, '../docs/vendor/platform-openapi-v1@e2a5bb0.yaml');
+const src = process.argv[2] || path.join(__dirname, '../docs/vendor/platform-openapi-v1@d96d644.yaml');
 const doc = yaml.load(fs.readFileSync(src, 'utf8'));
 const S = doc.components.schemas;
 const paths = doc.paths;
@@ -14,7 +14,7 @@ const need = (c, m) => { if (!c) throw new Error('spec missing: ' + m); return c
 const listsOp = need(paths['/characters/{character_id}/gear-lists'], 'gear-lists path');
 const maxLists = need(listsOp.get.responses['200'].content['application/json'].schema.properties.items.maxItems, 'lists maxItems');
 const out = {
-  source: 'CrusaderStrike/platform openapi/v1.yaml @ e2a5bb0 (platform#34)',
+  source: 'CrusaderStrike/platform openapi/v1.yaml @ d96d644 (platform#34)',
   paths: Object.keys(paths).filter(p => /gear-lists|items\/search/.test(p)),
   slots: need(S.GearSlot.enum, 'GearSlot'),
   visibility: need(S.GearList.properties.visibility.enum, 'visibility'),
@@ -30,6 +30,8 @@ const out = {
     priority_max: need(S.GearItem.properties.priority.maximum, 'priority max'),
     note_max: S.GearItem.properties.note.maxLength,
     ops_per_request: need(paths['/gear-lists/{list_id}/ops'].post.requestBody.content['application/json'].schema.properties.ops.maxItems, 'ops max'),
+    // /sync (flat, all lists) caps a request at 500 ops; only stated in prose, so parsed from the description.
+    sync_ops_per_request: (() => { const m = /At most \*\*(\d+)\*\* ops total/.exec(JSON.stringify(doc.paths)); return m ? +m[1] : null; })(),
     name_max: paths['/gear-lists/{list_id}'].patch.requestBody.content['application/json'].schema.properties.name.maxLength
   },
   required: {
