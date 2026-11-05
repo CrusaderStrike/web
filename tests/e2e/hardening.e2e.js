@@ -53,6 +53,25 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
     'unknown slot, item_id range, local_id, duplicate local_id, until_level rules, removes ops, control chars, role_spec, > 20 sets, id, deleted_lists -> validation ' + JSON.stringify(bad));
   ok(bad.unknown === undefined && bad.equipped === undefined, 'unknown keys ignored; equipped optional (import strings omit it)');
 
+  // web#58: ammo is decode slot 20 (addon#62). Replies omit it for addon v0.3.5; there is no handshake on the import path.
+  const ammo = await p.evaluate(() => {
+    const slots = CSGear1.SLOTS;
+    const payload = { schema_version: 1, game_version: 'forever', region: 'us', realm: 'Emberfall', character: 'Thornquill', character_id: null, exported_at: '2026-11-05T06:30:00Z', deleted_lists: [], lists: [{ id: null, local_id: 'a1b2c3d4', name: 'Ammo', type: 'max_level', until_level: null, role_spec: null, slots: { head: 12345, ammo: 91011 }, removes: [], edited_at: '2026-11-05T06:29:10Z', edited_in: 'game' }] };
+    const dec = CSGear1.decode(CSGear1.encode(payload));
+    const lists = [{ id: 'gl_ammo_1', name: 'Ammo', type: 'max_level', until_level: null, role_spec: null, updated_at: '2026-11-05T06:30:00Z', items: [{ slot: 'head', item_id: 12345, priority: 1 }, { slot: 'ammo', item_id: 91011, priority: 1 }] }];
+    const c = { id: 'ch_us_1003', region: 'us', realm: 'Emberfall', character_name: 'Thornquill' };
+    const slotsOf = ver => CSGear1.decode(CSGear1.reply(payload, c, lists, {}, ver)).payload.lists[0].slots;
+    return {
+      n: slots.length, last: slots[slots.length - 1], idx: slots.indexOf('ammo'),
+      dec: dec.ok && dec.payload.lists[0].slots.ammo === 91011 && dec.payload.lists[0].slots.head === 12345,
+      none: slotsOf(undefined), old: slotsOf('0.3.5'), older: slotsOf('0.3.4'), next: slotsOf('0.3.6'), minor: slotsOf('0.4.0')
+    };
+  });
+  ok(ammo.n === 20 && ammo.last === 'ammo' && ammo.idx === 19, 'ammo is decode slot 20');
+  ok(ammo.dec, 'decode accepts an ammo slot');
+  ok(ammo.none.head === 12345 && !('ammo' in ammo.none) && ammo.old.head === 12345 && !('ammo' in ammo.old) && !('ammo' in ammo.older), 'reply omits ammo with no handshake and for addon v0.3.5');
+  ok(ammo.next.ammo === 91011 && ammo.next.head === 12345 && ammo.minor.ammo === 91011, 'reply includes ammo for an addon newer than v0.3.5');
+
   // ---------- (1) import: create id:null sets, map local_id -> id ----------
   ok(await p.isChecked('#gl-new-type-leveling') && await p.getAttribute('#gl-new-until', 'min') === '53', 'level 52: leveling default, Up to level min 53');
   await paste(await enc(base({ character_id: 'ch_us_1001' }))); ok(/different character/.test(await impErr()), 'character_id of another character -> character_mismatch, nothing applied');

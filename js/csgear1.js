@@ -9,7 +9,8 @@
 (function () {
   'use strict';
   var PREFIX = 'CSGEAR1:', MAX_PASTE = 24 * 1024, MAX_JSON = 16 * 1024, MAX_SETS = 20, MAX_LEVEL = 60, INT_MAX = 2147483647;
-  var SLOTS = ['head', 'neck', 'shoulder', 'shirt', 'chest', 'waist', 'legs', 'feet', 'wrist', 'hands', 'finger1', 'finger2', 'trinket1', 'trinket2', 'back', 'main_hand', 'off_hand', 'ranged', 'tabard'];
+  // Order matches addon GearSlots.BY_INV (addon#62). ammo is wire slot 20.
+  var SLOTS = ['head', 'neck', 'shoulder', 'shirt', 'chest', 'waist', 'legs', 'feet', 'wrist', 'hands', 'finger1', 'finger2', 'trinket1', 'trinket2', 'back', 'main_hand', 'off_hand', 'ranged', 'tabard', 'ammo'];
   var REGIONS = ['us', 'eu', 'kr', 'tw'];
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, LOCAL_RE = /^[0-9a-f]{8}$/, NAME_RE = /^[A-Za-z0-9 _\-\u00C0-\u024F']{1,48}$/;
   var MOCK_ID_RE = /^gl_[a-z0-9_]{1,40}$/;  // in-browser mock ids (USE_MOCK_GEAR_LISTS only)
@@ -201,14 +202,31 @@
     });
   }
   function localFor(id) { return fnv1a(utf8(String(id))); }
+  /**
+   * Released addon v0.3.5 rejects ammo. A version after 0.3.5 (addon#62, slot 20) may receive it.
+   * TODO(addon#62): CSGEAR1 has no version handshake, so callers pass no addon version and replies omit ammo.
+   */
+  function addonSupportsAmmo(v) {
+    if (v == null || v === '') return false;
+    var p = String(v).replace(/^v/i, '').split('.').map(function (x) { return parseInt(x, 10) || 0; });
+    var maj = p[0] || 0, min = p[1] || 0, pat = p[2] || 0;
+    if (maj !== 0) return maj > 0;
+    if (min !== 3) return min > 3;
+    return pat > 5;
+  }
   /** Import string for the game (§7): server lists as CSGEAR1 sets, local_id echoed via mapping, no equipped. */
-  function reply(p, c, lists, mapping) {
+  function reply(p, c, lists, mapping, addonVersion) {
+    var allowAmmo = addonSupportsAmmo(addonVersion);
     var back = {}; Object.keys(mapping || {}).forEach(function (lid) { back[mapping[lid]] = lid; });
     return encode({
       schema_version: 1, game_version: 'forever', region: p && p.region || c.region || 'us', realm: p ? p.realm : (c.realm || ''), character: p ? p.character : c.character_name,
       character_id: c.id, exported_at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), deleted_lists: [],
       lists: lists.map(function (l) {
-        var slots = {}; (l.items || []).forEach(function (i) { if (slots[i.slot] == null) slots[i.slot] = i.item_id; });
+        var slots = {};
+        (l.items || []).forEach(function (i) {
+          if (!allowAmmo && i.slot === 'ammo') return;  // v0.3.5 rejects ammo; see addon#62
+          if (slots[i.slot] == null) slots[i.slot] = i.item_id;
+        });
         return { id: l.id, local_id: back[l.id] || localFor(l.id), name: l.name, type: l.type === 'leveling' ? 'leveling' : 'max_level', until_level: l.type === 'leveling' ? l.until_level : null,
           role_spec: l.role_spec || null, slots: slots, removes: [], edited_at: l.updated_at || null, edited_in: 'web' };
       })
