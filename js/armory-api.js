@@ -67,6 +67,7 @@
     /** 'Saved <local time>' for a selection, or '' when updated_at is null/invalid. */
     selectionTime: function (sel) { var s = normSel(sel); return s && s.updated_at ? new Date(s.updated_at).toLocaleString() : ''; },
     session: function () { return window.CSProfileApi.session().then(function (r) { if (r.ok && r.body) csrf = r.body.csrf_token || null; return r; }); },
+    clearCsrf: function () { csrf = null; },
     characters: function () {
       return call('characters', [], 'GET', cfg.API_BASE + cfg.PROFILE_PATHS.CHARACTERS).then(function (r) {
         if (r.ok && r.body) { applySel(r.body); lastSel = r.body.selection; }

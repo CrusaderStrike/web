@@ -15,3 +15,16 @@
     });
   }
 })();
+
+/** After sign-out, /?signed_out=1 shows a short status on the home page. */
+(function () {
+  'use strict';
+  var on = false;
+  try { on = new URLSearchParams(location.search).get('signed_out') === '1'; } catch (e) { on = false; }
+  if (!on) return;
+  var s = document.getElementById('home-status');
+  if (!s) return;
+  s.textContent = 'Signed out';
+  s.hidden = false;
+  s.focus();
+})();

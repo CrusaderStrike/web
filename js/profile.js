@@ -56,6 +56,10 @@
       $('pf-signedout-msg').textContent = signedIn ? 'Sign in again with Battle.net to keep editing your characters and gear sets.' : 'Sign in with Battle.net to load your WoW Forever characters.';
     }
     ['loading', 'disabled', 'signedout', 'error', 'ready'].forEach(function (s) { $('pf-' + s).hidden = s !== name; });
+    var authed = name === 'ready';
+    $('pf-nav-signout').hidden = !authed;
+    $('pf-account-actions').hidden = !authed;
+    if (!authed) { try { if ($('pf-switch-dialog').open) $('pf-switch-dialog').close(); } catch (e) { /* not open */ } }
     var h = $('pf-' + name + '-h'); if (h && name !== 'loading') h.focus();
   }
   function charById(id) { return st.characters.filter(function (c) { return c.id === id; })[0] || null; }
@@ -482,6 +486,62 @@
       });
     });
   });
+  function authError(msg) {
+    var n = $('pf-auth-error');
+    n.textContent = msg || '';
+    n.hidden = !msg;
+    if (msg) n.focus();
+  }
+  var switchOpener = null;
+  function openSwitch(opener) {
+    switchOpener = opener || $('pf-switch');
+    $('pf-switch-error').textContent = '';
+    $('pf-switch-error').hidden = true;
+    var d = $('pf-switch-dialog');
+    if (!d.open) d.showModal();
+    $('pf-switch-h').focus();
+  }
+  function closeSwitch() { var d = $('pf-switch-dialog'); if (d.open) d.close(); }
+  var authBusy = false;
+  function setAuthBusy(on) {
+    authBusy = on;
+    ['pf-signout', 'pf-signout-footer', 'pf-switch', 'pf-switch-continue'].forEach(function (id) {
+      var n = $(id); if (n) n.disabled = on;
+    });
+  }
+  function runSignOut(andThen) {
+    if (authBusy || !window.CSAuthSession) return;
+    setAuthBusy(true);
+    authError('');
+    $('pf-switch-error').hidden = true;
+    window.CSAuthSession.signOut().then(function (r) {
+      setAuthBusy(false);
+      if (!r || !r.ok) {
+        var msg = errMsg(r, 'Could not sign out. Please try again.');
+        if ($('pf-switch-dialog').open) { $('pf-switch-error').textContent = msg; $('pf-switch-error').hidden = false; $('pf-switch-continue').focus(); }
+        else authError(msg);
+        return;
+      }
+      if (andThen) andThen(); else location.assign('/?signed_out=1');
+    }, function () {
+      setAuthBusy(false);
+      var msg = errMsg({ status: 0 }, 'Could not sign out. Please try again.');
+      if ($('pf-switch-dialog').open) { $('pf-switch-error').textContent = msg; $('pf-switch-error').hidden = false; $('pf-switch-continue').focus(); }
+      else authError(msg);
+    });
+  }
+  $('pf-signout').addEventListener('click', function () { runSignOut(null); });
+  $('pf-signout-footer').addEventListener('click', function () { runSignOut(null); });
+  $('pf-switch').addEventListener('click', function () { openSwitch(this); });
+  $('pf-switch-cancel').addEventListener('click', closeSwitch);
+  $('pf-switch-dialog').addEventListener('close', function () {
+    if (switchOpener && document.contains(switchOpener)) switchOpener.focus();
+  });
+  $('pf-switch-dialog').addEventListener('cancel', function (e) { if (authBusy) e.preventDefault(); });
+  $('pf-switch-continue').addEventListener('click', function () {
+    runSignOut(function () { location.assign(window.csBnetLoginUrl('/profile/', 'login')); });
+  });
+
   if (!window.csBnetEnabled()) { show('disabled'); return; }
   load();
 })();
