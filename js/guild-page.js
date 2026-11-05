@@ -10,17 +10,19 @@
   var status = document.getElementById('gp-status');
   var viewerTz; try { viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { viewerTz = ''; }
   var any = false;
-  Array.prototype.forEach.call(document.querySelectorAll('.gp-raid'), function (li) {
+  if (tz && T.validZone(tz)) Array.prototype.forEach.call(document.querySelectorAll('.gp-raid'), function (li) {
     var sl = T.slot({ day: li.getAttribute('data-day'), start: li.getAttribute('data-start'), end: li.getAttribute('data-end') }, tz);
     if (viewerTz === tz) return;               // same zone: guild time already is local time
     var out = li.querySelector('.gp-raid-local');
     out.textContent = '(your time: ' + T.fmt(sl.start) + '–' + T.fmtTime(sl.end) + ' ' + T.zoneName(undefined, sl.start) + ')';
     out.hidden = false; any = true;
   });
-  if (any) document.getElementById('gp-local-note').hidden = false;
+  var note = document.getElementById('gp-local-note');
+  if (any && note) note.hidden = false;
 
   function say(msg) { status.textContent = msg; status.className = 'gp-status' + (msg ? ' gp-status-on' : ''); }
   function check() {
+    // getGuild rejects (as 404) any region/realm/guild that is not a validated slug.
     return window.CSGuildsApi.getGuild(main.getAttribute('data-region'), main.getAttribute('data-realm'), main.getAttribute('data-guild')).then(function () { say(''); }, function (e) {
       if (e.status === 404) {
         document.getElementById('gp-content').hidden = true;

@@ -48,18 +48,22 @@
     var s = p.toString(); history.replaceState(null, '', '/guilds/' + (s ? '?' + s : ''));
   }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  var SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   function card(g) {
+    // Skip rows whose route ids are not plain slugs (no ../, encoded traversal or unknown region in links).
+    if (!g || !cfg.GUILD_REGIONS.hasOwnProperty(g.region) || !SLUG.test(g.realm_slug || '') || !SLUG.test(g.guild_slug || '')) return null;
     var li = el('li', 'cs-card gl-card');
     var img = el('img', 'gl-crest'); img.src = '/assets/crest-' + (g.faction === 'horde' ? 'horde' : 'alliance') + '.svg'; img.width = 48; img.height = 48; img.alt = '';
     var box = el('div'), h = el('h3', 'gl-name'), a = el('a', null, g.name);
     a.href = '/g/' + encodeURIComponent(g.region) + '/' + encodeURIComponent(g.realm_slug) + '/' + encodeURIComponent(g.guild_slug) + '/';
     h.appendChild(a);
     var meta = el('p', 'gl-meta');
-    meta.appendChild(window.csFactionBadge ? window.csFactionBadge(g.faction) : el('span', 'cs-badge', LABEL[g.faction] || ''));
+    var roles = (Array.isArray(g.open_roles) ? g.open_roles : []).filter(function (r) { return /^(tank|healer|dps)$/.test(r); });
+    meta.appendChild(window.csFactionBadge ? window.csFactionBadge(g.faction) : el('span', 'cs-badge', LABEL[g.faction === 'horde' ? 'horde' : 'alliance']));
     meta.appendChild(document.createTextNode(' '));
-    meta.appendChild(el('span', null, g.realm_name + ' (' + (cfg.GUILD_REGIONS[g.region] || g.region) + ')'));
+    meta.appendChild(el('span', null, g.realm_name + ' (' + cfg.GUILD_REGIONS[g.region] + ')'));
     meta.appendChild(document.createTextNode(' · '));
-    meta.appendChild(el('span', null, g.recruiting ? (g.open_roles.length ? 'Recruiting ' + g.open_roles.map(function (r) { return LABEL[r] || r; }).join(', ') : 'Recruiting') : 'Not recruiting'));
+    meta.appendChild(el('span', null, g.recruiting ? (roles.length ? 'Recruiting ' + roles.map(function (r) { return LABEL[r]; }).join(', ') : 'Recruiting') : 'Not recruiting'));
     box.appendChild(h); box.appendChild(meta); li.appendChild(img); li.appendChild(box);
     return li;
   }
@@ -76,7 +80,7 @@
     return api.listGuilds(q).then(function (r) {
       if (my !== seq) return;
       while (list.firstChild) list.removeChild(list.firstChild);
-      r.items.forEach(function (g) { list.appendChild(card(g)); });
+      r.items.forEach(function (g) { var c = card(g); if (c) list.appendChild(c); });
       nextCursor = r.next_cursor || null;
       empty.hidden = r.items.length > 0;
       prev.hidden = pageIdx === 0; next.hidden = !nextCursor;

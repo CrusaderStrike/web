@@ -5,6 +5,8 @@
 (function () {
   'use strict';
   var cfg = window.CS_CONFIG;
+  var SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/, REGION = /^(us|eu|kr|tw)$/;
+  function validIds(region, realm, guild) { return typeof region === 'string' && REGION.test(region) && typeof realm === 'string' && SLUG.test(realm) && typeof guild === 'string' && SLUG.test(guild); }
   function normalize(e) {
     var b = e && e.body && e.body.error;
     var out = new Error((b && b.message) || (e && e.message) || 'Request failed');
@@ -32,7 +34,10 @@
       (q['class'] || []).forEach(function (c) { p.append('class', c); });
       return get(cfg.GUILDS_PATHS.LIST + '?' + p.toString()).catch(function (e) { throw normalize(e); });
     },
+    validIds: validIds,
     getGuild: function (region, realm, guild) {
+      // Never build an API path from an unvalidated slug: treat it as not found.
+      if (!validIds(region, realm, guild)) { var nf = new Error('Guild not found.'); nf.status = 404; nf.code = 'not_found'; nf.retryAfter = ''; return Promise.reject(nf); }
       if (cfg.USE_MOCK_GUILDS) return window.CSGuildsMock.getGuild(region, realm, guild).catch(function (e) { throw normalize(e); });
       var path = cfg.GUILDS_PATHS.DETAIL.replace('{region}', encodeURIComponent(region)).replace('{realm_slug}', encodeURIComponent(realm)).replace('{guild_slug}', encodeURIComponent(guild));
       return get(path).catch(function (e) { throw normalize(e); });

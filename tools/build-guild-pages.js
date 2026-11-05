@@ -40,6 +40,30 @@ function args(argv) {
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const jsonLd = o => JSON.stringify(o).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 const httpsUrl = v => { try { const u = new URL(v); return u.protocol === 'https:' ? u.href : null; } catch (e) { return null; } };
+const KNOWN_CLASS = new Set(['warrior', 'paladin', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'warlock', 'druid']);
+const KNOWN_ROLE = new Set(['tank', 'healer', 'dps']);
+const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+/** Validated route ids. Throws on anything that is not a plain lowercase slug / known region (no ../, %2e, slashes). */
+function ids(g) {
+  const o = { region: g && g.region, realm_slug: g && g.realm_slug, guild_slug: g && g.guild_slug };
+  if (typeof o.region !== 'string' || !REGION_RE.test(o.region) || typeof o.realm_slug !== 'string' || !SLUG.test(o.realm_slug) ||
+      typeof o.guild_slug !== 'string' || !SLUG.test(o.guild_slug)) throw new Error('invalid guild route ids');
+  return o;
+}
+/** Recruiting needs with only known class/role/priority values (unknown ones dropped). */
+const cleanNeeds = list => (Array.isArray(list) ? list : []).filter(n => n && KNOWN_CLASS.has(n['class']) && KNOWN_ROLE.has(n.role) && has(PRIO, n.priority));
+/** Discord invites only: https://discord.gg/<code> or https://discord.com/invite/<code> (also www. / discordapp.com/invite). */
+function discordUrl(v) {
+  const h = httpsUrl(v); if (!h) return null;
+  const u = new URL(h);
+  if (u.username || u.password || u.port) return null;
+  if (u.hostname === 'discord.gg' && /^\/[A-Za-z0-9-]+\/?$/.test(u.pathname)) return u.href;
+  if (/^(www\.)?discord(app)?\.com$/.test(u.hostname) && /^\/invite\/[A-Za-z0-9-]+\/?$/.test(u.pathname)) return u.href;
+  return null;
+}
+const contactUrl = c => !c ? null : c.type === 'discord' ? discordUrl(c.value) : c.type === 'url' ? httpsUrl(c.value) : null;
+const memberCount = v => Number.isInteger(v) && v >= 0 ? v : null;
+const MOCK_SCRIPTS = ['/js/guilds-mock-data.js', '/js/guilds-mock.js'];
 const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; };
 
 // ---------- data sources ----------
@@ -75,7 +99,7 @@ async function collectSitemap(src, limit) {
   do {
     const page = await src.sitemap(cursor ? { limit, cursor } : { limit });
     pages++;
-    (page.items || []).forEach(i => { if (REGION_RE.test(i.region) && SLUG.test(i.realm_slug) && SLUG.test(i.guild_slug)) out.push(i); });
+    (page.items || []).forEach(i => { try { out.push(Object.assign({}, i, ids(i))); } catch (e) { /* invalid ids: skip row */ } });
     cursor = page.next_cursor || null;
     if (cursor && seen.has(cursor)) throw new Error('sitemap cursor repeated: ' + cursor);
     if (cursor) seen.add(cursor);
@@ -122,56 +146,64 @@ function foot(scripts) {
     .concat((scripts || []).map(s => '  <script src="' + s + '"></script>')).concat(['</body>', '</html>', '']).join('\n');
 }
 const crest = f => '/assets/crest-' + (f === 'horde' ? 'horde' : 'alliance') + '.svg';
-const guildPath = g => '/g/' + g.region + '/' + g.realm_slug + '/' + g.guild_slug + '/';
-const badge = f => '<span class="cs-badge cs-badge-' + (f === 'horde' ? 'horde' : 'alliance') + '" aria-label="Faction: ' + LABEL[f] + '">' + LABEL[f] + '</span>';
+const guildPath = g => { const i = ids(g); return '/g/' + i.region + '/' + i.realm_slug + '/' + i.guild_slug + '/'; };
+const fac = f => f === 'horde' ? 'horde' : 'alliance';
+const badge = f => '<span class="cs-badge cs-badge-' + fac(f) + '" aria-label="Faction: ' + LABEL[fac(f)] + '">' + LABEL[fac(f)] + '</span>';
+const scriptsFor = (ctx, list) => ctx.mock ? list : list.filter(s => MOCK_SCRIPTS.indexOf(s) < 0);
 
 function contactHtml(c) {
   if (!c) return '<p class="cs-muted">This guild has not listed a contact yet.</p>';
-  const url = (c.type === 'discord' || c.type === 'url') ? httpsUrl(c.value) : null;
+  const url = contactUrl(c);
   if (url) {
     const label = c.type === 'discord' ? 'Join the guild Discord' : 'Apply on the guild website';
     return '<p><a class="cs-btn gp-apply" href="' + esc(url) + '" rel="noopener nofollow ugc" target="_blank">' + label +
       '<span class="cs-visually-hidden"> (opens in a new tab)</span></a></p><p class="cs-muted gp-contact-host">' + esc(new URL(url).host) + '</p>';
   }
-  // in_game (or an invalid link): plain text, never a link
+  // in_game, or a link that failed validation (e.g. a non-Discord URL typed as discord): plain text, never a link
   return '<p class="gp-ingame"><span class="gp-ingame-label">In game:</span> <span id="gp-ingame-text">' + esc(c.value) + '</span></p>';
 }
 
 function renderGuild(g, ctx) {
-  const url = ctx.origin + guildPath(g);
-  const rn = ctx.regionNames[g.region];
-  const tzOk = T.validZone(g.raid_timezone);
-  const tz = tzOk ? g.raid_timezone : 'UTC';
-  const title = g.name + ' — ' + g.realm_name + ' (' + rn + ') ' + LABEL[g.faction] + ' guild' + (g.recruiting ? ' recruiting' : '') + ' | Crusader Strike';
-  const needsTxt = g.recruiting && g.recruiting_needs.length ? 'Recruiting ' + g.recruiting_needs.map(n => LABEL[n.class] + ' ' + LABEL[n.role]).join(', ') + '. ' : '';
-  const description = clip(LABEL[g.faction] + ' World of Warcraft Forever guild on ' + g.realm_name + ' (' + rn + '). ' + needsTxt + g.pitch, 160);
-  const ld = { '@context': 'https://schema.org', '@type': 'Organization', name: g.name, url, description: clip(g.pitch, 500), logo: ctx.origin + crest(g.faction),
+  const id = ids(g);                       // validated region / realm / guild slugs used for every URL, attribute and breadcrumb
+  const url = ctx.origin + guildPath(id);
+  const rn = ctx.regionNames[id.region];
+  const faction = fac(g.faction);
+  const tzOk = typeof g.raid_timezone === 'string' && g.raid_timezone !== '' && T.validZone(g.raid_timezone);
+  const tz = tzOk ? g.raid_timezone : null;
+  // A null/invalid zone means no usable schedule: no raid-times section at all (never a fake 'UTC').
+  const schedule = tz && Array.isArray(g.raid_schedule) ? g.raid_schedule.filter(s => s && has(T.DAY_NAMES, s.day) && /^\d\d:\d\d$/.test(s.start) && /^\d\d:\d\d$/.test(s.end)) : [];
+  const members = memberCount(g.member_count);
+  const allNeeds = cleanNeeds(g.recruiting_needs);
+  const title = g.name + ' — ' + g.realm_name + ' (' + rn + ') ' + LABEL[faction] + ' guild' + (g.recruiting ? ' recruiting' : '') + ' | Crusader Strike';
+  const needsTxt = g.recruiting && allNeeds.length ? 'Recruiting ' + allNeeds.map(n => LABEL[n.class] + ' ' + LABEL[n.role]).join(', ') + '. ' : '';
+  const description = clip(LABEL[faction] + ' World of Warcraft Forever guild on ' + g.realm_name + ' (' + rn + '). ' + needsTxt + g.pitch, 160);
+  const ld = { '@context': 'https://schema.org', '@type': 'Organization', name: g.name, url, description: clip(g.pitch, 500), logo: ctx.origin + crest(faction),
     location: { '@type': 'Place', name: g.realm_name + ', ' + rn + ' (World of Warcraft Forever)' } };
-  const same = g.contact && g.contact.type !== 'in_game' ? httpsUrl(g.contact.value) : null;
+  const same = contactUrl(g.contact);
   if (same) ld.sameAs = [same];
-  const needs = g.recruiting_needs.slice().sort((a, b) => PRIO[a.priority] - PRIO[b.priority] || a['class'].localeCompare(b['class']));
+  const needs = allNeeds.slice().sort((a, b) => PRIO[a.priority] - PRIO[b.priority] || a['class'].localeCompare(b['class']));
   const now = ctx.now;
-  const sched = g.raid_schedule.map(s => {
+  const sched = schedule.map(s => {
     const sl = T.slot(s, tz, now);
     return '        <li class="gp-raid" data-day="' + esc(s.day) + '" data-start="' + esc(s.start) + '" data-end="' + esc(s.end) + '">' +
       '<span class="gp-raid-guild"><strong>' + T.DAY_NAMES[s.day] + '</strong> ' + esc(T.fmtTime(sl.start, tz)) + '–' + esc(T.fmtTime(sl.end, tz)) +
       ' <span class="cs-muted">guild time</span></span> <span class="gp-raid-local" hidden></span></li>';
   }).join('\n');
-  let h = head({ title, description, canonical: url, image: ctx.origin + crest(g.faction), imageAlt: LABEL[g.faction] + ' crest', ogType: 'profile', noindex: ctx.noindex, jsonld: ld });
-  h += `  <main id="main" class="cs-wrap cs-section gp" data-region="${esc(g.region)}" data-realm="${esc(g.realm_slug)}" data-guild="${esc(g.guild_slug)}" data-updated="${esc(g.updated_at)}" data-tz="${esc(tz)}">
-    <p class="cs-muted gp-crumbs"><a href="/guilds/">Guilds</a> / <a href="/guilds/?region=${esc(g.region)}">${esc(rn)}</a> / <a href="/guilds/?region=${esc(g.region)}&amp;realm=${esc(g.realm_slug)}">${esc(g.realm_name)}</a></p>
+  let h = head({ title, description, canonical: url, image: ctx.origin + crest(faction), imageAlt: LABEL[faction] + ' crest', ogType: 'profile', noindex: ctx.noindex, jsonld: ld });
+  h += `  <main id="main" class="cs-wrap cs-section gp" data-region="${esc(id.region)}" data-realm="${esc(id.realm_slug)}" data-guild="${esc(id.guild_slug)}" data-updated="${esc(g.updated_at)}"${sched ? ` data-tz="${esc(tz)}"` : ''}>
+    <p class="cs-muted gp-crumbs"><a href="/guilds/">Guilds</a> / <a href="/guilds/?region=${esc(id.region)}">${esc(rn)}</a> / <a href="/guilds/?region=${esc(id.region)}&amp;realm=${esc(id.realm_slug)}">${esc(g.realm_name)}</a></p>
     <p id="gp-status" class="gp-status" role="status" aria-live="polite"></p>
     <div id="gp-notfound" class="cs-card gp-state" hidden>
       <h2>This guild page is not available</h2>
       <p>The guild may have made its page private or changed its name. <a href="/guilds/">Browse recruiting guilds</a>.</p>
     </div>
     <article id="gp-content">
-      <header class="gp-banner gp-banner-${g.faction === 'horde' ? 'horde' : 'alliance'}">
-        <img class="gp-crest" src="${crest(g.faction)}" width="96" height="96" alt="">
+      <header class="gp-banner gp-banner-${faction}">
+        <img class="gp-crest" src="${crest(faction)}" width="96" height="96" alt="">
         <div>
           <h1 class="cs-display gp-name">${esc(g.name)}</h1>
-          <p class="gp-meta">${badge(g.faction)} <span class="cs-badge gp-forever">World of Warcraft Forever</span> <span class="cs-badge gp-realm">${esc(g.realm_name)} · ${esc(rn)}</span>
-            <span class="cs-badge ${g.recruiting ? 'gp-open' : 'gp-closed'}">${g.recruiting ? 'Recruiting' : 'Not recruiting'}</span>${g.public_member_count != null ? ` <span class="gp-members">${esc(g.public_member_count)} members</span>` : ''}</p>
+          <p class="gp-meta">${badge(faction)} <span class="cs-badge gp-forever">World of Warcraft Forever</span> <span class="cs-badge gp-realm">${esc(g.realm_name)} · ${esc(rn)}</span>
+            <span class="cs-badge ${g.recruiting ? 'gp-open' : 'gp-closed'}">${g.recruiting ? 'Recruiting' : 'Not recruiting'}</span>${members != null ? ` <span class="gp-members">${members} member${members === 1 ? '' : 's'}</span>` : ''}</p>
         </div>
       </header>
       <div class="gp-grid">
@@ -189,29 +221,29 @@ ${g.recruiting && needs.length ? `          <div class="cs-table-wrap"><table cl
             <caption class="cs-visually-hidden">Classes and roles ${esc(g.name)} is recruiting, highest priority first</caption>
             <thead><tr><th scope="col">Class</th><th scope="col">Role</th><th scope="col">Priority</th></tr></thead>
             <tbody>
-${needs.map(n => `              <tr><td><span class="gp-class gp-class-${n['class']}">${LABEL[n['class']]}</span></td><td>${LABEL[n.role]}</td><td><span class="gp-prio gp-prio-${n.priority}">${LABEL[n.priority]}</span></td></tr>`).join('\n')}
+${needs.map(n => `              <tr><td><span class="gp-class gp-class-${esc(n['class'])}">${esc(LABEL[n['class']])}</span></td><td>${esc(LABEL[n.role])}</td><td><span class="gp-prio gp-prio-${esc(n.priority)}">${esc(LABEL[n.priority])}</span></td></tr>`).join('\n')}
             </tbody>
           </table></div>` : `          <p class="cs-muted">${esc(g.name)} is not recruiting right now.</p>`}
         </section>
-        <section class="cs-card" aria-labelledby="gp-raids-h">
+${sched ? `        <section class="cs-card" aria-labelledby="gp-raids-h">
           <h2 id="gp-raids-h">Raid times</h2>
-${sched ? `      <ul class="gp-raids">\n${sched}\n      </ul>` : '          <p class="cs-muted">No raid schedule listed.</p>'}
+      <ul class="gp-raids">\n${sched}\n      </ul>
           <p class="cs-muted gp-tz">Guild time zone: <span id="gp-tz-name">${esc(tz.replace(/_/g, ' '))}</span>.<span id="gp-local-note" hidden> Times marked “your time” are shown in your time zone.</span></p>
-        </section>
+        </section>` : ''}
       </div>
-      <p class="cs-muted gp-updated">Last updated <time datetime="${esc(g.updated_at)}">${esc(g.updated_at.slice(0, 10))}</time></p>
+      <p class="cs-muted gp-updated">Last updated <time datetime="${esc(g.updated_at)}">${esc(String(g.updated_at || '').slice(0, 10))}</time></p>
     </article>
   </main>
 `;
-  return h + foot(['/js/config.js', '/js/guilds-mock-data.js', '/js/guilds-mock.js', '/js/guilds-api.js', '/js/guild-time.js', '/js/guild-page.js']);
+  return h + foot(scriptsFor(ctx, ['/js/config.js', '/js/guilds-mock-data.js', '/js/guilds-mock.js', '/js/guilds-api.js', '/js/guild-time.js', '/js/guild-page.js']));
 }
 
 function card(g, ctx) {
   return `        <li class="cs-card gl-card">
-          <img class="gl-crest" src="${crest(g.faction)}" width="48" height="48" alt="">
+          <img class="gl-crest" src="${crest(fac(g.faction))}" width="48" height="48" alt="">
           <div>
             <h3 class="gl-name"><a href="${guildPath(g)}">${esc(g.name)}</a></h3>
-            <p class="gl-meta">${badge(g.faction)} <span>${esc(g.realm_name)} (${esc(ctx.regionNames[g.region])})</span> · <span>${g.recruiting ? (g.open_roles.length ? 'Recruiting ' + g.open_roles.map(r => LABEL[r]).join(', ') : 'Recruiting') : 'Not recruiting'}</span></p>
+            <p class="gl-meta">${badge(g.faction)} <span>${esc(g.realm_name)} (${esc(ctx.regionNames[g.region])})</span> · <span>${(() => { const roles = (Array.isArray(g.open_roles) ? g.open_roles : []).filter(r => KNOWN_ROLE.has(r)); return g.recruiting ? (roles.length ? 'Recruiting ' + roles.map(r => LABEL[r]).join(', ') : 'Recruiting') : 'Not recruiting'; })()}</span></p>
           </div>
         </li>`;
 }
@@ -261,7 +293,7 @@ ${pageItems.map(g => card(g, ctx)).join('\n')}
     </nav>
   </main>
 `;
-  return h + foot(['/js/config.js', '/js/guilds-mock-data.js', '/js/guilds-mock.js', '/js/guilds-api.js', '/js/faction-badge.js', '/js/guilds-browse.js']);
+  return h + foot(scriptsFor(ctx, ['/js/config.js', '/js/guilds-mock-data.js', '/js/guilds-mock.js', '/js/guilds-api.js', '/js/faction-badge.js', '/js/guilds-browse.js']));
 }
 
 function render404(ctx) {
@@ -291,18 +323,26 @@ async function build(opts) {
   const sourceKind = opts.source || (cfg.USE_MOCK_GUILDS ? 'mock' : 'api');
   const src = opts.src || (sourceKind === 'mock' ? mockSource() : apiSource(opts.api || cfg.API_BASE, cfg.GUILDS_PATHS, opts));
   const D = require('../js/guilds-mock-data.js');
-  const ctx = { origin: (opts.origin || cfg.SITE_ORIGIN).replace(/\/$/, ''), noindex: sourceKind === 'mock', now: opts.now || Date.now(),
+  const ctx = { origin: (opts.origin || cfg.SITE_ORIGIN).replace(/\/$/, ''), noindex: sourceKind === 'mock', mock: sourceKind === 'mock', now: opts.now || Date.now(),
     regionNames: cfg.GUILD_REGIONS, realms: D.REALMS, roles: D.ROLES, classes: D.CLASSES };
   const sm = await collectSitemap(src, +(opts['sitemap-limit'] || opts.sitemapLimit || 500));
   // Detail pages (only guilds the sitemap lists = public_listed). A 404 between calls means it went private: skip it.
   const guilds = [];
   for (const r of sm.items) {
-    try { guilds.push(await src.detail(r.region, r.realm_slug, r.guild_slug)); } catch (e) { if (e.status !== 404) throw e; }
+    let g;
+    try { g = await src.detail(r.region, r.realm_slug, r.guild_slug); } catch (e) { if (e.status !== 404) throw e; continue; }
+    // The detail payload must name the same guild as the validated sitemap row; anything else is rejected.
+    let d; try { d = ids(g); } catch (e) { console.warn('skipping guild with invalid ids in detail response'); continue; }
+    if (d.region !== r.region || d.realm_slug !== r.realm_slug || d.guild_slug !== r.guild_slug) { console.warn('skipping guild: detail ids differ from sitemap row'); continue; }
+    guilds.push(Object.assign({}, g, { region: r.region, realm_slug: r.realm_slug, guild_slug: r.guild_slug }));
   }
   const gdir = path.join(out, 'g'); fs.rmSync(gdir, { recursive: true, force: true });
   const pdir = path.join(out, 'guilds', 'page'); fs.rmSync(pdir, { recursive: true, force: true });
   for (const g of guilds) {
-    const d = path.join(gdir, g.region, g.realm_slug, g.guild_slug); fs.mkdirSync(d, { recursive: true });
+    const id = ids(g);
+    const d = path.resolve(gdir, id.region, id.realm_slug, id.guild_slug);
+    if (path.relative(path.resolve(gdir), d).split(path.sep)[0] === '..' || !d.startsWith(path.resolve(gdir) + path.sep)) throw new Error('guild output path escapes g/');
+    fs.mkdirSync(d, { recursive: true });
     fs.writeFileSync(path.join(d, 'index.html'), renderGuild(g, ctx));
   }
   const size = cfg.GUILDS_PAGE_SIZE, total = Math.max(1, Math.ceil(guilds.length / size));
@@ -316,7 +356,7 @@ async function build(opts) {
   return { guilds: guilds.length, indexPages: total, sitemapPages: sm.pages, source: sourceKind };
 }
 
-module.exports = { build, collectSitemap, apiSource, mockSource, renderGuild, esc, jsonLd };
+module.exports = { build, collectSitemap, apiSource, mockSource, renderGuild, renderIndex, esc, jsonLd, ids, discordUrl, cleanNeeds };
 if (require.main === module) {
   build(args(process.argv.slice(2))).then(r => console.log('built ' + r.guilds + ' guild pages, ' + r.indexPages + ' index pages, ' + r.sitemapPages + ' sitemap API pages (source: ' + r.source + ')'))
     .catch(e => { console.error(e.message); process.exit(1); });
