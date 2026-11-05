@@ -1,7 +1,7 @@
 /**
  * web#42 profile: per-character display toggles (PUT /me/characters/selection {main_id, alt_ids}; displayed = main + alts), gear-set side panel (drawer on mobile),
  * create form with the level-60 rules, armory view in the in-game character-window layout, per-slot Forever item
- * picker with search + paging, and autosave per slot (POST /gear-lists/{id}/ops remove_item + add_item, base_version; stale_base_version -> reload + retry). Contract: platform main openapi/v1.yaml + gear-list schema v1.
+ * picker with search + paging, and autosave per slot (POST /gear-lists/{id}/ops set_slot / clear_slot, base_version; stale_base_version -> reload + retry). Contract: platform main openapi/v1.yaml + gear-list schema v1.
  * Main/alts are the platform selection; the UI just shows displayed on/off. API data is rendered with createElement + textContent only.
  */
 (function () {
@@ -366,7 +366,7 @@
     announce('Saving ' + SLOT_LABEL[slot] + '…');
     save(s, slot, itemId, prev, true);
   }
-  /** One POST /ops batch (remove old + add_item priority 1). Stale base_version -> reload, banner, retry once. */
+  /** One POST /ops batch: set_slot / clear_slot. Stale base_version -> reload, banner, retry once. */
   function save(s, slot, itemId, prev, mayRetry) {
     A.setSlot(s, slot, itemId).then(function (r) {
       if (st.current !== s && st.current && st.current.id !== s.id) { delete st.saving[slot]; return; }
