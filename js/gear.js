@@ -7,7 +7,7 @@
   var SLOT_LABEL = { head: 'Head', neck: 'Neck', shoulder: 'Shoulder', back: 'Back', chest: 'Chest', shirt: 'Shirt', tabard: 'Tabard',
     wrist: 'Wrist', hands: 'Hands', waist: 'Waist', legs: 'Legs', feet: 'Feet', finger1: 'Finger 1', finger2: 'Finger 2',
     trinket1: 'Trinket 1', trinket2: 'Trinket 2', main_hand: 'Main hand', off_hand: 'Off hand', ranged: 'Ranged' };
-  var QUALITY = { poor: 'Poor', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+  var QUALITY = { poor: 'Poor', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', unknown: 'Unknown' };
   var charId = new URLSearchParams(location.search).get('character') || '';
 
   function txt(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : ''; }
@@ -15,11 +15,6 @@
   function show(name) {
     ['loading', 'disabled', 'signedout', 'notfound', 'error', 'ready'].forEach(function (s) { $('gr-' + s).hidden = s !== name; });
     var h = $('gr-' + name + '-h'); if (h && name !== 'loading') h.focus();
-  }
-  function safeIcon(v) {
-    // Only https URLs or same-site absolute paths; anything else falls back to the placeholder.
-    var s = txt(v);
-    return /^https:\/\/[^\s"'<>]+$/.test(s) || /^\/[a-z0-9_\-\/.]+$/i.test(s) && s.indexOf('..') < 0 ? s : '/assets/icons/item.svg';
   }
   function fullName(c) { return [txt(c.character_name), txt(c.surname)].filter(Boolean).join(' ') || 'your character'; }
 
@@ -36,15 +31,14 @@
     $('gr-empty').hidden = items.length > 0;
     $('gr-table-wrap').hidden = !items.length;
     items.forEach(function (i) {
-      var q = typeof i.quality === 'string' ? i.quality.toLowerCase() : '';
-      if (!QUALITY[q]) q = 'common';
+      var q = typeof i.quality === 'string' && Object.prototype.hasOwnProperty.call(QUALITY, i.quality) ? i.quality : 'unknown';
       var tr = el('tr');
       var s = el('td', null, SLOT_LABEL[i.slot]); s.setAttribute('data-label', 'Slot'); tr.appendChild(s);
       var it = el('td'); it.setAttribute('data-label', 'Item');
       var wrap = el('span', 'gr-item q-' + q);
       var img = el('img', 'gr-icon'); img.alt = ''; img.width = 36; img.height = 36; img.loading = 'lazy';
       img.addEventListener('error', function () { if (img.src.indexOf('/assets/icons/item.svg') < 0) img.src = '/assets/icons/item.svg'; });
-      img.src = safeIcon(i.icon);
+      img.src = window.CSGearApi.iconUrl(i.icon);
       wrap.appendChild(img);
       wrap.appendChild(el('span', 'gr-name', txt(i.name) || 'Unknown item'));
       it.appendChild(wrap); tr.appendChild(it);
@@ -72,11 +66,13 @@
     }).then(function (r) {
       if (!r) return;
       if (r.status === 401) { show('signedout'); return; }
-      if (r.status === 404) { show('notfound'); return; }
+      if (r.status === 404 || r.status === 403) { show('notfound'); return; }
       if (!r.ok) throw r;
       render(r.body || {}, ch);
     }).catch(function (r) {
+      var ra = parseInt(r && r.headers && r.headers['retry-after'], 10);
       var m = r && r.status === 502 ? 'Battle.net is unavailable, try again later' :
+        r && r.status === 429 ? 'Too many requests. Try again in ' + (ra > 0 && ra < 3600 ? ra : 30) + ' seconds.' :
         (r && r.body && r.body.error && txt(r.body.error.message)) || 'Something went wrong. Please try again.';
       $('gr-error-msg').textContent = m;
       show('error');
