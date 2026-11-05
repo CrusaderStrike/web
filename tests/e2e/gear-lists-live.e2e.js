@@ -30,6 +30,7 @@ const CH = 'ch_us_1001';
       if (m === 'GET') return J(200, { items: S.lists });
       if (S.next429) { const s = S.next429; S.next429 = null; return J(429, { error: { code: 'rate_limited', message: 'Gear write is rate-limited. Try again shortly.', request_id: 'r' } }, { 'retry-after': String(s) }); }
       if (S.nextLimit) { S.nextLimit = false; return J(409, { error: { code: 'list_limit_reached', message: 'At most 20 lists.', request_id: 'r' } }); }
+      if (S.next400body) { const b = S.next400body; S.next400body = null; return J(400, b); }
       if (S.next400) { S.next400 = false; return J(400, { errors: { name: '1..64 chars, no control characters.' } }); }
       if (S.next403) { S.next403 = false; return J(403, { errors: { character_id: 'Character is not displayed.' } }); }
       const body = JSON.parse(rq.postData() || '{}'); const l = mk(body.name, body.visibility); S.lists.push(l);
@@ -96,6 +97,20 @@ const CH = 'ch_us_1001';
   ok(await p.isEnabled('#gl-new-btn') && (await p.textContent('#gl-count')) === '(2)', 'no client-side 5-list cap');
   S.nextLimit = true; await p.fill('#gl-new-name', 'Twenty-first'); await p.click('#gl-new-btn');
   ok(await p.waitForFunction(() => /already has 20 lists/.test(document.getElementById('gl-banner-msg').textContent), null, { timeout: 3000 }).then(() => true, () => false), '409 list_limit_reached banner');
+
+  // web#50 / platform#56: 400 field-map banners use body.message when present, friendly copy otherwise, never the raw code
+  const n400 = S.lists.length;
+  const msg400 = async (body, re, label) => {
+    await p.evaluate(() => { document.getElementById('gl-banner-msg').textContent = ''; });
+    S.next400body = body; await p.fill('#gl-new-name', 'Bad body'); await p.click('#gl-new-btn');
+    const ok1 = await p.waitForFunction(r => new RegExp(r).test(document.getElementById('gl-banner-msg').textContent), re.source, { timeout: 3000 }).then(() => true, () => false);
+    const t = await p.textContent('#gl-banner-msg');
+    ok(ok1 && !/invalid_json|weird_new_code/.test(t), label + ': ' + t);
+  };
+  await msg400({ message: 'Request body is not valid JSON.', errors: { body: 'invalid_json' } }, /^Request body is not valid JSON\.$/, '400 shows top-level body.message');
+  await msg400({ errors: { body: 'invalid_json' } }, /couldn.t be read/, '400 invalid_json without message -> friendly copy');
+  await msg400({ errors: { body: 'weird_new_code' } }, /wasn.t accepted/, '400 unknown field code -> generic copy');
+  ok(S.lists.length === n400, '400s created nothing');
 
   // delete (DELETE If-Match, 204)
   await p.click('#gl-delete'); await p.click('#gl-delete-confirm');

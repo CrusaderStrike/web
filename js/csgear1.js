@@ -149,11 +149,19 @@
   function apply(api, charId, pl) {
     var mapping = {}, results = [], failures = [], stop = null;
     function code(r) { return (r && r.body && r.body.error && r.body.error.code) || ''; }
+    // web#50: 429 during an import pauses for Retry-After (1..30 s) and retries the same call, up to 2 times.
+    function call(f, n) {
+      return f().then(function (r) {
+        if (!r || r.status !== 429 || (n || 0) >= 2) return r;
+        var ra = parseInt(r.headers && r.headers['retry-after'], 10); ra = ra > 0 ? Math.min(ra, 30) : 2;
+        return new Promise(function (ok) { setTimeout(ok, ra * 1000); }).then(function () { return call(f, (n || 0) + 1); });
+      });
+    }
     function fatal(r) { return r.status === 0 || r.status === 401 || r.status >= 500 || (r.status === 403 && code(r) === 'csrf_failed'); }
     var steps = [];
     pl.creates.forEach(function (cr) {
       steps.push(function () {
-        return api.create(charId, cr.body).then(function (r) {
+        return call(function () { return api.create(charId, cr.body); }).then(function (r) {
           if (fatal(r)) { stop = r; return; }
           if (!r.ok) { var fc = window.CSGearSetRules.fieldCodes(r), k = Object.keys(fc)[0]; failures.push({ local_id: cr.local_id, name: cr.body.name, status: r.status, code: code(r) || (k ? fc[k] : ''), message: k ? window.CSGearSetRules.message(fc[k]) : ((r.body && r.body.error && r.body.error.message) || 'Not created.') }); return; }
           mapping[cr.local_id] = r.body.id; results.push({ local_id: cr.local_id, id: r.body.id, name: r.body.name, action: 'created' });
@@ -167,7 +175,8 @@
           if (fatal(g)) { stop = g; return; }
           if (!g.ok) { failures.push({ local_id: u.local_id, name: u.name, status: g.status, code: code(g), message: 'Could not read the set.' }); return; }
           var v = g.body.version;
-          return api.ops(u.id, u.ops.map(function (o) { var x = { op_id: api.opId(), type: o.type, slot: o.slot, base_version: v }; if (o.item_id != null) x.item_id = o.item_id; return x; })).then(function (r) {
+          var opsBody = u.ops.map(function (o) { var x = { op_id: api.opId(), type: o.type, slot: o.slot, base_version: v }; if (o.item_id != null) x.item_id = o.item_id; return x; });
+          return call(function () { return api.ops(u.id, opsBody); }).then(function (r) {
             if (fatal(r)) { stop = r; return; }
             if (!r.ok) { failures.push({ local_id: u.local_id, name: u.name, status: r.status, code: code(r), message: 'Changes not saved.' }); return; }
             mapping[u.local_id] = u.id;
@@ -183,7 +192,7 @@
           if (fatal(g)) { stop = g; return; }
           if (g.status === 404) return;
           if (!g.ok) { failures.push({ id: id, status: g.status, code: code(g), message: 'Could not delete.' }); return; }
-          return api.del(id, g.body.version).then(function (r) { if (fatal(r)) { stop = r; return; } if (r.ok) results.push({ id: id, name: g.body.name, action: 'deleted' }); else failures.push({ id: id, name: g.body.name, status: r.status, code: code(r), message: 'Could not delete.' }); });
+          return call(function () { return api.del(id, g.body.version); }).then(function (r) { if (fatal(r)) { stop = r; return; } if (r.ok) results.push({ id: id, name: g.body.name, action: 'deleted' }); else failures.push({ id: id, name: g.body.name, status: r.status, code: code(r), message: 'Could not delete.' }); });
         });
       });
     });

@@ -59,8 +59,8 @@
     return new Promise(function (r) { setTimeout(function () { r({ status: status, ok: status >= 200 && status < 300, body: body, headers: headers || {} }); }, 120); });
   }
   function err(status, code, message, extra, headers) {
-    var b = { error: { code: code, message: message, request_id: 'req_mock' } };
-    if (extra) Object.keys(extra).forEach(function (k) { b[k] = extra[k]; });
+    var b = { error: { code: code, message: message, retryable: status === 429 || status >= 500 || code === 'version_mismatch', request_id: 'req_mock' } };
+    if (extra) Object.keys(extra).forEach(function (k) { if (k === 'details') b.error.details = extra[k]; else b[k] = extra[k]; });
     return res(status, b, headers);
   }
   function etag(l) { return { etag: '"v' + l.version + '"' }; }
@@ -102,18 +102,24 @@
     create: function (charId, body) {
       var g = guard(true); if (g) return g;
       if (OWNED.indexOf(charId) < 0) return err(404, 'not_found', 'Character not found.');
+      // web#50 test hooks: cs_mock_create_budget=N -> the (N+1)th create answers 500 (partial import stop);
+      // cs_mock_create_429=S -> the next create answers 429 rate_limited with Retry-After S.
+      var bud = sessionStorage.getItem('cs_mock_create_budget');
+      if (bud != null) { var nb = parseInt(bud, 10) || 0; if (nb <= 0) { sessionStorage.removeItem('cs_mock_create_budget'); return err(500, 'internal_error', 'Something went wrong.'); } sessionStorage.setItem('cs_mock_create_budget', String(nb - 1)); }
+      var r429 = sessionStorage.getItem('cs_mock_create_429');
+      if (r429 != null) { sessionStorage.removeItem('cs_mock_create_429'); return err(429, 'rate_limited', 'Gear write is rate-limited. Try again shortly.', null, { 'retry-after': r429 }); }
       var s = load();
       var mine = s.lists.filter(function (l) { return l.character_id === charId; });
-      if (mock() === 'limit' || mine.length >= MAX) return err(409, 'list_limit_reached', 'You already have ' + MAX + ' lists for this character.');
-      if (!body || !validName(body.name)) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { name: 'Name must be 1–64 characters.' } });
+      if (mock() === 'limit' || mine.length >= MAX) return err(409, 'list_limit_reached', 'You already have ' + MAX + ' lists for this character.', { details: { limit: MAX } });
+      if (!body || !validName(body.name)) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { name: 'invalid_name' } });
       var vis = body.visibility === 'guild' ? 'guild' : 'private';
       var tp = body.type === 'leveling' ? 'leveling' : 'max_level';
-      if (body.type != null && body.type !== 'leveling' && body.type !== 'max_level') return err(400, 'validation_error', 'Invalid list.', { errors: { type: 'Must be leveling or max_level.' } });
+      if (body.type != null && body.type !== 'leveling' && body.type !== 'max_level') return err(400, 'validation_error', 'Invalid list.', { errors: { type: 'invalid_type' } });
       var lr = levelRules(tp, body.until_level, LEVEL[charId] || 0);
       if (lr) return err(400, 'validation_error', 'Invalid list.', { errors: lr });
       // web#48: create accepts slots (platform create: slot -> item_id|null); item_not_forever rejects the whole create.
       var sl = body.slots == null ? {} : body.slots;
-      if (typeof sl !== 'object' || Array.isArray(sl)) return err(400, 'validation_error', 'Invalid slots.', { errors: { slots: 'Must be an object map of slot \u2192 item_id|null.' } });
+      if (typeof sl !== 'object' || Array.isArray(sl)) return err(400, 'validation_error', 'Invalid slots.', { errors: { slots: 'invalid_slots' } });
       for (var sk in sl) {
         if (SLOTS.indexOf(sk) < 0) return err(400, 'validation_error', 'Unknown slot: ' + sk + '.', { errors: { slot: 'invalid_slot' } });
         if (sl[sk] != null && NOT_FOREVER.indexOf(sl[sk]) >= 0) return err(400, 'validation_error', 'Item is not in the Forever catalog.', { errors: { item_id: 'item_not_forever' } });
@@ -136,8 +142,8 @@
       var g = guard(true); if (g) return g;
       var s = load(), l = find(s, id); if (!l) return err(404, 'not_found', 'List not found.');
       var c = ifMatch(s, l, version); if (c) return c;
-      if (body.name != null && !validName(body.name)) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { name: 'Name must be 1–64 characters.' } });
-      if (body.visibility != null && SPEC.visibility.indexOf(body.visibility) < 0) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { visibility: 'Unknown visibility.' } });
+      if (body.name != null && !validName(body.name)) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { name: 'invalid_name' } });
+      if (body.visibility != null && SPEC.visibility.indexOf(body.visibility) < 0) return err(400, 'validation_error', 'Check the highlighted fields.', { errors: { visibility: 'invalid_visibility' } });
       var pl = {};
       if (body.name != null && body.name.trim() !== l.name) { l.name = body.name.trim(); pl.name = l.name; }
       if (body.visibility && body.visibility !== l.visibility) { l.visibility = body.visibility; pl.visibility = l.visibility; }

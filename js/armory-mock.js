@@ -15,7 +15,7 @@
   function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 60); }); }
   function res(status, body, headers) { return delay({ status: status, ok: status >= 200 && status < 300, body: body, headers: headers || {} }); }
   function err(status, code, message, details, headers) {
-    var e = { code: code, message: message, request_id: 'req_mock' }; if (details) e.details = details;
+    var e = { code: code, message: message, retryable: status === 429 || status >= 500 || code === 'version_mismatch', request_id: 'req_mock' }; if (details) e.details = details;
     return res(status, { error: e }, headers);
   }
   function invalid(details) { return err(400, 'validation_error', 'Check the highlighted fields.', details); }
@@ -77,7 +77,7 @@
       var s = st();
       if (sc() === 'notdisplayed' || !selected(c.id)) return notSelected();
       var mine = s.sets.filter(function (l) { return l.character_id === c.id && !l.deleted; });
-      if (sc() === 'limit' || mine.length >= MAXSETS) return err(409, 'list_limit_reached', 'Maximum of ' + MAXSETS + ' gear lists per character.');
+      if (sc() === 'limit' || mine.length >= MAXSETS) return err(409, 'list_limit_reached', 'Maximum of ' + MAXSETS + ' gear lists per character.', { limit: MAXSETS });
       b = b || {};
       var d = {}, L = lvl(c);
       var name = typeof b.name === 'string' ? b.name.trim() : '';
@@ -176,7 +176,7 @@
     window.CSArmoryMock[k] = function () {
       if (!csrf()) return err(401, 'unauthenticated', 'Sign in required.');
       if (sc() === 'down') return delay({ status: 0, ok: false, body: null, headers: {} });
-      if (sc() === 'api503') return err(503, 'service_unavailable', 'Service unavailable.');
+      if (sc() === 'api503') return err(503, 'upstream_unavailable', 'Battle.net is not responding.');
       return f.apply(this, arguments);
     };
   });

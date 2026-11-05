@@ -39,13 +39,13 @@
   function retryAfter(r) { var ra = parseInt(r && r.headers && r.headers['retry-after'], 10); return ra > 0 && ra < 3600 ? ra : 30; }
   function errMsg(r, fallback) {
     var b = r && r.body;
-    if (r && r.status === 0) return 'You appear to be offline, or Crusader Strike can\u2019t be reached.';
-    if (r && r.status >= 500 && r.status !== 502) return 'Crusader Strike is having trouble right now (HTTP ' + r.status + '). Try again in a few minutes.';
+    var down = (!r || r.status === 0 || r.status >= 500) && R.downMsg(r);
+    if (down) return down;
     if (r && r.status === 403 && code(r) === 'csrf_failed') return 'Security check failed. Reload the page and try again.';
     if (r && r.status === 429) return 'Too many requests. Try again in ' + retryAfter(r) + ' seconds.';
-    if (r && r.status === 502) return 'Battle.net is unavailable, try again later';
     if (b && b.error && txt(b.error.message)) return txt(b.error.message);
-    if (b && b.errors) return Object.keys(b.errors).map(function (k) { return txt(b.errors[k]); }).filter(Boolean).join(' ') || fallback;
+    if (b && b.errors && txt(b.message)) return txt(b.message);  // platform#56
+    if (b && b.errors) return Object.keys(b.errors).map(function (k) { return R.text(txt(b.errors[k])); }).filter(Boolean).join(' ') || fallback;
     return fallback;
   }
   var signedIn = false;  // web#48: 401 after a good session = expired

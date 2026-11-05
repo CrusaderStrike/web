@@ -143,6 +143,40 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   await paste(await enc(base({ realm: 'Emberfall', character: 'Lightbringer', lists: [set({ type: 'leveling', until_level: 60 })] })));
   ok(/Level 60 characters can only have max-level sets/.test(await impErr()), 'level 60: leveling set in an import -> leveling_set_at_max_level');
 
+  // ---------- web#50: partial import stop must not lead to duplicate creates ----------
+  {
+    await p.goto(GL('ch_us_1003')); await vis('#gl-ready');
+    const names = ['Stop A', 'Stop B', 'Stop C'];
+    const orig = await enc(base({ lists: names.map((n, i) => set({ local_id: 'c0ffee0' + i, name: n })) }));
+    const count = async () => (await store()).lists.filter(l => names.indexOf(l.name) >= 0).length;
+    await p.evaluate(() => sessionStorage.setItem('cs_mock_create_budget', '1'));
+    await paste(orig);
+    const e1 = await impErr();
+    ok(await count() === 1 && /HTTP 500/.test(e1) && /1 set\(s\) were saved/.test(e1), 'partial stop: 1 of 3 created, stop reported: ' + e1);
+    ok(!/import again to finish/i.test(e1), 'partial stop: no bare "import again" advice');
+    ok(await vis('#gl-import-result') && /Created .Stop A. \(game c0ffee00 \u2192 /.test(await p.textContent('#gl-import-list')), 'partial stop: local_id -> id mapping shown');
+    const rew = await p.evaluate(() => CSGear1.decode(document.getElementById('gl-import-text').value));
+    const a = rew.ok && rew.payload.lists.find(s => s.local_id === 'c0ffee00');
+    ok(a && a.id && rew.payload.lists.filter(s => s.id == null).length === 2, 'partial stop: import text rewritten with the server id for the created set');
+    ok(await until(() => /\S/.test(document.getElementById('gl-import-out').value)) && (await p.evaluate(() => { const d = CSGear1.decode(document.getElementById('gl-import-out').value); return d.ok && d.payload.lists.some(s => s.name === 'Stop A' && s.local_id === 'c0ffee00' && s.id); })), 'partial stop: reply string for the game includes the created set');
+    await p.click('#gl-import-btn'); await until(() => !document.getElementById('gl-import-btn').disabled);
+    ok(await count() === 3, 'Import again (rewritten text) finishes the rest with no duplicate: ' + await count());
+    await paste(orig);
+    ok(await count() === 3 && !/Created /.test(await p.textContent('#gl-import-list')), 're-pasting the ORIGINAL string creates nothing twice: ' + await p.textContent('#gl-import-list'));
+    // after a reload (same tab), the import ids survive in sessionStorage: a set deleted on the site is not re-created
+    await p.evaluate(() => { const s = JSON.parse(sessionStorage.getItem('cs_mock_gear_lists')); s.lists = s.lists.filter(l => l.name !== 'Stop B'); sessionStorage.setItem('cs_mock_gear_lists', JSON.stringify(s)); });
+    await p.goto(GL('ch_us_1003')); await vis('#gl-ready'); await paste(orig);
+    ok(await count() === 2 && /already created on the site by an earlier import|not on the site any more/.test(await p.textContent('#gl-import-list')), 'set deleted on the site after import is not silently re-created: ' + await p.textContent('#gl-import-list'));
+  }
+  // web#50: 429 during import pauses for Retry-After and retries instead of failing the set
+  {
+    await p.evaluate(() => sessionStorage.setItem('cs_mock_create_429', '1'));
+    const t0 = Date.now();
+    await paste(await enc(base({ lists: [set({ local_id: 'decade01', name: 'After 429' })] })));
+    await until(() => !document.getElementById('gl-import-btn').disabled);
+    ok((await store()).lists.some(l => l.name === 'After 429') && Date.now() - t0 >= 900, 'import 429 -> waits Retry-After, then creates');
+  }
+
   // ---------- (3) API down / expired session: gear lists ----------
   await p.goto(GL('ch_us_1003', '&mock=500')); ok(await vis('#gl-error') && /HTTP 500/.test(await p.textContent('#gl-error-msg')), 'gear lists: API 500 on load -> error state names HTTP 500');
   await p.goto(GL('ch_us_1003', '&mock=offline')); ok(await vis('#gl-error') && /offline, or Crusader Strike can.t be reached/.test(await p.textContent('#gl-error-msg')), 'gear lists: no response -> offline/unreachable state');
