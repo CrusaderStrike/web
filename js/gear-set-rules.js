@@ -21,6 +21,7 @@
     invalid_slot: 'That slot isn\u2019t valid.',
     list_items_limit: 'This set already holds the maximum number of items.'
   };
+  function ul(s) { var n = parseInt(s && s.until_level, 10); return n > 0 ? n : MAX + 1; }
   function lvl(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
   window.CSGearSetRules = {
     MAX_LEVEL: MAX, ROLE_MAX: ROLE_MAX, MSG: MSG,
@@ -38,6 +39,8 @@
       return n ? 'This character already has ' + n + ' ' + noun + ' (the maximum). Delete one to make another.' : 'This character already has the maximum number of ' + noun + '. Delete one to make another.';
     },
     canLevel: function (c) { return lvl(c) < MAX; },
+    /** web#48: level missing/0 from the API -> unknown (create still allowed; the server checks against its last synced level). */
+    levelKnown: function (c) { return lvl(c) > 0; },
     defaultType: function (c) { return lvl(c) < MAX ? 'leveling' : 'max_level'; },
     minUntil: function (c) { return Math.min(MAX, lvl(c) + 1); },
     /** Client-side check; returns {field: code} (empty = valid). Server stays the source of truth. */
@@ -70,7 +73,7 @@
     sort: function (sets) {
       var by = function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); };
       return {
-        leveling: sets.filter(function (s) { return s.type === 'leveling'; }).sort(function (a, b) { return (a.until_level - b.until_level) || by(a, b); }),
+        leveling: sets.filter(function (s) { return s.type === 'leveling'; }).sort(function (a, b) { return (ul(a) - ul(b)) || by(a, b); }),  // web#48: missing until_level sorts last, never NaN
         max_level: sets.filter(function (s) { return s.type !== 'leveling'; }).sort(by)
       };
     }

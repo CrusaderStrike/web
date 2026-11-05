@@ -44,6 +44,7 @@
     </section>
     <section id="gl-signedout" class="cs-card pf-state" aria-labelledby="gl-signedout-h" hidden>
       <h2 id="gl-signedout-h" class="pf-state-h" tabindex="-1">Sign in to see your gear lists</h2>
+      <p id="gl-signedout-msg" hidden></p>
       <a class="cs-btn cs-btn-primary" href="../../signin.html">Sign in</a>
     </section>
     <section id="gl-notfound" class="cs-card pf-state" aria-labelledby="gl-notfound-h" hidden>
@@ -102,6 +103,21 @@
             </div>
             <button type="submit" class="cs-btn cs-btn-primary" id="gl-new-btn">Create list</button>
             <p id="gl-limit" class="cs-hint" hidden></p>
+          </form>
+
+          <form id="gl-import" class="cs-form-panel gl-edit" novalidate aria-labelledby="gl-import-h">
+            <h3 id="gl-import-h">Import from the game</h3>
+            <div class="cs-field">
+              <label for="gl-import-text">Gear string <span class="cs-muted">(from /cs export, starts with CSGEAR1:)</span></label>
+              <textarea id="gl-import-text" rows="3" spellcheck="false" autocomplete="off" aria-describedby="gl-import-err"></textarea>
+              <span class="cs-error" id="gl-import-err" role="alert"></span>
+            </div>
+            <button type="submit" class="cs-btn cs-btn-primary" id="gl-import-btn">Import sets</button>
+            <div id="gl-import-result" hidden>
+              <ul id="gl-import-list" class="gl-import-list"></ul>
+              <label for="gl-import-out">Paste this back in game with /cs import</label>
+              <textarea id="gl-import-out" rows="3" readonly spellcheck="false"></textarea>
+            </div>
           </form>
         </div>
 
@@ -197,6 +213,7 @@
   <script src="../../js/gear-icons.js"></script>
   <script src="../../js/gear-lists-api.js"></script>
   <script src="../../js/gear-set-rules.js"></script>
+  <script src="../../js/csgear1.js"></script>
   <script src="../../js/gear-lists.js"></script>
 </body>
 </html>

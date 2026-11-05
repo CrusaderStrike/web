@@ -19,3 +19,9 @@ Suites force a flag-off, all-mock config through `tests/e2e/_test-config.js` (se
 Set `CS_E2E_PORT` to serve on a port other than 8765. Preferred: `node tests/e2e/run-all.js` serves this checkout on a free port and runs every suite (`CS_E2E_RUNS=2` to repeat). Suites fail fast if the server on the port is serving a different checkout.
 
 `armory-live.e2e.js` covers the armory's only slot-write ops, set_slot / clear_slot (platform#45, live via platform#46 17f16b0), against a stub that implements `set_slot {op_id, type, slot, item_id, base_version}` (replaces the slot with one row: priority 1, note null, obtained false) and `clear_slot {op_id, type, slot, base_version}`: per-slot stale check before the no-op check (stale no-op -> conflict + bump; current no-op -> applied, no bump, op_id deduped), rejections bump the version, known extra fields ignored silently, unknown keys reported as `ignored[]` `{op_id, keys}`, `list_items_limit` only when setting into an empty slot, and ops in one request never make each other stale. The client sends at most one op per slot per batch. The Option A remove_item + add_item path was removed in web#46. `forceTestConfig` accepts string flags.
+
+## hardening.e2e.js (web#48)
+Covers CSGEAR1 import (decode → create/apply → local_id→id reply), until_level / under-60 edge cases
+(an under-60 character may create max_level), and API-down / expired-session states on armory,
+gear lists and character selection. Mock switches: `?mock_armory=down|api503`; both mocks return 401 without
+`sessionStorage.cs_mock_session` and enforce platform level rules on create.
