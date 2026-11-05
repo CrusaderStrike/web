@@ -30,6 +30,7 @@ const CH = 'ch_us_1001';
       if (m === 'GET') return J(200, { items: S.lists });
       if (S.next429) { const s = S.next429; S.next429 = null; return J(429, { error: { code: 'rate_limited', message: 'Gear write is rate-limited. Try again shortly.', request_id: 'r' } }, { 'retry-after': String(s) }); }
       if (S.next400) { S.next400 = false; return J(400, { errors: { name: '1..64 chars, no control characters.' } }); }
+      if (S.next403) { S.next403 = false; return J(403, { errors: { character_id: 'Character is not displayed.' } }); }
       const body = JSON.parse(rq.postData() || '{}'); const l = mk(body.name, body.visibility); S.lists.push(l);
       return J(201, l, { etag: '"v1"' });
     }
@@ -89,6 +90,10 @@ const CH = 'ch_us_1001';
   ok(await p.waitForFunction(() => document.querySelectorAll('#gl-index button').length === 1, null, { timeout: 3000 }).then(() => true, () => false), 'delete -> one list left');
   const d = writes().find(x => x.m === 'DELETE');
   ok(d && /^"v\d+"$/.test(d.ifMatch) && d.csrf === CSRF, 'DELETE with If-Match + CSRF');
+
+  // 403 errors.character_id -> display-selection banner
+  S.next403 = true; await p.fill('#gl-new-name', 'Hidden char'); await p.click('#gl-new-btn');
+  ok(await p.waitForFunction(() => /no longer displayed on your profile/.test(document.getElementById('gl-banner-msg').textContent), null, { timeout: 3000 }).then(() => true, () => false), '403 character_id banner: ' + await p.textContent('#gl-banner-msg'));
 
   // session expires mid-use -> sign-in prompt
   await p.click('#gl-index button'); await vis('#gl-name'); S.signedIn = false; await p.fill('#gl-name', 'Again'); await p.click('#gl-meta-form button[type=submit]');

@@ -57,7 +57,7 @@
       retry._csrf = true; api.session().then(function () { retry(); }); return true;  // refresh the token, retry once
     }
     if (r.status === 403 && !code(r) && r.body && r.body.errors && r.body.errors.character_id) {
-      banner('This character is no longer your selected main or alt. Your change was not saved.'); return true;
+      banner('This character is no longer displayed on your profile. Your change was not saved.'); return true;
     }
     if (r.status === 403 && code(r) === 'forbidden') { setReadOnly(true); banner('Only the list owner can change this list. Your change was not saved.'); return true; }
     if (r.status === 404) { banner('That list no longer exists. It may have been deleted elsewhere.'); reloadLists(null); return true; }
