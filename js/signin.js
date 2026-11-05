@@ -81,7 +81,7 @@
       return api.characters().then(function (cr) {
         if (!cr.ok) return fail(cr, loadCharacters);
         var sel = cr.body.selection;
-        state.characters = (cr.body.characters || []).filter(function (c) { return c.game === 'wow_forever'; });
+        state.characters = (cr.body.characters || []).filter(function (c) { return c.game === 'wow_forever' && !c.stale; });
         if (!state.characters.length) { show('empty', 'No World of Warcraft Forever characters found.'); return; }
         state.mainId = sel && byId(sel.main_id) ? sel.main_id : null;
         state.altIds = sel ? (sel.alt_ids || []).filter(function (id) { return byId(id) && id !== state.mainId; }) : [];

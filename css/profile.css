@@ -16,3 +16,5 @@
 .pf-choice { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; cursor: pointer; margin-top: auto; }
 .pf-choice input { width: 1.15rem; height: 1.15rem; accent-color: var(--cs-gold); }
 [hidden] { display: none !important; }
+.pf-stale { border-color: var(--cs-border); color: var(--cs-muted); }
+.pf-region { margin: 0; }

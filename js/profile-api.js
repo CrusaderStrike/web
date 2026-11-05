@@ -1,6 +1,7 @@
 /**
  * Thin client for the profile page. Shapes follow platform openapi/v1.yaml
- * (listMyCharacters, setMyCharacterSelection, getSession); refresh is POST /me/characters/refresh (confirmed by Platform Dev, X-CSRF-Token).
+ * platform#30 at 865f7b1
+ * (getSession, getMyProfile/updateMyProfile, listMyCharacters, setMyCharacterSelection, refreshMyCharacters).
  * Every call resolves { status, ok, body }. Flip CS_CONFIG.USE_MOCK_PROFILE to use the real API.
  * When Platform Dev's profile OpenAPI lands, adapt only PROFILE_PATHS and setMain() here.
  */
@@ -29,6 +30,8 @@
         return r;
       });
     },
+    profile: function () { return m ? mock.profile() : real('GET', P.PROFILE); },
+    updateProfile: function (body) { return m ? mock.updateProfile(body, csrf) : real('PUT', P.PROFILE, body); },
     characters: function () { return m ? mock.characters() : real('GET', P.CHARACTERS); },
     /** Sets the main; every other character becomes an alt. Body = CharacterSelectionInput. */
     setMain: function (mainId, altIds) {

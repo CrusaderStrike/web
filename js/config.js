@@ -12,18 +12,19 @@ window.CS_CONFIG = Object.freeze({
   // web#17: Battle.net sign-in + main/alt picker. OFF in production.
   // Dev/preview override (non-production hosts only): ?ff_bnet=1 or localStorage cs_ff_bnet=1.
   FEATURE_BNET_SIGNIN: false,
-  // true = in-browser mock (js/auth-mock.js); false = real API at API_BASE (platform#11).
+  // true = in-browser mock (js/auth-mock.js); false = real API at API_BASE (platform#30).
   USE_MOCK_AUTH: true,
-  // Profile page (/profile/): true = js/auth-mock.js; false = real API. Paths in PROFILE_PATHS.
+  // Profile page (/profile/): true = js/auth-mock.js; false = real API (platform#30 openapi/v1.yaml at 865f7b1).
   USE_MOCK_PROFILE: true,
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
+    PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}
     CHARACTERS: '/api/v1/me/characters',              // spec listMyCharacters
-    SELECTION: '/api/v1/me/characters/selection',     // spec setMyCharacterSelection (confirmed)
-    REFRESH: '/api/v1/me/characters/refresh'          // POST, X-CSRF-Token; confirmed by Platform Dev
+    SELECTION: '/api/v1/me/characters/selection',     // setMyCharacterSelection
+    REFRESH: '/api/v1/me/characters/refresh'          // refreshMyCharacters: POST, X-CSRF-Token, 60 s window (429 Retry-After)
   }),
   AUTH_PATHS: Object.freeze({
-    // Paths per platform PR #18 openapi/v1.yaml (server base https://api.crusaderstrike.com/api/v1)
+    // Paths per platform#30 openapi/v1.yaml at 865f7b1 (server base https://api.crusaderstrike.com/api/v1)
     START: '/api/v1/auth/blizzard/login',
     CALLBACK: '/api/v1/auth/blizzard/callback',
     SESSION: '/api/v1/auth/session',            // GET = session, DELETE = logout

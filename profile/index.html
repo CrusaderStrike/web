@@ -57,9 +57,17 @@
     <section id="pf-ready" aria-labelledby="pf-bt-label" hidden>
       <div class="pf-head">
         <p class="pf-bt"><span id="pf-bt-label" class="cs-muted">Battle.net account</span> <strong id="pf-battletag"></strong></p>
+        <div class="cs-field pf-region">
+          <label for="pf-region">Preferred region</label>
+          <select id="pf-region">
+            <option value="us">US</option>
+            <option value="eu">EU</option>
+          </select>
+        </div>
         <button type="button" class="cs-btn cs-btn-ghost" id="pf-refresh">Refresh characters</button>
       </div>
       <p id="pf-refresh-error" class="pf-inline-error" role="alert" hidden></p>
+      <p id="pf-region-error" class="pf-inline-error" role="alert" hidden></p>
       <p id="pf-save-error" class="pf-inline-error" role="alert" hidden></p>
 
       <div id="pf-empty" class="cs-card pf-state" hidden>
