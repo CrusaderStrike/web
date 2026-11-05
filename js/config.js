@@ -3,9 +3,9 @@ window.CS_CONFIG = Object.freeze({
   API_BASE: 'https://api.crusaderstrike.com',
   // web#17: Battle.net sign-in + main/alt picker. OFF in production.
   // Dev/preview override (non-production hosts only): ?ff_bnet=1 or localStorage cs_ff_bnet=1.
-  FEATURE_BNET_SIGNIN: false,
+  FEATURE_BNET_SIGNIN: true,
   // true = in-browser mock (js/auth-mock.js); false = real API at API_BASE (platform#30).
-  USE_MOCK_AUTH: true,
+  USE_MOCK_AUTH: false,
   // Profile page (/profile/): true = js/auth-mock.js; false = real API (platform main openapi/v1.yaml).
   USE_MOCK_PROFILE: true,
   // web#18 gear UI: true = js/gear-mock.js; false = real API GET /characters/{id}/gear.
