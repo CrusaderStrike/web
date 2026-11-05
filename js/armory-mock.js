@@ -1,33 +1,39 @@
 /**
- * web#42 in-browser mock for the armory contract (platform gear-sets-and-items.md, snake_case):
- * PATCH /me/characters/{id} {displayed}; GET/POST /characters/{id}/gear-lists; GET /gear-lists/{id};
- * PUT /gear-lists/{id}/slots/{slot} {item_id|null} with If-Match; GET /items?slot=&q=&cursor=; GET /items/{id}.
- * Items are FICTIONAL WoW Forever-style items (names invented here), icon_url always null -> placeholder.
- * State in localStorage (cs_mock_armory). Scenarios: ?mock_armory=limit | notdisplayed | conflict | stale412 |
- * badslot | ratelimit | items500.
+ * web#42 in-browser mock with the shipped platform main wire shapes (openapi/v1.yaml, src/routes/{profile,gear-lists}.ts,
+ * gear-list schema v1): GET /me/characters {characters, selection}; PUT /me/characters/selection {main_id, alt_ids}
+ * (delegates to js/auth-mock.js); GET/POST /characters/{id}/gear-lists; GET /gear-lists/{id};
+ * POST /gear-lists/{id}/ops (add_item | remove_item, op_id, base_version -> {version, applied, duplicates, conflicts, list});
+ * GET /items, /items/{id} (platform#42). A character not in the selection -> 403 {errors:{character_id}} like
+ * requireOwnedCharacter. Items are FICTIONAL (icon_url null). State in localStorage (cs_mock_armory).
+ * Scenarios: ?mock_armory=limit | notdisplayed | conflict | notforever | ratelimit | items500 | toggle500.
  */
 (function () {
   'use strict';
   var cfg = window.CS_CONFIG, KEY = 'cs_mock_armory', SLOTS = cfg.ARMORY_SLOTS, MAXSETS = cfg.ARMORY_MAX_SETS, MAXL = cfg.ARMORY_MAX_LEVEL;
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   function sc() { try { return new URLSearchParams(location.search).get('mock_armory') || ''; } catch (e) { return ''; } }
-  function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 120); }); }
+  function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 60); }); }
   function res(status, body, headers) { return delay({ status: status, ok: status >= 200 && status < 300, body: body, headers: headers || {} }); }
   function err(status, code, message, details, headers) {
     var e = { code: code, message: message, request_id: 'req_mock' }; if (details) e.details = details;
     return res(status, { error: e }, headers);
   }
   function invalid(details) { return err(400, 'validation_error', 'Check the highlighted fields.', details); }
+  function fields(status, f) { return res(status, { errors: f }); }  // platform AppError with fields -> { errors: {field: msg} }
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } }
-  function st() { var s = load(); if (!s) s = { displayed: {}, sets: [], n: 0, flags: {} }; s.flags = s.flags || {}; return s; }
+  function st() { var s = load(); if (!s) s = { sets: [], n: 0, flags: {} }; s.flags = s.flags || {}; return s; }
   function save(s) { localStorage.setItem(KEY, JSON.stringify(s)); }
   function now() { return new Date().toISOString(); }
   function etag(l) { return { etag: '"v' + l.version + '"' }; }
   function lvl(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
+  function selected(id) { var x = null; try { x = JSON.parse(localStorage.getItem('cs_mock_selection')); } catch (e) { x = null; } return !!x && (x.main_id === id || (x.alt_ids || []).indexOf(id) >= 0); }
+  function notSelected() { return fields(403, { character_id: 'Must be your selected main or an alt.' }); }
   function view(l, c) {
-    var o = JSON.parse(JSON.stringify(l));
+    var o = JSON.parse(JSON.stringify(l)); delete o.touch; delete o.staleAll;
     o.outgrown = o.type === 'leveling' && !!lvl(c) && lvl(c) >= o.until_level;
     return o;
   }
+  function csrf() { var s = null; try { s = JSON.parse(sessionStorage.getItem('cs_mock_session')); } catch (e) { s = null; } return s && s.csrf_token; }
 
   // ---- fictional Forever catalog ----
   var GROUP = { finger1: 'finger', finger2: 'finger', trinket1: 'trinket', trinket2: 'trinket' };
@@ -56,30 +62,21 @@
 
   window.CSArmoryMock = {
     ITEMS: ITEMS,
-    /** Overlays displayed:boolean (default false, opt-in) onto the /me/characters list. */
-    overlay: function (r) {
-      if (!r || !r.ok || !r.body) return r;
-      var s = st();
-      (r.body.characters || []).forEach(function (c) { c.displayed = s.displayed[c.id] === true; delete c.is_main; });
-      return r;
-    },
-    setDisplayed: function (c, displayed) {
+    characters: function () { return window.CSAuthMock.characters(); },
+    saveSelection: function (b) {
       if (sc() === 'toggle500') return err(500, 'internal_error', 'Could not save. Try again.');
-      if (!c || c.game !== 'wow_forever') return err(404, 'not_found', 'Character not found.');
-      if (typeof displayed !== 'boolean') return invalid({ displayed: 'must be boolean' });
-      var s = st(); s.displayed[c.id] = displayed; save(s);
-      var o = JSON.parse(JSON.stringify(c)); o.displayed = displayed; return res(200, o);
+      return window.CSAuthMock.saveSelection(b, csrf());
     },
     sets: function (c) {
+      if (!selected(c.id)) return notSelected();
       var s = st();
-      if (s.displayed[c.id] !== true) return err(409, 'character_not_displayed', 'Show this character on your profile first.');
       return res(200, { items: s.sets.filter(function (l) { return l.character_id === c.id && !l.deleted; }).map(function (l) { return view(l, c); }) });
     },
     create: function (c, b) {
       var s = st();
-      if (sc() === 'notdisplayed' || s.displayed[c.id] !== true) return err(409, 'character_not_displayed', 'Show this character on your profile first.');
+      if (sc() === 'notdisplayed' || !selected(c.id)) return notSelected();
       var mine = s.sets.filter(function (l) { return l.character_id === c.id && !l.deleted; });
-      if (sc() === 'limit' || mine.length >= MAXSETS) return err(409, 'list_limit_reached', 'A character can have at most ' + MAXSETS + ' gear sets.');
+      if (sc() === 'limit' || mine.length >= MAXSETS) return err(409, 'list_limit_reached', 'Maximum of ' + MAXSETS + ' gear lists per character.');
       b = b || {};
       var d = {}, L = lvl(c);
       var name = typeof b.name === 'string' ? b.name.trim() : '';
@@ -94,38 +91,52 @@
       if (b.type === 'max_level' && b.until_level != null) d.until_level = 'until_level_must_be_null';
       var role = b.role_spec == null ? null : String(b.role_spec).trim() || null;
       if (role && role.length > 32) d.role_spec = 'role_spec_too_long';
-      if (mine.some(function (l) { return l.name === name; })) d.name = 'A set with this name already exists.';
       if (Object.keys(d).length) return invalid(d);
-      var slots = {}; SLOTS.forEach(function (k) { slots[k] = null; });
-      var l = { id: 'gs_' + (++s.n) + '_' + Math.random().toString(36).slice(2, 8), character_id: c.id, name: name, type: b.type,
-        until_level: b.type === 'leveling' ? b.until_level : null, role_spec: role, edited_at: now(), version: 1, slots: slots };
+      var l = { id: '00000000-0000-4000-8000-' + String(++s.n).padStart(12, '0'), character_id: c.id, owner_user_id: 'u_mock', name: name,
+        visibility: 'private', type: b.type, until_level: b.type === 'leveling' ? b.until_level : null, role_spec: role,
+        version: 1, updated_at: now(), updated_source: 'web', items: [], touch: {} };
       s.sets.push(l); save(s);
       return res(201, view(l, c), etag(l));
     },
-    get: function (setId, c) {
+    get: function (setId) {
       var l = st().sets.filter(function (x) { return x.id === setId && !x.deleted; })[0];
-      return l ? res(200, view(l, c), etag(l)) : err(404, 'not_found', 'Gear set not found.');
+      return l ? res(200, view(l), etag(l)) : err(404, 'not_found', 'List not found.');
     },
-    putSlot: function (setId, slot, itemId, ifMatch) {
+    /** POST /gear-lists/{id}/ops, mirroring platform gear/store.ts applyOps (per-op version bump, stale -> GearOpRejected). */
+    ops: function (setId, b) {
       var s = st(), l = s.sets.filter(function (x) { return x.id === setId && !x.deleted; })[0];
-      if (!l) return err(404, 'not_found', 'Gear set not found.');
-      if (SLOTS.indexOf(slot) < 0) return invalid({ slot: 'invalid_slot' });
-      if (sc() === 'ratelimit' && !s.flags.rl) { s.flags.rl = 1; save(s); return err(429, 'rate_limited', 'Too many changes.', null, { 'retry-after': '2' }); }
-      // Simulate another tab editing the set: bump the version once, so this If-Match is stale.
-      if ((sc() === 'conflict' || sc() === 'stale412') && !s.flags.cf) {
-        s.flags.cf = 1; l.version++; l.slots.neck = ITEMS.filter(function (i) { return i.slot_group === 'neck'; })[1].item_id; l.edited_at = now(); save(s);
-        return sc() === 'conflict' ? err(409, 'version_mismatch', 'This set changed elsewhere.') : err(412, 'precondition_failed', 'If-Match does not match.');
+      if (sc() === 'ratelimit' && !s.flags.rl) { s.flags.rl = 1; save(s); return err(429, 'rate_limited', 'Gear write is rate-limited. Try again shortly.', null, { 'retry-after': '2' }); }
+      var ops = b && b.ops;
+      if (!Array.isArray(ops) || ops.length < 1 || ops.length > 50) return fields(400, { ops: 'Array of 1..50 ops required.' });
+      for (var i = 0; i < ops.length; i++) {
+        var o = ops[i];
+        if (!o || !UUID_RE.test(o.op_id) || ['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained'].indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 ||
+          typeof o.item_id !== 'number' || o.item_id < 1 || typeof o.base_version !== 'number' || (o.type === 'add_item' && !(o.priority >= 1))) return fields(400, { ['ops.' + i]: 'Invalid.' });
       }
-      if (ifMatch && ifMatch !== '"v' + l.version + '"') return err(412, 'precondition_failed', 'If-Match does not match.');
-      if (itemId !== null) {
-        if (typeof itemId !== 'number') return invalid({ item_id: 'item_not_forever' });
-        var it = findItem(itemId);
-        if (!it) return invalid({ item_id: 'item_not_forever' });
-        if (sc() === 'badslot' || !fits(it, slot)) return invalid({ item_id: 'item_not_in_slot' });
+      if (!l) return err(404, 'not_found', 'List not found.');
+      l.touch = l.touch || {}; s.flags.seen = s.flags.seen || [];
+      // Simulate another tab editing this slot once, so this batch's base_version is stale.
+      if (sc() === 'conflict' && !s.flags.cf) {
+        s.flags.cf = 1; var nk = ITEMS.filter(function (x) { return x.slot_group === 'neck'; })[1].item_id;
+        l.items = l.items.filter(function (x) { return x.slot !== 'neck'; }).concat([{ slot: 'neck', item_id: nk, priority: 1, note: null, obtained: false, obtained_at: null, icon_url: null }]);
+        l.version++; l.staleAll = l.version;
       }
-      if (l.slots[slot] !== itemId) { l.slots[slot] = itemId; l.version++; l.edited_at = now(); }  // idempotent
-      save(s);
-      return res(200, { slot: slot, item_id: itemId, edited_at: l.edited_at }, etag(l));
+      var out = { applied: [], duplicates: [], conflicts: [], ignored: [] };
+      ops.forEach(function (o) {
+        if (s.flags.seen.indexOf(o.op_id) >= 0) { out.duplicates.push(o.op_id); return; }
+        s.flags.seen.push(o.op_id);
+        if (o.type === 'add_item' && (sc() === 'notforever' || !findItem(o.item_id))) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); return; }
+        var key = o.slot + ':' + o.item_id, t = Math.max(l.touch[key] || 0, l.staleAll || 0);
+        if (t > o.base_version) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); return; }
+        l.version++; l.touch[key] = l.version;
+        if (o.type === 'remove_item') l.items = l.items.filter(function (x) { return !(x.slot === o.slot && x.item_id === o.item_id); });
+        else if (o.type === 'add_item' && !l.items.some(function (x) { return x.slot === o.slot && x.item_id === o.item_id; }))
+          l.items.push({ slot: o.slot, item_id: o.item_id, priority: o.priority, note: null, obtained: false, obtained_at: null, icon_url: null });
+        out.applied.push(o.op_id);
+      });
+      l.updated_at = now(); save(s);
+      out.version = l.version; out.list = view(l);
+      return res(200, out);
     },
     items: function (q) {
       if (sc() === 'items500') return err(500, 'internal_error', 'Items are unavailable.');

@@ -57,6 +57,7 @@
     if (r.status === 403 && code(r) === 'csrf_failed' && retry && !retry._csrf) {
       retry._csrf = true; api.session().then(function () { retry(); }); return true;  // refresh the token, retry once
     }
+    // Shape verified on platform main: requireOwnedCharacter -> AppError(403, fields {character_id}) -> app.ts sends { errors: { character_id } } (no code).
     if (r.status === 403 && !code(r) && r.body && r.body.errors && r.body.errors.character_id) {
       banner('This character is no longer displayed on your profile. Your change was not saved.'); return true;
     }

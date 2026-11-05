@@ -1,12 +1,24 @@
 /**
- * web#42 profile: per-character display toggles (PATCH /me/characters/{id}), gear-set side panel (drawer on mobile),
+ * web#42 profile: per-character display toggles (PUT /me/characters/selection {main_id, alt_ids}; displayed = main + alts), gear-set side panel (drawer on mobile),
  * create form with the level-60 rules, armory view in the in-game character-window layout, per-slot Forever item
- * picker with search + paging, and autosave per slot (PUT /gear-lists/{id}/slots/{slot}, If-Match; 409/412 -> reload).
- * No main/alt. API data is rendered with createElement + textContent only.
+ * picker with search + paging, and autosave per slot (POST /gear-lists/{id}/ops remove_item + add_item, base_version; stale_base_version -> reload + retry). Contract: platform main openapi/v1.yaml + gear-list schema v1.
+ * Main/alts are the platform selection; the UI just shows displayed on/off. API data is rendered with createElement + textContent only.
  */
 (function () {
   'use strict';
-  var api = window.CSProfileApi, A = window.CSArmoryApi, R = window.CSGearSetRules, cfg = window.CS_CONFIG;
+  var api = window.CSProfileApi, R = window.CSGearSetRules, cfg = window.CS_CONFIG;
+  // Wrap the armory client so <html data-pf-busy> counts in-flight requests (tests wait for "0" instead of sleeping).
+  var A = {}, busy = 0;
+  function mark(d) { busy += d; document.documentElement.setAttribute('data-pf-busy', String(busy)); }
+  Object.keys(window.CSArmoryApi).forEach(function (k) {
+    var f = window.CSArmoryApi[k];
+    A[k] = typeof f !== 'function' ? f : function () {
+      mark(1); var p = f.apply(null, arguments);
+      p.then(function () { setTimeout(function () { mark(-1); }, 0); }, function () { setTimeout(function () { mark(-1); }, 0); });
+      return p;
+    };
+  });
+  mark(0);
   var $ = function (id) { return document.getElementById(id); };
   var REGIONS = ['us', 'eu', 'kr', 'tw'];
   var SLOT_LABEL = { head: 'Head', neck: 'Neck', shoulder: 'Shoulder', back: 'Back', chest: 'Chest', shirt: 'Shirt', tabard: 'Tabard',
@@ -99,15 +111,15 @@
     st.saving[id] = true; c.displayed = v; $('pf-save-error').hidden = true;
     renderChars(); $('pf-show-' + id).focus();
     announce((v ? 'Showing ' : 'Hiding ') + fullName(c) + '…');
-    A.setDisplayed(c, v).then(function (r) {
+    A.setDisplayed(c, v, st.characters.map(function (x) { return x.id === id ? { id: x.id, displayed: !v, stale: x.stale } : x; })).then(function (r) {
       delete st.saving[id];
       if (r.status === 401) { show('signedout'); return; }
       if (!r.ok) {
         c.displayed = !v; renderChars(); $('pf-show-' + id).focus();
-        $('pf-save-error').textContent = 'Could not update ' + fullName(c) + ': ' + (r.status === 404 ? 'that character is not one of your WoW Forever characters.' : errMsg(r, 'please try again.'));
+        $('pf-save-error').textContent = 'Could not update ' + fullName(c) + ': ' + (r.local === 'last_displayed' ? 'keep at least one character displayed.' : r.status === 404 ? 'that character is not one of your WoW Forever characters.' : errMsg(r, 'please try again.'));
         $('pf-save-error').hidden = false; return;
       }
-      c.displayed = r.body && typeof r.body.displayed === 'boolean' ? r.body.displayed : v;
+      c.displayed = v;
       renderChars(); $('pf-show-' + id).focus();
       announce(fullName(c) + (c.displayed ? ' is displayed on your profile.' : ' is hidden. Its gear sets are kept.'));
       if (st.current && st.current.character_id === id && !c.displayed) closeSet(); else renderPanel();
@@ -227,7 +239,7 @@
       if (r.status === 401) { $('pf-create').close(); show('signedout'); return; }
       if (r.status === 400) { var fc = R.fieldCodes(r); if (Object.keys(fc).length) { showCodes(fc); return; } }
       if (r.status === 409 && R.isListLimit(code(r))) { $('pf-c-error').textContent = 'This character already has ' + cfg.ARMORY_MAX_SETS + ' gear sets. Delete one to make another.'; $('pf-c-error').hidden = false; return; }
-      if (r.status === 409 && code(r) === 'character_not_displayed') { $('pf-c-error').textContent = R.MSG.character_not_displayed; $('pf-c-error').hidden = false; return; }
+      if ((r.status === 409 && code(r) === 'character_not_displayed') || (r.status === 403 && r.body && r.body.errors && r.body.errors.character_id)) { $('pf-c-error').textContent = R.MSG.character_not_displayed; $('pf-c-error').hidden = false; return; }
       if (!r.ok) { $('pf-c-error').textContent = 'Could not create the set: ' + errMsg(r, 'please try again.'); $('pf-c-error').hidden = false; return; }
       $('pf-create').close();
       (st.sets[c.id] = st.sets[c.id] || []).push(r.body);
@@ -241,7 +253,7 @@
   function closeSet() { st.current = null; st.etag = null; $('pf-armory-view').hidden = true; $('pf-armory-empty').hidden = false; renderPanel(); }
   function openSet(id, charId, focus) {
     var c = charById(charId);
-    return A.get(id, c).then(function (r) {
+    return A.get(id).then(function (r) {
       if (r.status === 401) { show('signedout'); return; }
       if (r.status === 404) { slotBanner('That gear set no longer exists.'); loadSets(); return; }
       if (!r.ok) { slotBanner('Could not open the set: ' + errMsg(r, 'please try again.')); return; }
@@ -344,29 +356,47 @@
     s.slots[slot] = itemId; st.saving[slot] = true; slotBanner('');
     renderSet(); $('pf-slot-' + slot).focus();
     announce('Saving ' + SLOT_LABEL[slot] + '…');
-    A.putSlot(s.id, slot, itemId, st.etag).then(function (r) {
-      delete st.saving[slot];
-      if (st.current !== s) return;
-      if (r.status === 401) { show('signedout'); return; }
-      if (r.ok) {
-        if (r.headers && r.headers.etag) st.etag = r.headers.etag;
-        if (r.body && r.body.edited_at) s.edited_at = r.body.edited_at;
-        renderSet(); $('pf-slot-' + slot).focus();
+    save(s, slot, itemId, prev, true);
+  }
+  /** One POST /ops batch (remove old + add_item priority 1). Stale base_version -> reload, banner, retry once. */
+  function save(s, slot, itemId, prev, mayRetry) {
+    A.setSlot(s, slot, itemId).then(function (r) {
+      if (st.current !== s && st.current && st.current.id !== s.id) { delete st.saving[slot]; return; }
+      if (r.status === 401) { delete st.saving[slot]; show('signedout'); return; }
+      var cf = r.ok && r.body && Array.isArray(r.body.conflicts) ? r.body.conflicts : [];
+      if (r.ok && r.body && r.body.list) { st.current = r.body.list; st.etag = '"v' + r.body.version + '"'; }
+      var stale = cf.some(function (x) { return x.reason === 'stale_base_version' || x.reason === 'item_removed' || x.reason === 'superseded_by_newer_edit'; });
+      if (r.ok && !cf.length) {
+        delete st.saving[slot];
+        renderPanel(); renderSet(); $('pf-slot-' + slot).focus();
         var it = itemId != null ? st.items[itemId] : null;
         announce(SLOT_LABEL[slot] + (it ? ' saved: ' + txt(it.name) + '.' : ' cleared.'));
         return;
       }
-      s.slots[slot] = prev;
-      if (r.status === 409 || r.status === 412) {
-        // Someone (another tab, the addon sync) changed the set: reload it, then let the user pick again.
+      if (stale) {
+        // Someone (another tab, the addon sync) changed the set: reload it, then retry this pick once at the fresh version.
         openSet(s.id, s.character_id, false).then(function () {
+          var fresh = st.current;
+          if (mayRetry && fresh && fresh.id === s.id) {
+            slotBanner('This set changed somewhere else, so it was reloaded. Saving your ' + SLOT_LABEL[slot].toLowerCase() + ' pick again…');
+            fresh.slots[slot] = itemId; renderSet();
+            save(fresh, slot, itemId, prev, false);
+            return;
+          }
+          delete st.saving[slot]; renderSet();
           slotBanner('This set changed somewhere else, so it was reloaded. Your ' + SLOT_LABEL[slot].toLowerCase() + ' pick was not saved; choose it again.');
           var b = $('pf-slot-' + slot); if (b) b.focus();
         });
         return;
       }
-      renderSet(); $('pf-slot-' + slot).focus();
+      delete st.saving[slot];
+      if (r.ok) {  // other conflicts (item_not_forever, list_items_limit): server list is the truth
+        renderSet(); $('pf-slot-' + slot).focus();
+        slotBanner('Not saved: ' + R.message(cf[0].reason)); return;
+      }
+      s.slots[slot] = prev; renderSet(); $('pf-slot-' + slot).focus();
       if (r.status === 404) { slotBanner('That gear set no longer exists.'); loadSets(); return; }
+      if (r.status === 403 && r.body && r.body.errors && r.body.errors.character_id) { slotBanner('Not saved: ' + R.MSG.character_not_displayed); return; }
       if (r.status === 400) { var fc = R.fieldCodes(r); var k = Object.keys(fc)[0]; slotBanner('Not saved: ' + (k ? R.message(fc[k]) : errMsg(r, 'please try again.'))); return; }
       if (r.status === 429) { slotBanner('Too many changes. Wait ' + retryAfter(r) + ' seconds, then pick again.'); return; }
       slotBanner('Not saved: ' + errMsg(r, 'please try again.'));

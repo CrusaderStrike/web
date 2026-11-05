@@ -10,6 +10,9 @@ async function forceTestConfig(target, overrides) {
   await target.route('**/js/config.js', async route => {
     const res = await route.fetch();
     let body = await res.text();
+    // Guard against a stale server on the port (e.g. another checkout on :8765): the served config must be this checkout's.
+    const local = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'js', 'config.js'), 'utf8');
+    if (body !== local) throw new Error('forceTestConfig: the server on this port is serving a different checkout than ' + require('path').resolve(__dirname, '..', '..') + '. Use tests/e2e/run-all.js or set CS_E2E_PORT.');
     for (const [k, v] of Object.entries(flags)) {
       const re = new RegExp('(\\b' + k + ':\\s*)(true|false)');
       if (re.test(body)) body = body.replace(re, '$1' + v);

@@ -11,7 +11,7 @@ window.CS_CONFIG = Object.freeze({
   // web#18 gear UI: true = js/gear-mock.js; false = real API GET /characters/{id}/gear.
   USE_MOCK_GEAR: true,
   GEAR_PATH: '/api/v1/characters/{id}/gear',      // platform#30 getCharacterGear
-  // web#18 gear lists (platform#17, per character, max 5). true = js/gear-lists-mock.js (?mock= scenarios); false = real API.
+  // web#18 gear lists (platform#17, per character; server cap answers 409 list_limit_reached, no client cap). true = js/gear-lists-mock.js (?mock= scenarios); false = real API.
   // web#40: live against platform main src/routes/gear-lists.ts (signed-in only; cs_session cookie + X-CSRF-Token on writes).
   USE_MOCK_GEAR_LISTS: false,
   GEAR_LISTS_PATHS: Object.freeze({
@@ -20,17 +20,16 @@ window.CS_CONFIG = Object.freeze({
     OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops[]} -> 200 {version, applied, duplicates, conflicts, list}
     EVENTS: '/api/v1/gear-lists/{id}/events'          // GET ?after_version=&limit=
   }),
-  GEAR_LISTS_MAX: 5,
-  // web#42 profile display toggles + armory gear sets (contract: platform gear-sets-and-items.md, snake_case).
+  // web#42 profile display toggles + armory gear sets. Contract: platform main openapi/v1.yaml + src/routes/{profile,gear-lists}.ts,
+  // gear-list schema v1 (/workspace/groom/gear-list-schema.md). Display = PUT selection; slot edits = POST ops.
   // true = js/armory-mock.js (fictional Forever items, ?mock_armory= scenarios); false = real API at API_BASE.
   USE_MOCK_ARMORY: true,
   ARMORY_PATHS: Object.freeze({
-    CHARACTER: '/api/v1/me/characters/{id}',          // PATCH {displayed} (owner, CSRF)
-    SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, type, until_level, role_spec, slots?}
-    SET: '/api/v1/gear-lists/{id}',                   // GET (ETag)
-    SLOT: '/api/v1/gear-lists/{id}/slots/{slot}',     // PUT {item_id|null}, If-Match
-    ITEMS: '/api/v1/items',                           // GET ?slot=&q=&cursor= -> {items, next_cursor}
-    ITEM: '/api/v1/items/{id}'
+    SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, visibility?} (shipped); type/until_level/role_spec sent for platform#43
+    SET: '/api/v1/gear-lists/{id}',                   // GET (ETag "v<version>")
+    OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops:[add_item|remove_item, op_id, slot, item_id, base_version]} -> {version, applied, duplicates, conflicts, list}
+    ITEMS: '/api/v1/items',                           // platform#42 (open): GET ?slot=&q=&max_required_level=&cursor= -> {items, next_cursor}
+    ITEM: '/api/v1/items/{id}'                        // platform#42 (open)
   }),
   ARMORY_MAX_SETS: 20,
   ARMORY_MAX_LEVEL: 60,

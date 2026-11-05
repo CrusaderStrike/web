@@ -1,5 +1,5 @@
 /**
- * web#42 shared gear-set rules (platform gear-sets-and-items.md §5). Used by the armory (profile) and the gear-lists page.
+ * web#42 shared gear-set rules (gear-list schema v1, /workspace/groom/gear-list-schema.md; platform openapi/v1.yaml). Used by the armory (profile) and the gear-lists page.
  * type: leveling | max_level. Leveling needs until_level > character level and <= 60; at level 60 only max_level.
  */
 (function () {
@@ -18,7 +18,8 @@
     list_limit_reached: 'This character already has the maximum number of gear sets. Delete one to make another.',
     item_not_in_slot: 'That item doesn\u2019t fit this slot.',
     item_not_forever: 'That item isn\u2019t a WoW Forever item.',
-    invalid_slot: 'That slot isn\u2019t valid.'
+    invalid_slot: 'That slot isn\u2019t valid.',
+    list_items_limit: 'This set already holds the maximum number of items.'
   };
   function lvl(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
   window.CSGearSetRules = {
