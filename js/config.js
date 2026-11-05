@@ -8,5 +8,33 @@ window.CS_CONFIG = Object.freeze({
   USE_MOCK_SIGNUP: true,
   CONSENT_VERSION: '2026-11-04',
   SIGNUP_PATH: '/api/v1/signups',
-  CONFIRM_PATH: '/api/v1/signups/confirm'
+  CONFIRM_PATH: '/api/v1/signups/confirm',
+  // web#17: Battle.net sign-in + main/alt picker. OFF in production.
+  // Dev/preview override (non-production hosts only): ?ff_bnet=1 or localStorage cs_ff_bnet=1.
+  FEATURE_BNET_SIGNIN: false,
+  // true = in-browser mock (js/auth-mock.js); false = real API at API_BASE (platform#11).
+  USE_MOCK_AUTH: true,
+  AUTH_PATHS: Object.freeze({
+    // Paths per platform PR #18 openapi/v1.yaml (server base https://api.crusaderstrike.com/api/v1)
+    START: '/api/v1/auth/blizzard/login',
+    CALLBACK: '/api/v1/auth/blizzard/callback',
+    SESSION: '/api/v1/auth/session',            // GET = session, DELETE = logout
+    // Not yet in the spec; proposed in docs/auth-characters-api.md:
+    CHARACTERS: '/api/v1/me/characters',
+    SELECTION: '/api/v1/me/characters/selection'
+  })
 });
+
+/** Resolves the Battle.net sign-in flag. Production hosts ignore overrides. */
+window.csBnetEnabled = function () {
+  var cfg = window.CS_CONFIG;
+  if (cfg.FEATURE_BNET_SIGNIN) return true;
+  var host = location.hostname;
+  if (/(^|\.)crusaderstrike\.com$/.test(host)) return false;
+  try {
+    if (new URLSearchParams(location.search).get('ff_bnet') === '1') {
+      localStorage.setItem('cs_ff_bnet', '1');
+    }
+    return localStorage.getItem('cs_ff_bnet') === '1';
+  } catch (e) { return false; }
+};

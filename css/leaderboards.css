@@ -28,7 +28,3 @@
 }
 .lb-panel[hidden] { display: none !important; }
 .lb-score { font-variant-numeric: tabular-nums; font-weight: 700; }
-@media (max-width: 640px) {
-  .cs-table th:nth-child(4),
-  .cs-table td:nth-child(4) { /* hide class on very small if needed - keep all for a11y */ }
-}
