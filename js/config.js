@@ -41,6 +41,9 @@ window.CS_CONFIG = Object.freeze(csProdGuard({
     ITEMS: '/api/v1/items',                           // GET ?slot=&q=&max_required_level=&cursor= -> {items, next_cursor}
     ITEM: '/api/v1/items/{id}'
   }),
+  // web#44: slot write ops. 'legacy' (Option A) = remove_item + add_item {priority 1} batch, clear = remove_item (platform main today).
+  // 'set_slot' (Option B) = set_slot / clear_slot (platform#45, PR platform#46). Prod rejects these until #46 deploys: keep 'legacy'.
+  ARMORY_SLOT_OPS: 'legacy',
   ARMORY_MAX_SETS: 20,  // UI hint only; never blocks a create. The server's 409 list_limit_reached is the source of truth.
   ARMORY_MAX_LEVEL: 60,
   ARMORY_SLOTS: Object.freeze(['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist', 'hands', 'waist', 'legs', 'feet',

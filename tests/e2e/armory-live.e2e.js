@@ -4,14 +4,17 @@
 // GET/POST /characters/{id}/gear-lists (403 {errors:{character_id}} when not selected, 409 list_limit_reached);
 // GET /gear-lists/{id}; POST /gear-lists/{id}/ops (add_item|remove_item, uuid op_id, base_version -> conflicts[]);
 // 429 Retry-After. Items (GET /items, /items/{id}) are live on main. Run with the repo served on CS_E2E_PORT.
+// web#44: CS_SLOT_OPS=set_slot (armory-setslot.e2e.js) runs the same suite with ARMORY_SLOT_OPS='set_slot' against a stub that
+// also implements platform#46 set_slot / clear_slot; the default run is 'legacy' and the stub rejects set_slot like prod before #46.
 const { chromium } = require('playwright');
+const OPTB = process.env.CS_SLOT_OPS === 'set_slot';
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 const API = 'https://api.crusaderstrike.com';
 const CSRF = 'csrf-armory-token';
 const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist', 'hands', 'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand', 'ranged'];
 (async () => {
   const b = require('./_test-config.js').withTestConfig(await chromium.launch(),
-    { FEATURE_BNET_SIGNIN: true, USE_MOCK_AUTH: false, USE_MOCK_PROFILE: false, USE_MOCK_ARMORY: false });
+    { FEATURE_BNET_SIGNIN: true, USE_MOCK_AUTH: false, USE_MOCK_PROFILE: false, USE_MOCK_ARMORY: false, ARMORY_SLOT_OPS: OPTB ? 'set_slot' : 'legacy' });
   const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
   let n = 0; const uuid = () => '00000000-0000-4000-8000-' + String(++n).padStart(12, '0');
   const chars = [
@@ -21,7 +24,7 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
     { item_id: 16900, name: 'Stormrage Cover', slot: 'head', inventory_type: 'HEAD', quality: 'epic', item_level: 76, required_level: 60, armor_type: 'leather', stats: null, icon_url: null, source: 'blizzard_forever', verified: true },
     { item_id: 16921, name: 'Halo of Transcendence', slot: 'head', inventory_type: 'HEAD', quality: 'epic', item_level: 76, required_level: 60, armor_type: 'cloth', stats: null, icon_url: 'https://evil.example/x.png', source: 'blizzard_forever', verified: true },
     { item_id: 18814, name: 'Choker of the Fire Lord', slot: 'neck', inventory_type: 'NECK', quality: 'epic', item_level: 78, required_level: 60, armor_type: null, stats: null, icon_url: null, source: 'blizzard_forever', verified: true }];
-  const S = { signedIn: true, sets: [], log: [], once: {}, sel: { main_id: 'ch_a', alt_ids: [], updated_at: '2026-11-04T00:00:00.000Z' }, seen: new Set() };
+  const S = { optB: OPTB, signedIn: true, sets: [], log: [], once: {}, sel: { main_id: 'ch_a', alt_ids: [], updated_at: '2026-11-04T00:00:00.000Z' }, seen: new Set() };
   const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const err = code => ({ error: { code, message: code, request_id: 'r' } });
   const selected = id => S.sel && (S.sel.main_id === id || S.sel.alt_ids.includes(id));
@@ -72,8 +75,10 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
       if (!Array.isArray(ops) || ops.length < 1 || ops.length > 50) return J(400, { errors: { ops: 'Array of 1..50 ops required.' } });
       for (let i = 0; i < ops.length; i++) {
         const o = ops[i];
-        if (!UUID4.test(o.op_id) || !['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained'].includes(o.type) || !SLOTS.includes(o.slot) ||
-          !Number.isInteger(o.item_id) || o.item_id < 1 || !Number.isInteger(o.base_version) || (o.type === 'add_item' && !(o.priority >= 1))) return J(400, { errors: { ['ops.' + i]: 'Invalid.' } });
+        const slotOp = o.type === 'set_slot' || o.type === 'clear_slot';  // platform#46 only (S.optB); prod before #46 rejects them
+        if (!UUID4.test(o.op_id) || !['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained'].concat(S.optB ? ['set_slot', 'clear_slot'] : []).includes(o.type) || !SLOTS.includes(o.slot) ||
+          (o.type !== 'clear_slot' && (!Number.isInteger(o.item_id) || o.item_id < 1)) || !Number.isInteger(o.base_version) || (o.type === 'add_item' && !(o.priority >= 1)) ||
+          (slotOp && ['priority', 'note', 'obtained'].some(k => k in o)) || (o.type === 'clear_slot' && 'item_id' in o)) return J(400, { errors: { ['ops.' + i]: 'Invalid.' } });
       }
       const s = S.sets.find(x => x.id === mm[1]); if (!s) return J(404, err('not_found'));
       if (!selected(s.character_id)) return J(403, { errors: { character_id: 'Must be your selected main or an alt.' } });
@@ -83,6 +88,23 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
       for (const o of ops) {
         if (S.seen.has(o.op_id)) { out.duplicates.push(o.op_id); continue; }
         S.seen.add(o.op_id);
+        if (o.type === 'set_slot' || o.type === 'clear_slot') {
+          const cur = s.items.filter(i => i.slot === o.slot);
+          if (o.type === 'set_slot') {
+            const it = items.find(i => i.item_id === o.item_id);
+            if (!it) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); continue; }
+            if (it.slot !== o.slot) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_in_slot', message: 'item_not_in_slot' }); continue; }
+          }
+          const t = Math.max(s.staleAll || 0, ...Object.keys(s.touch).filter(k => k.startsWith(o.slot + ':')).map(k => s.touch[k]));
+          if (t > o.base_version) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); continue; }
+          const noop = o.type === 'clear_slot' ? !cur.length : cur.length === 1 && cur[0].item_id === o.item_id;
+          if (!noop) {
+            s.version++; cur.forEach(i => { s.touch[o.slot + ':' + i.item_id] = s.version; });
+            s.items = s.items.filter(i => i.slot !== o.slot);
+            if (o.type === 'set_slot') { s.touch[o.slot + ':' + o.item_id] = s.version; s.items.push({ slot: o.slot, item_id: o.item_id, priority: 1, note: null, obtained: false, obtained_at: null, icon_url: null }); }
+          } else S.noops = (S.noops || 0) + 1;
+          out.applied.push(o.op_id); continue;
+        }
         if (o.type === 'add_item' && !items.some(i => i.item_id === o.item_id)) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); continue; }
         const key = o.slot + ':' + o.item_id, t = Math.max(s.touch[key] || 0, s.staleAll || 0);
         if (t > o.base_version) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); continue; }
@@ -146,19 +168,30 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   await p.click('#pf-picker-list .pf-pick[data-item="16900"]');
   ok(await status(/Head saved: Stormrage Cover/), 'pick autosaves'); await idle();
   let op = last('POST', /\/ops$/);
-  ok(op && op.csrf === CSRF && op.body.ops.length === 1 && op.body.ops[0].type === 'add_item' && op.body.ops[0].slot === 'head' && op.body.ops[0].item_id === 16900 &&
+  if (OPTB) ok(op && op.csrf === CSRF && JSON.stringify(Object.keys(op.body.ops[0]).sort()) === '["base_version","item_id","op_id","slot","type"]' && op.body.ops.length === 1 && op.body.ops[0].type === 'set_slot' &&
+    op.body.ops[0].slot === 'head' && op.body.ops[0].item_id === 16900 && op.body.ops[0].base_version === 1 && UUID4.test(op.body.ops[0].op_id), 'set_slot: exactly {op_id, type, slot, item_id, base_version 1} ' + JSON.stringify(op && op.body.ops));
+  else ok(op && op.csrf === CSRF && op.body.ops.length === 1 && op.body.ops[0].type === 'add_item' && op.body.ops[0].slot === 'head' && op.body.ops[0].item_id === 16900 &&
     op.body.ops[0].priority === 1 && op.body.ops[0].base_version === 1 && UUID4.test(op.body.ops[0].op_id), 'POST /gear-lists/{id}/ops add_item {priority 1, base_version 1, uuid v4 op_id}');
   ok(!S.log.some(x => /\/slots\//.test(x.path)), 'no PUT /slots (not on platform main)');
   await openPick('head'); await p.click('#pf-picker-list .pf-pick[data-item="16921"]'); await status(/Head saved: Halo/); await idle();
   op = last('POST', /\/ops$/);
-  ok(op.body.ops.map(o => o.type + ':' + o.item_id).join() === 'remove_item:16900,add_item:16921' && op.body.ops.every(o => o.base_version === 2) && op.body.ops[0].op_id !== op.body.ops[1].op_id,
+  if (OPTB) ok(op.body.ops.length === 1 && op.body.ops[0].type === 'set_slot' && op.body.ops[0].item_id === 16921 && op.body.ops[0].base_version === 2 && S.sets[0].version === 3,
+    'replace = one set_slot at base_version 2 (server replaces the slot, v3) ' + JSON.stringify(op.body.ops));
+  else ok(op.body.ops.map(o => o.type + ':' + o.item_id).join() === 'remove_item:16900,add_item:16921' && op.body.ops.every(o => o.base_version === 2) && op.body.ops[0].op_id !== op.body.ops[1].op_id,
     'replace = one batch remove_item old + add_item new at base_version 2 ' + JSON.stringify(op.body.ops));
   ok(S.sets[0].items.filter(i => i.slot === 'head').length === 1, 'one item per slot on the server');
   await pickFirst('neck'); await status(/Neck saved/); await idle();
   await p.click('#pf-slot-head'); await p.click('#pf-picker-clear'); await status(/Head cleared/); await idle();
   op = last('POST', /\/ops$/);
-  ok(op.body.ops.length === 1 && op.body.ops[0].type === 'remove_item' && op.body.ops[0].item_id === 16921 && op.body.ops[0].base_version === 5, 'clear = remove_item {slot, item_id} at base_version 5 ' + JSON.stringify(op.body.ops));
-  ok(S.sets[0].items.length === 1 && S.sets[0].items[0].item_id === 18814 && S.sets[0].version === 6, 'server state after autosaves (v6)');
+  if (OPTB) {
+    ok(op.body.ops.length === 1 && JSON.stringify(op.body.ops[0]) === JSON.stringify({ op_id: op.body.ops[0].op_id, type: 'clear_slot', slot: 'head', base_version: 4 }) && UUID4.test(op.body.ops[0].op_id), 'clear = clear_slot {op_id, type, slot, base_version 4}, no item_id ' + JSON.stringify(op.body.ops));
+    ok(S.sets[0].items.length === 1 && S.sets[0].items[0].item_id === 18814 && S.sets[0].version === 5, 'server state after autosaves (v5)');
+    ok(!S.log.some(x => x.m === 'POST' && /\/ops$/.test(x.path) && x.body.ops.some(o => o.type === 'add_item' || o.type === 'remove_item')), 'set_slot mode never sends add_item / remove_item');
+  } else {
+    ok(op.body.ops.length === 1 && op.body.ops[0].type === 'remove_item' && op.body.ops[0].item_id === 16921 && op.body.ops[0].base_version === 5, 'clear = remove_item {slot, item_id} at base_version 5 ' + JSON.stringify(op.body.ops));
+    ok(S.sets[0].items.length === 1 && S.sets[0].items[0].item_id === 18814 && S.sets[0].version === 6, 'server state after autosaves (v6)');
+    ok(!S.log.some(x => x.m === 'POST' && /\/ops$/.test(x.path) && x.body.ops.some(o => o.type === 'set_slot' || o.type === 'clear_slot')), 'legacy mode never sends set_slot / clear_slot');
+  }
   await go(); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => /Choker/.test(document.getElementById('pf-slot-neck').textContent)); await idle();
   ok(/Choker of the Fire Lord/.test(await p.textContent('#pf-slot-neck')), 'reload derives slots from items[] and resolves via GET /items/{id}');
 
@@ -179,6 +212,27 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   const bad = await p.evaluate(async id => { const r = await fetch('https://api.crusaderstrike.com/api/v1/gear-lists/' + id + '/ops', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': 'csrf-armory-token' },
     body: JSON.stringify({ ops: [{ op_id: 'x', type: 'set_slot', slot: 'hat', item_id: 1, base_version: 0 }] }) }); return { s: r.status, b: await r.json() }; }, setId);
   ok(bad.s === 400 && bad.b.errors['ops.0'], 'set_slot / bad slot / non-uuid op_id -> 400 {errors:{ops.0}}');
+  const raw = ops => p.evaluate(async ([id, ops]) => { const r = await fetch('https://api.crusaderstrike.com/api/v1/gear-lists/' + id + '/ops', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': 'csrf-armory-token' },
+    body: JSON.stringify({ ops }) }); return { s: r.status, b: await r.json() }; }, [setId, ops]);
+  const ver = S.sets[0].version, U4 = () => require('crypto').randomUUID();
+  if (!OPTB) {
+    const pre = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 16900, base_version: ver }]);
+    ok(pre.s === 400 && pre.b.errors['ops.0'], 'legacy stub (prod before platform#46) rejects set_slot -> 400; client stays on legacy');
+  } else {
+    let r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'neck', item_id: 18814, base_version: ver }]);
+    ok(r.s === 200 && r.b.applied.length === 1 && r.b.version === ver && S.sets[0].version === ver, 'set_slot same item -> accepted no-op, no version bump');
+    r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', base_version: ver }]);
+    ok(r.s === 200 && r.b.applied.length === 1 && r.b.version === ver, 'clear_slot on empty slot -> accepted no-op');
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 18814, base_version: ver }]);
+    ok(r.s === 200 && r.b.conflicts[0].reason === 'item_not_in_slot', 'set_slot neck item into head -> conflicts[] item_not_in_slot');
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 16900, priority: 1, base_version: ver }]);
+    ok(r.s === 400 && r.b.errors['ops.0'], 'set_slot with priority -> 400 (no priority/note/obtained)');
+    r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', item_id: 16900, base_version: ver }]);
+    ok(r.s === 400 && r.b.errors['ops.0'], 'clear_slot with item_id -> 400');
+    const dup = U4(); await raw([{ op_id: dup, type: 'clear_slot', slot: 'head', base_version: S.sets[0].version }]);
+    r = await raw([{ op_id: dup, type: 'clear_slot', slot: 'head', base_version: S.sets[0].version }]);
+    ok(r.s === 200 && r.b.duplicates[0] === dup && r.b.applied.length === 0, 'op_id dedupe -> duplicates[]');
+  }
 
   // 429 Retry-After
   S.once.r429 = true; await p.click('#pf-slot-neck'); await p.click('#pf-picker-clear');

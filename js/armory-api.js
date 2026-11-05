@@ -4,7 +4,8 @@
  * Only shipped routes are used:
  *   display  -> PUT  /api/v1/me/characters/selection {main_id, alt_ids}   (displayed = main + alts)
  *   sets     -> GET/POST /api/v1/characters/{id}/gear-lists, GET /api/v1/gear-lists/{id}
- *   slots    -> POST /api/v1/gear-lists/{id}/ops {ops:[remove_item|add_item]} with op_id (uuid v4) + base_version
+ *   slots    -> POST /api/v1/gear-lists/{id}/ops with op_id (uuid v4) + base_version: ARMORY_SLOT_OPS 'legacy' = [remove_item|add_item],
+ *               'set_slot' = [set_slot {slot, item_id} | clear_slot {slot}] (platform#45 / PR platform#46)
  *   items    -> GET /api/v1/items, /api/v1/items/{id}
  * A list holds items[] {slot, item_id, priority}; the armory shows one item per slot (priority 1, else the first)
  * and normalizes each list to add a 19-key `slots` map.
@@ -93,14 +94,20 @@
     get: function (id) { return call('get', [id], 'GET', url(P.SET, id)).then(normR); },
     /**
      * Sets (itemId) or clears (null) one slot on list `l` as one ops batch at base_version = l.version:
-     * remove_item for every item currently in that slot, then add_item {priority:1}.
+     * legacy: remove_item for every item currently in that slot, then add_item {priority:1}; set_slot: one set_slot / clear_slot op.
      * Resolves the raw response; body.list is normalized. body.conflicts[] lists rejected ops.
      */
     setSlot: function (l, slot, itemId) {
-      var ops = (l.items || []).filter(function (i) { return i.slot === slot; }).map(function (i) {
-        return { op_id: uuid(), type: 'remove_item', slot: slot, item_id: i.item_id, base_version: l.version };
-      });
-      if (itemId != null) ops.push({ op_id: uuid(), type: 'add_item', slot: slot, item_id: itemId, priority: 1, base_version: l.version });
+      var inSlot = (l.items || []).filter(function (i) { return i.slot === slot; }), ops;
+      if (cfg.ARMORY_SLOT_OPS === 'set_slot') {
+        // Option B (platform#45/#46): one op; server replaces/clears the whole slot. No priority/note/obtained on these ops.
+        if (itemId != null) ops = [{ op_id: uuid(), type: 'set_slot', slot: slot, item_id: itemId, base_version: l.version }];
+        else ops = inSlot.length ? [{ op_id: uuid(), type: 'clear_slot', slot: slot, base_version: l.version }] : [];
+      } else {
+        // Option A (legacy, platform main): remove every item in the slot, then add_item {priority 1}.
+        ops = inSlot.map(function (i) { return { op_id: uuid(), type: 'remove_item', slot: slot, item_id: i.item_id, base_version: l.version }; });
+        if (itemId != null) ops.push({ op_id: uuid(), type: 'add_item', slot: slot, item_id: itemId, priority: 1, base_version: l.version });
+      }
       if (!ops.length) return Promise.resolve({ status: 200, ok: true, headers: {}, body: { version: l.version, applied: [], duplicates: [], conflicts: [], list: l } });
       var b = { ops: ops };
       return call('ops', [l.id, b], 'POST', url(P.OPS, l.id), b).then(function (r) { if (r.ok && r.body && r.body.list) norm(r.body.list); return r; });

@@ -134,6 +134,22 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   ok(await vis('#pf-slot-banner') && /isn.t a WoW Forever item/.test(await p.textContent('#pf-slot-banner')) && /Empty/.test(await p.textContent('#pf-slot-wrist')), 'conflicts[] item_not_forever -> message, slot from server');
   const bad = await p.evaluate(() => CSArmoryMock.ops('x', { ops: [{ op_id: 'nope', type: 'set_slot', slot: 'hat', item_id: 1, base_version: 1 }] }));
   ok(bad.status === 400 && bad.body.errors['ops.0'], '400 {errors:{ops.N}} for unknown op / slot / non-uuid op_id');
+  // web#44: in-browser mock emulates platform#46 set_slot / clear_slot
+  await go();
+  const sb = await p.evaluate(async id => {
+    const M = CSArmoryMock, U = () => CSArmoryApi.uuid(), head = (await M.items({ slot: 'head' })).body.items, neck = (await M.items({ slot: 'neck' })).body.items[0].item_id;
+    const v = async () => (await M.get(id)).body.version, o = [];
+    let r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, base_version: await v() }] }); o.push(r.body.applied.length === 1 && r.body.list.items.filter(i => i.slot === 'head').length === 1);
+    const v1 = await v(); r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, base_version: v1 }] }); o.push(r.body.applied.length === 1 && r.body.version === v1);
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[1].item_id, base_version: v1 }] }); o.push(r.body.version === v1 + 1 && r.body.list.items.filter(i => i.slot === 'head').map(i => i.item_id).join() === String(head[1].item_id));
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: neck, base_version: await v() }] }); o.push(r.body.conflicts[0] && r.body.conflicts[0].reason === 'item_not_in_slot');
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, base_version: 1 }] }); o.push(r.body.conflicts[0] && r.body.conflicts[0].reason === 'stale_base_version');
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, priority: 1, base_version: await v() }] }); o.push(r.status === 400);
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'clear_slot', slot: 'head', base_version: await v() }] }); o.push(r.body.applied.length === 1 && !r.body.list.items.some(i => i.slot === 'head'));
+    const v2 = await v(); r = await M.ops(id, { ops: [{ op_id: U(), type: 'clear_slot', slot: 'head', base_version: v2 }] }); o.push(r.body.applied.length === 1 && r.body.version === v2);
+    return o;
+  }, setId);
+  ok(sb.every(Boolean), 'mock set_slot/clear_slot: replace, same-item no-op, item_not_in_slot, stale, no priority, clear, empty-clear no-op ' + JSON.stringify(sb));
   await go('?mock_armory=ratelimit'); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
   await p.click('#pf-slot-wrist'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0); await p.click('#pf-picker-list .pf-pick');
   ok(await vis('#pf-slot-banner') && /Wait 2 seconds/.test(await p.textContent('#pf-slot-banner')), '429 Retry-After message');
