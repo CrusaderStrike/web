@@ -18,3 +18,4 @@
 [hidden] { display: none !important; }
 .pf-stale { border-color: var(--cs-border); color: var(--cs-muted); }
 .pf-region { margin: 0; }
+.pf-gear-link { font-weight: 600; }
