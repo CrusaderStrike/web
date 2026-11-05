@@ -301,6 +301,7 @@
       if (cfs.length) {
         var cf = cfs[0], o = chunk.filter(function (x) { return x.op_id === cf.op_id; })[0], m = txt(cf.message);
         var why = cf.reason === 'item_not_forever' ? REASON.item_not_forever :
+          // Stopgap: platform@1b5320e has no list_items_limit GearConflict.reason, so also match the message (follow-up tracked in web nits issue).
           (cf.reason === 'list_items_limit' || /list_items_limit/.test(m)) ? 'this list already has ' + L.items_per_list + ' items' : (REASON[cf.reason] || 'it conflicted with another edit');
         var again = /^(item_not_forever|item_removed|list_items_limit)$/.test(cf.reason) || /list_items_limit/.test(m) ? null : function () {
           var n = wire(o); delete n.base_version; n.op_id = api.opId(); enqueue(n, listId);  // the list the conflict came from
@@ -417,7 +418,7 @@
     clear(ol); msg.textContent = 'Loading history\u2026';
     (function page(after) {
       api.events(listId, after).then(function (r) {
-        if (r.status === 403) { msg.textContent = 'History for this list is only visible to its owner.'; return; }
+        if (r.status === 403) { msg.textContent = 'You can\u2019t view this list\u2019s history.'; return; }
         if (!r.ok) { msg.textContent = errMsg(r); return; }
         all = all.concat(Array.isArray(r.body.items) ? r.body.items : []);
         if (r.body.next_cursor != null && all.length < 1000) { page(r.body.next_cursor); return; }
@@ -441,7 +442,7 @@
   function reloadLists(selectId) {
     return api.lists(charId).then(function (r) {
       if (r.status === 401) { show('signedout'); return; }
-      if (r.status === 404) { show('notfound'); return; }
+      if (r.status === 404 || r.status === 403) { show('notfound'); return; }  // 403 forbidden: character not in the caller's selection
       if (!r.ok) throw r;
       lists = [];
       var got = (r.body && Array.isArray(r.body.items) ? r.body.items : []).slice(0, L.lists_per_character);

@@ -99,11 +99,13 @@ const B = 'http://localhost:8765/';
   ok((await banner()).includes('Only the list owner'), '403 forbidden message');
   ok(!(await p.isVisible('#gl-add')) && !(await p.isVisible('#gl-meta-form')) && !(await p.isVisible('#gl-items tr [data-act=down]')), 'edit controls hidden read-only');
   // history 403, offline, 500
-  await fresh('&mock=history403'); await p.click('#gl-hist-btn'); await p.waitForFunction(() => document.getElementById('gl-hist-msg').textContent.includes('only visible'));
+  await fresh('&mock=history403'); await p.click('#gl-hist-btn'); await p.waitForFunction(() => document.getElementById('gl-hist-msg').textContent.includes('view this list'));
   ok(true, 'history 403 by visibility');
   await p.goto(U('&mock=offline')); ok(await vis('#gl-error') && (await p.textContent('#gl-error-msg')).includes('offline'), 'offline state');
   await p.goto(U('&mock=500')); ok(await vis('#gl-error'), '500 error state');
   await p.goto(B + 'gear/lists/?character=ch_us_9999'); ok(await vis('#gl-notfound'), 'non-owner character -> not found');
+  await p.goto(U('&mock=char403')); ok(await vis('#gl-notfound'), 'character 403 forbidden -> not found');
+  ok(await p.evaluate(() => [CSGearListsApi.opId(), (() => { const r = crypto.randomUUID; crypto.randomUUID = undefined; try { return CSGearListsApi.opId(); } finally { crypto.randomUUID = r; } })()].every(s => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s))), 'opId always a v4 UUID (incl. fallback)');
   await p.goto(B + 'gear/lists/'); ok(await vis('#gl-notfound'), 'no id -> not found');
   // hostile data rendered as text; no innerHTML in module
   await fresh(); await p.fill('#gl-new-name', '<img src=x onerror="window.__x=1">'); await p.click('#gl-new-btn'); await p.waitForTimeout(500);
