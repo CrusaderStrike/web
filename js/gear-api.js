@@ -1,5 +1,5 @@
 /**
- * web#18 thin client: GET /characters/{character_id}/gear (platform#30 at 865f7b1). Resolves { status, ok, body }.
+ * web#18 thin client: GET /characters/{character_id}/gear (platform#30 at ff99462). Resolves { status, ok, body }.
  * Flip CS_CONFIG.USE_MOCK_GEAR for the real API. PUT (owner-only, X-CSRF-Token) is not used yet (read-only UI).
  */
 (function () {
