@@ -7,21 +7,19 @@
   var cfg = window.CS_CONFIG;
   window.CSGearApi = {
     /**
-     * Icon URL for an item: the platform's icon_url when it is an absolute https URL;
-     * otherwise the TEMPORARY fallback below (GEAR_ICON_URL + icon asset name), or the local placeholder.
+     * Icon URL for an item: the platform's icon_url only when it is https: on exactly
+     * render.worldofwarcraft.com; otherwise the local placeholder. Clients must not build
+     * icon URLs themselves (platform#31).
      */
     iconFor: function (item) {
-      var u = item && item.icon_url;
-      if (typeof u === 'string') {
-        try { var p = new URL(u); if (p.protocol === 'https:') return p.href; } catch (e) { /* invalid -> fallback */ }
-      }
-      return this.iconUrl(item && item.icon);
-    },
-    /** TEMPORARY fallback until every item carries icon_url: Blizzard icon asset name -> GEAR_ICON_URL, or the placeholder. */
-    iconUrl: function (name) {
       var ph = '/assets/icons/item.svg';
-      if (cfg.USE_MOCK_GEAR || typeof name !== 'string' || !/^[a-z0-9_]{1,128}$/i.test(name)) return ph;
-      return cfg.GEAR_ICON_URL.replace('{icon}', encodeURIComponent(name.toLowerCase()));
+      var u = item && item.icon_url;
+      if (typeof u !== 'string') return ph;
+      try {
+        var p = new URL(u);
+        if (p.protocol === 'https:' && p.hostname === 'render.worldofwarcraft.com') return p.href;
+      } catch (e) { /* invalid URL -> placeholder */ }
+      return ph;
     },
     gear: function (characterId) {
       if (cfg.USE_MOCK_GEAR) return window.CSGearMock.gear(characterId);

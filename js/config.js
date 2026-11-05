@@ -19,8 +19,6 @@ window.CS_CONFIG = Object.freeze({
   // web#18 gear UI: true = js/gear-mock.js; false = real API GET /characters/{id}/gear.
   USE_MOCK_GEAR: true,
   GEAR_PATH: '/api/v1/characters/{id}/gear',      // platform#30 getCharacterGear
-  // icon in the gear response is a Blizzard asset name without extension. Icon host is not in the spec (assumption).
-  GEAR_ICON_URL: 'https://render.worldofwarcraft.com/us/icons/56/{icon}.jpg',
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}
