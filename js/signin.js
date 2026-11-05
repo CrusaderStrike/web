@@ -81,7 +81,7 @@
       return api.characters().then(function (cr) {
         if (!cr.ok) return fail(cr, loadCharacters);
         var sel = cr.body.selection;
-        state.characters = (cr.body.characters || []).filter(function (c) { return c.game === 'wow_forever'; });
+        state.characters = (cr.body.characters || []).filter(function (c) { return c.game === 'wow_forever' && !c.stale; });
         if (!state.characters.length) { show('empty', 'No World of Warcraft Forever characters found.'); return; }
         state.mainId = sel && byId(sel.main_id) ? sel.main_id : null;
         state.altIds = sel ? (sel.alt_ids || []).filter(function (id) { return byId(id) && id !== state.mainId; }) : [];
@@ -103,8 +103,7 @@
       info.appendChild(name);
       var meta = el('span', 'si-char-meta', metaText(c));
       info.appendChild(meta);
-      var badge = el('span', 'cs-badge ' + (c.faction === 'alliance' ? 'cs-badge-alliance' : 'cs-badge-horde'),
-        c.faction === 'alliance' ? 'Alliance' : 'Horde');
+      var badge = window.csFactionBadge(c.faction);
       info.appendChild(badge);
       li.appendChild(info);
 

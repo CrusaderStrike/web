@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Your World of Warcraft Forever characters and main/alt selection on Crusader Strike.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Profile — Crusader Strike</title>
+  <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/profile.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="../index.html">
+      <img src="../assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="../guild.html">Guild</a></li>
+        <li><a href="../leaderboards.html">Leaderboards</a></li>
+        <li><a href="./" aria-current="page">Profile</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap cs-section">
+    <h1 class="cs-display" id="pf-h" tabindex="-1">Your profile</h1>
+    <p class="cs-section-intro">Your World of Warcraft Forever characters. Pick one main; the rest are your alts.</p>
+    <p id="pf-status" class="cs-muted" role="status" aria-live="polite"></p>
+
+    <section id="pf-loading" class="cs-card pf-state" aria-labelledby="pf-loading-h">
+      <h2 id="pf-loading-h" class="pf-state-h">Loading your characters…</h2>
+    </section>
+
+    <section id="pf-disabled" class="cs-card pf-state" aria-labelledby="pf-disabled-h" hidden>
+      <h2 id="pf-disabled-h" class="pf-state-h" tabindex="-1">Profiles are coming soon</h2>
+      <p>Battle.net sign-in isn't switched on yet.</p>
+    </section>
+
+    <section id="pf-signedout" class="cs-card pf-state" aria-labelledby="pf-signedout-h" hidden>
+      <h2 id="pf-signedout-h" class="pf-state-h" tabindex="-1">Sign in to see your profile</h2>
+      <p>Sign in with Battle.net to load your WoW Forever characters.</p>
+      <a class="cs-btn cs-btn-primary" href="../signin.html">Sign in</a>
+    </section>
+
+    <section id="pf-error" class="cs-card pf-state" role="alert" aria-labelledby="pf-error-h" hidden>
+      <h2 id="pf-error-h" class="pf-state-h" tabindex="-1">Your characters could not load</h2>
+      <p id="pf-error-msg"></p>
+      <button type="button" class="cs-btn cs-btn-ghost" id="pf-retry">Try again</button>
+    </section>
+
+    <section id="pf-ready" aria-labelledby="pf-bt-label" hidden>
+      <div class="pf-head">
+        <p class="pf-bt"><span id="pf-bt-label" class="cs-muted">Battle.net account</span> <strong id="pf-battletag"></strong></p>
+        <div class="cs-field pf-region">
+          <label for="pf-region">Preferred region</label>
+          <select id="pf-region">
+            <option value="us">US</option>
+            <option value="eu">EU</option>
+            <option value="kr">KR</option>
+            <option value="tw">TW</option>
+          </select>
+        </div>
+        <button type="button" class="cs-btn cs-btn-ghost" id="pf-refresh">Refresh characters</button>
+      </div>
+      <p id="pf-refresh-error" class="pf-inline-error" role="alert" hidden></p>
+      <p id="pf-region-error" class="pf-inline-error" role="alert" hidden></p>
+      <p id="pf-save-error" class="pf-inline-error" role="alert" hidden></p>
+
+      <div id="pf-empty" class="cs-card pf-state" hidden>
+        <h2 class="pf-state-h">No WoW Forever characters found</h2>
+        <p>Log in to a character in WoW Forever, then use Refresh characters.</p>
+      </div>
+
+      <fieldset id="pf-fieldset" class="pf-fieldset">
+        <legend>Main character</legend>
+        <ul id="pf-list" class="pf-list"></ul>
+      </fieldset>
+    </section>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — World of Warcraft Forever</span>
+    <span><a href="../signin.html">Change sign-in</a></span>
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/auth-mock.js"></script>
+  <script src="../js/faction-badge.js"></script>
+  <script src="../js/profile-api.js"></script>
+  <script src="../js/profile.js"></script>
+</body>
+</html>
