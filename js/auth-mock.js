@@ -8,12 +8,12 @@
   var SESSION_KEY = 'cs_mock_session';
   var SELECTION_KEY = 'cs_mock_selection';
   var FIXTURES = [
-    { id: 'ch_1001', character_name: 'Lightbringer', realm: 'Emberfall', faction: 'alliance', class: 'Paladin', race: 'Human', level: 60, game: 'wow_forever' },
-    { id: 'ch_1002', character_name: 'Ashenvow', realm: 'Emberfall', faction: 'alliance', class: 'Priest', race: 'Dwarf', level: 60, game: 'wow_forever' },
-    { id: 'ch_1003', character_name: 'Thornquill', realm: 'Duskhollow', faction: 'horde', class: 'Druid', race: 'Tauren', level: 52, game: 'wow_forever' },
-    { id: 'ch_1004', character_name: 'Grimlantern', realm: 'Stormwatch Keep', faction: 'horde', class: 'Warlock', race: 'Undead', level: 38, game: 'wow_forever' },
+    { id: 'ch_1001', character_name: 'Lightbringer', surname: 'Dawnmantle', realm: 'Emberfall', faction: 'alliance', class: 'Paladin', race: 'Human', level: 60, game: 'wow_forever' },
+    { id: 'ch_1002', character_name: 'Ashenvow', surname: null, realm: 'Emberfall', faction: 'alliance', class: 'Priest', race: 'Dwarf', level: 60, game: 'wow_forever' },
+    { id: 'ch_1003', character_name: 'Thornquill', surname: 'Briarhide', realm: null, faction: 'horde', class: 'Druid', race: 'Tauren', level: 52, game: 'wow_forever' },
+    { id: 'ch_1004', character_name: 'Grimlantern', faction: 'horde', class: 'Warlock', race: 'Undead', level: 38, game: 'wow_forever' },
     // Non-Forever entries the server must filter out; the mock filters too, to prove the UI never shows them.
-    { id: 'ch_9001', character_name: 'Filtered', realm: 'Emberfall', faction: 'alliance', class: 'Mage', race: 'Gnome', level: 10, game: 'other' }
+    { id: 'ch_9001', character_name: 'Filtered', surname: null, realm: 'Emberfall', faction: 'alliance', class: 'Mage', race: 'Gnome', level: 10, game: 'other' }
   ];
 
   function scenario() {
@@ -38,24 +38,24 @@
       var state = randomToken();
       sessionStorage.setItem('cs_mock_oauth_state', state);
       return 'signin.html?mock_authorize=1&state=' + encodeURIComponent(state) +
-        '&return_to=' + encodeURIComponent(returnTo || 'signin.html');
+        '&return_to=' + encodeURIComponent(returnTo || '/signin.html');
     },
     /** Simulates GET CALLBACK. outcome: 'ok' | 'access_denied'. Returns redirect target. */
     callback: function (state, outcome) {
       var expected = sessionStorage.getItem('cs_mock_oauth_state');
       sessionStorage.removeItem('cs_mock_oauth_state');
       if (outcome === 'access_denied') return 'signin.html?auth=cancelled';
-      if (!expected || expected !== state) return 'signin.html?auth=error&reason=state_mismatch';
+      if (!expected || expected !== state) return 'signin.html?auth=error&reason=invalid_state';
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ battletag: 'Crusader#1234', csrf_token: randomToken() }));
       return 'signin.html?auth=ok';
     },
-    /** GET /auth/session -> Session (+ proposed csrf_token). */
+    /** GET /auth/session -> Session (incl. csrf_token). */
     session: function () {
       var s = session();
       if (!s) return err(401, 'unauthenticated', 'Sign in required.');
       return res(200, { battletag: s.battletag, active_guild_id: null, memberships: [], csrf_token: s.csrf_token });
     },
-    /** GET /me/characters (proposed) -> CharacterList. */
+    /** GET /me/characters -> CharacterList. */
     characters: function () {
       if (!session()) return err(401, 'unauthenticated', 'Sign in required.');
       var sc = scenario();

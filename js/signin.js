@@ -45,7 +45,14 @@
     return n;
   }
   function byId(id) { return state.characters.filter(function (c) { return c.id === id; })[0]; }
-  function label(c) { return c.character_name + ' — ' + c.realm; }
+  function txt(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : ''; }
+  function fullName(c) { return [txt(c.character_name), txt(c.surname)].filter(Boolean).join(' ') || 'Unnamed character'; }
+  function label(c) { var r = txt(c.realm); return fullName(c) + (r ? ' — ' + r : ''); }
+  function metaText(c) {
+    var lvl = txt(c.level) ? 'Level ' + txt(c.level) : '';
+    var main = [lvl, txt(c.race), txt(c.class)].filter(Boolean).join(' ');
+    return [main, txt(c.realm)].filter(Boolean).join(' · ');
+  }
   function fail(r, retry) {
     state.retry = retry;
     if (r && r.status === 401) { show('start', 'Your session ended. Please sign in again.'); return; }
@@ -60,7 +67,7 @@
 
   // ---- Flow ----
   function signIn() {
-    var returnTo = 'signin.html';
+    var returnTo = '/signin.html'; // spec: relative path starting with a single '/'
     if (useMock) { location.assign(mock.start(returnTo)); return; }
     location.assign(cfg.API_BASE + cfg.AUTH_PATHS.START + '?return_to=' + encodeURIComponent(returnTo));
   }
@@ -92,9 +99,9 @@
       var li = el('li', 'si-char' + (c.id === state.mainId ? ' is-main' : ''));
       var info = el('div', 'si-char-info');
       var nameId = 'si-name-' + c.id;
-      var name = el('span', 'si-char-name', c.character_name); name.id = nameId;
+      var name = el('span', 'si-char-name', fullName(c)); name.id = nameId;
       info.appendChild(name);
-      var meta = el('span', 'si-char-meta', 'Level ' + c.level + ' ' + c.race + ' ' + c.class + ' · ' + c.realm);
+      var meta = el('span', 'si-char-meta', metaText(c));
       info.appendChild(meta);
       var badge = el('span', 'cs-badge ' + (c.faction === 'alliance' ? 'cs-badge-alliance' : 'cs-badge-horde'),
         c.faction === 'alliance' ? 'Alliance' : 'Horde');
@@ -134,11 +141,11 @@
         cb.closest('.si-char').classList.toggle('is-main', isMain);
       });
       $('si-picker-error').hidden = true;
-      announce(byId(t.value).character_name + ' is now your main.');
+      announce(fullName(byId(t.value)) + ' is now your main.');
     } else if (t.name === 'alt') {
       if (t.checked) state.altIds.push(t.value);
       else state.altIds = state.altIds.filter(function (id) { return id !== t.value; });
-      announce(byId(t.value).character_name + (t.checked ? ' marked as alt.' : ' is no longer an alt.') +
+      announce(fullName(byId(t.value)) + (t.checked ? ' marked as alt.' : ' is no longer an alt.') +
         ' ' + state.altIds.length + ' alts selected.');
     }
   });
@@ -207,7 +214,13 @@
   var auth = q.get('auth');
   if (auth === 'cancelled') { show('cancelled', 'Sign-in was cancelled.'); return; }
   if (auth === 'error') {
-    $('si-error-msg').textContent = 'Battle.net sign-in failed. Please try again.';
+    var reasons = {
+      invalid_state: 'Your sign-in session expired or did not match. Please try again.',
+      upstream_unavailable: 'Battle.net is not responding right now. Please try again shortly.',
+      oauth_error: 'Battle.net could not complete the sign-in. Please try again.',
+      internal_error: 'Something went wrong on our side. Please try again.'
+    };
+    $('si-error-msg').textContent = reasons[q.get('reason')] || 'Battle.net sign-in failed. Please try again.';
     state.retry = signIn;
     show('error', 'Error: Battle.net sign-in failed.');
     return;
