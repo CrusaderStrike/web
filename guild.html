@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Mock guild profile — Knights of the Silver Hand on Whitemane.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Knights of the Silver Hand — Crusader Strike</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/guild.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="index.html">
+      <img src="assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="guild.html" aria-current="page">Guild</a></li>
+        <li><a href="leaderboards.html">Leaderboards</a></li>
+        <li><a href="styleguide.html">Styleguide</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap cs-section">
+    <p class="cs-form-note" role="note"><strong>Mock data.</strong> Sample guild profile for layout review — not live API data.</p>
+
+    <section class="guild-banner" aria-labelledby="guild-title">
+      <img class="guild-crest" src="assets/logo.svg" width="96" height="96" alt="">
+      <div>
+        <h1 id="guild-title" class="cs-display">Knights of the Silver Hand</h1>
+        <div class="guild-meta">
+          <span class="cs-badge cs-badge-alliance">Alliance</span>
+          <span class="cs-badge">Whitemane</span>
+          <span class="cs-badge cs-badge-ok">Recruiting</span>
+          <span class="cs-badge cs-badge-gold">Est. 2019</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="guild-grid">
+      <section aria-labelledby="roster-title">
+        <h2 id="roster-title" class="cs-display">Roster</h2>
+        <p class="cs-section-intro">Officers and raiders (fake data).</p>
+        <div class="cs-table-wrap">
+          <table class="cs-table">
+            <thead>
+              <tr>
+                <th scope="col">Character</th>
+                <th scope="col">Class</th>
+                <th scope="col">Role</th>
+                <th scope="col">Rank</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Lightbringer</td><td>Paladin</td><td>Tank</td><td>Guild Master</td></tr>
+              <tr><td>Dawnherald</td><td>Priest</td><td>Healer</td><td>Officer</td></tr>
+              <tr><td>Stormpike</td><td>Warrior</td><td>Melee</td><td>Officer</td></tr>
+              <tr><td>Frostwhisper</td><td>Mage</td><td>Ranged</td><td>Raider</td></tr>
+              <tr><td>Shadowmend</td><td>Warlock</td><td>Ranged</td><td>Raider</td></tr>
+              <tr><td>Oakenshield</td><td>Druid</td><td>Healer</td><td>Raider</td></tr>
+              <tr><td>Quickshot</td><td>Hunter</td><td>Ranged</td><td>Member</td></tr>
+              <tr><td>Silentblade</td><td>Rogue</td><td>Melee</td><td>Member</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="cs-stack" aria-label="Guild details">
+        <section class="cs-card" aria-labelledby="about-title">
+          <h2 id="about-title" class="cs-display" style="font-size:1.25rem">About</h2>
+          <dl>
+            <div class="guild-stat"><dt>Realm</dt><dd>Whitemane</dd></div>
+            <div class="guild-stat"><dt>Faction</dt><dd>Alliance</dd></div>
+            <div class="guild-stat"><dt>Members</dt><dd>86</dd></div>
+            <div class="guild-stat"><dt>Recruiting</dt><dd>Healer, Ranged DPS</dd></div>
+            <div class="guild-stat"><dt>Raid nights</dt><dd>Tue / Thu 7–10 PM PT</dd></div>
+          </dl>
+        </section>
+
+        <section class="cs-card" aria-labelledby="recent-title">
+          <h2 id="recent-title" class="cs-display" style="font-size:1.25rem">Recent results</h2>
+          <h3 style="font-size:0.95rem;color:var(--cs-gold);margin-top:0.75rem">Dungeon Run</h3>
+          <ul class="results-list">
+            <li><span>Stratholme (Live)</span><span class="cs-badge cs-badge-gold">+2140</span></li>
+            <li><span>Scholomance</span><span class="cs-badge">+1985</span></li>
+            <li><span>Blackrock Depths</span><span class="cs-badge">+1872</span></li>
+          </ul>
+          <h3 style="font-size:0.95rem;color:var(--cs-gold);margin-top:1rem">World PvP</h3>
+          <ul class="results-list">
+            <li><span>Hillsbrad skirmish</span><span class="cs-badge cs-badge-alliance">W</span></li>
+            <li><span>Tarren Mill push</span><span class="cs-badge cs-badge-alliance">W</span></li>
+            <li><span>Southshore defense</span><span class="cs-badge cs-badge-horde">L</span></li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — mock guild profile</span>
+    <span><a href="leaderboards.html">Leaderboards</a></span>
+  </footer>
+</body>
+</html>
