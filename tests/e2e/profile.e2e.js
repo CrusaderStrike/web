@@ -86,6 +86,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   // web#56: selector makes the planning character obvious; center is an empty 3D placeholder; slot click still writes the icon
   ok(await p.locator('#pf-plan-chars input[name=pf-plan]').count() === 3, 'selector lists displayed characters');
   ok((await p.textContent('#pf-plan-legend')) === 'Planning for', 'selector labelled Planning for');
+  ok(await p.getAttribute('#pf-plan', 'aria-describedby') === 'pf-plan-hint', 'planning selector describes its hint');
   ok(await p.locator('#pf-plan-ch_us_1003').isChecked() && /Planning/.test(await p.locator('.pf-plan-char.is-selected').textContent()) && (await p.getAttribute('.pf-pchar.is-planning', 'data-char')) === 'ch_us_1003', 'Thornquill is the checked planning character');
   ok(await p.isVisible('#pf-viewer') && (await p.getAttribute('#pf-viewer', 'role')) === 'region' && (await p.getAttribute('#pf-viewer', 'aria-labelledby')) === 'pf-viewer-label', 'center is a labelled region');
   ok((await p.textContent('#pf-viewer-label')) === '3D viewer placeholder' && /Thornquill Briarhide/.test(await p.textContent('#pf-viewer-char')), 'placeholder names the planned character');
@@ -237,6 +238,25 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-mobile.png'), fullPage: true });
   await p.setViewportSize({ width: 1280, height: 900 }); await go(); await p.click(`.pf-set[data-set="${setId}"]`); await p.waitForTimeout(400);
   await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-desktop.png'), fullPage: true });
+
+  // web#56 review: switching to a character whose preferred set 404s must not keep the previous character's pane
+  await p.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('cs_mock_armory'));
+    s.sets = s.sets.filter(x => x.character_id !== 'ch_us_1001');
+    localStorage.setItem('cs_mock_armory', JSON.stringify(s));
+  });
+  await p.click('#pf-plan-ch_us_1001');
+  ok(await until(() => document.getElementById('pf-plan-ch_us_1001').checked && document.getElementById('pf-set-h').textContent === 'No gear set' && /Thornquill/.test(document.getElementById('pf-set-h').textContent) === false && /Lightbringer Dawnmantle/.test(document.getElementById('pf-viewer-char').textContent)), '404 clears the previous set and plans the new character');
+  await idle();
+  ok(!(await p.isHidden('#pf-armory-view')) && await p.locator('.pf-charwin .pf-slot').count() === 19, 'empty plan is the 19-slot pane');
+  ok((await p.$$eval('#pf-col-left .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'head,neck,shoulder,back,chest,shirt,tabard,wrist', 'empty plan keeps head through wrist');
+  ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'empty plan keeps weapons on the bottom');
+  ok(await p.locator('.pf-charwin .pf-slot-item').allTextContents().then(a => a.length === 19 && a.every(t => t.trim() === 'Empty')), 'every slot is empty after the 404');
+  ok(await p.isVisible('#pf-slot-banner') && /no longer exists/.test(await p.textContent('#pf-slot-banner')), '404 banner stays on the empty plan');
+  ok(/Lightbringer Dawnmantle/.test(await p.textContent('#pf-set-meta')) && !/Thornquill/.test(await p.textContent('#pf-set-meta')), 'pane names the character whose set 404d');
+  ok((await p.textContent('#pf-viewer-label')) === '3D viewer placeholder', 'center stays the 3D placeholder');
+  await p.click('#pf-slot-head');
+  ok(!(await p.evaluate(() => document.getElementById('pf-picker').open)), 'empty plan slot does not open the picker');
 
   const txt = await p.evaluate(() => document.body.innerText); ok(!/\b(undefined|NaN)\b/.test(txt), 'no undefined/NaN in page text');
   const src = await p.evaluate(async () => { let s = ''; for (const f of ['js/profile.js', 'js/armory-api.js', 'js/armory-mock.js', 'js/gear-set-rules.js']) s += await (await fetch('../' + f)).text(); return s; });

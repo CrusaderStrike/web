@@ -170,6 +170,10 @@
     return keep || firstSet(sets);
   }
   function remember(s) { if (s && s.character_id && s.id) st.planSet[s.character_id] = s.id; }
+  /** In-memory plan with no list: 19 empty slots for this character, not a set the server can save. */
+  function blankPlan(c) {
+    return { id: null, character_id: c.id, name: '', missing: true, type: 'max_level', until_level: null, role_spec: null, slots: {}, items: [] };
+  }
   function showPlanEmpty(c) {
     $('pf-armory-view').hidden = true;
     $('pf-armory-empty').hidden = false;
@@ -208,7 +212,7 @@
   function applyPlan(announceIt) {
     var c = st.planId ? charById(st.planId) : null;
     if (!c || !c.displayed || c.stale) { showPlanEmpty(null); return; }
-    if (st.current && st.current.character_id === c.id) return;
+    if (st.current && !st.current.missing && st.current.character_id === c.id) return;
     var pick = preferredSet(c.id);
     if (!pick) {
       if (st.current) closeSet();
@@ -353,11 +357,24 @@
     return A.get(id).then(function (r) {
       if (r.status === 401) { show('signedout'); return; }
       if (r.status === 404) {
+        // The list we asked for is gone. Drop it, and do not keep another character's open set on screen.
         st.miss[id] = true;
         if (st.planSet[charId] === id) delete st.planSet[charId];
-        slotBanner('That gear set no longer exists.');
-        loadSets({ open: false });
-        return;
+        st.current = null;
+        st.etag = null;
+        var gone = 'That gear set no longer exists.';
+        var c0 = charById(charId);
+        if (c0) { st.current = blankPlan(c0); renderSet(); }
+        else showPlanEmpty(null);
+        slotBanner(gone);
+        return loadSets({ open: false }).then(function () {
+          if (preferredSet(charId)) return applyPlan(false);
+          var c = charById(charId);
+          if (!c || !c.displayed || c.stale) { showPlanEmpty(c && c.displayed ? c : null); return; }
+          st.current = blankPlan(c);
+          renderPanel();
+          renderSet();
+        }).then(function () { slotBanner(gone); });
       }
       if (!r.ok) {
         var msg = 'Could not open the set: ' + errMsg(r, 'please try again.');
@@ -382,10 +399,11 @@
   function renderSet() {
     var s = st.current; if (!s) return;
     var c = charById(s.character_id) || {};
+    var missing = !!s.missing;
     $('pf-armory-empty').hidden = true; $('pf-armory-view').hidden = false;
-    $('pf-set-h').textContent = txt(s.name) || 'Untitled set';
-    $('pf-set-meta').textContent = fullName(c) + ' · ' + setLabel(s);
-    var out = R.outgrown(s, c);
+    $('pf-set-h').textContent = missing ? 'No gear set' : (txt(s.name) || 'Untitled set');
+    $('pf-set-meta').textContent = missing ? fullName(c) : fullName(c) + ' · ' + setLabel(s);
+    var out = !missing && R.outgrown(s, c);
     $('pf-armory-view').classList.toggle('is-outgrown', out);
     $('pf-set-outgrown').hidden = !out;
     $('pf-set-outgrown').textContent = out ? 'Outgrown: ' + fullName(c) + ' is level ' + level(c) + ', past this set\u2019s level ' + s.until_level + '. It is kept for reference.' : '';
@@ -397,13 +415,18 @@
         var iid = s.slots ? s.slots[slot] : null, it = iid != null ? st.items[iid] || { item_id: iid, name: 'Item ' + iid } : null;
         var li = el('li'), b = el('button', 'pf-slot' + (it ? ' is-filled' : '') + (st.saving[slot] ? ' is-saving' : ''));
         b.type = 'button'; b.setAttribute('data-slot', slot); b.id = 'pf-slot-' + slot;
-        b.setAttribute('aria-label', SLOT_LABEL[slot] + ': ' + (it ? txt(it.name) : 'empty') + (st.saving[slot] ? ', saving' : '') + '. Choose item');
+        b.setAttribute('aria-label', missing
+          ? SLOT_LABEL[slot] + ': empty. That gear set no longer exists.'
+          : SLOT_LABEL[slot] + ': ' + (it ? txt(it.name) : 'empty') + (st.saving[slot] ? ', saving' : '') + '. Choose item');
         b.appendChild(iconFor(slot, it));
         var tx = el('span', 'pf-slot-text');
         tx.appendChild(el('span', 'pf-slot-label', SLOT_LABEL[slot]));
         tx.appendChild(el('span', 'pf-slot-item' + (it ? ' q-' + (txt(it.quality) || 'unknown') : ''), it ? txt(it.name) : 'Empty'));
         b.appendChild(tx);
-        b.addEventListener('click', function () { openPicker(slot, b); });
+        b.addEventListener('click', function () {
+          if (st.current && st.current.missing) { slotBanner('That gear set no longer exists.'); return; }
+          openPicker(slot, b);
+        });
         li.appendChild(b); ul.appendChild(li);
       });
     });
