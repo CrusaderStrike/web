@@ -2,7 +2,7 @@
 
 Front-end contract for Battle.net sign-in and main/alt character selection.
 Matches the OpenAPI v1 spec in
-[platform#30](https://github.com/CrusaderStrike/platform/pull/30) (`openapi/v1.yaml` at `865f7b1`). **The spec is the source of truth**; this page only summarizes what the web UI uses. The web UI ships against an in-browser
+[platform#30](https://github.com/CrusaderStrike/platform/pull/30) (`openapi/v1.yaml` at `ff99462`). **The spec is the source of truth**; this page only summarizes what the web UI uses. The web UI ships against an in-browser
 mock (`js/auth-mock.js`); Platform Dev's real API should match this document so
 switching is a config change only. **World of Warcraft Forever only.** The API
 must never return characters from any other game version.
@@ -68,7 +68,7 @@ Always `302`s to `{return_to}` with `auth=ok`, `auth=cancelled`, or `auth=error&
 - Schemas: `Character`, `CharacterList`, `CharacterSelection` / `CharacterSelectionInput` exactly as in the spec. `Character` requires `id`, `character_name`, `game: wow_forever`; `surname` and `realm` are `[string, null]`.
 - WoW Forever characters have a name plus a surname and often no realm (see platform#15). `surname` is optional and nullable (`string | null`); `realm` is optional and nullable (`string | null`). Clients must treat a missing key, `null` and `""` the same.
 - Display: `"Name Surname"`, with ` — Realm` appended only when a realm exists (e.g. `Lightbringer Dawnmantle — Emberfall`, `Thornquill Briarhide`, `Grimlantern`). The UI never renders `undefined`, `null` or a dangling separator.
-- `id` is a stable opaque string (`ch_<region>_<id>` today). The UI never parses it. `region` is `us | eu`.
+- `id` is a stable opaque string (`ch_<region>_<id>` today). The UI never parses it. `region` is `us | eu | kr | tw`.
 - `stale: true` marks a character missing from the latest Battle.net refresh (never hard-deleted). The UI flags it and doesn't offer it as main or alt; the server returns `400` if one is sent. `selection` is `null` before the first save.
 - WoW Forever only: the server filters, and the UI also drops anything with another `game` value.
 - An empty `characters` list shows the empty state. Errors: `401`, `429`, `500`, `502`.
@@ -98,7 +98,7 @@ Gated by the same `FEATURE_BNET_SIGNIN` / `csBnetEnabled()` flag as sign-in.
 - Setting a main saves `PUT /me/characters/selection` with `{ main_id, alt_ids: <every other character> }`, optimistic, rolled back on error.
   Platform Dev confirmed this path (the slice-1 ticket's `PUT /me/main` is superseded).
 - A signed-in user with characters but `selection: null` is sent to `signin.html` (the picker).
-- `GET /me/profile` → `UserProfile { battletag, main_character_id, preferred_region, created_at, updated_at }`; `PUT /me/profile` (X-CSRF-Token) takes `{ preferred_region }` only. The page shows the battletag and a Preferred region select.
+- `GET /me/profile` → `UserProfile { battletag, main_character_id, preferred_region, created_at, updated_at }`; `PUT /me/profile` (X-CSRF-Token) takes `{ preferred_region }` only (`us | eu | kr | tw`). The page shows the battletag and a Preferred region select.
 - `POST /me/characters/refresh` (X-CSRF-Token; at most once per 60 s) re-syncs from Battle.net and returns `200` with the `GET /me/characters` body.
   `502 upstream_unavailable` → "Battle.net is unavailable, try again later". `429` → the button is disabled with a countdown from `Retry-After` (seconds; 30 if missing). If the refresh clears `selection.main_id` (the main went stale), the user is sent to the picker.
 - Errors on every call: `400 {errors:{field|body}}` shows the messages; `403 csrf_failed` asks to reload; `429 rate_limited` shows the `Retry-After` wait.

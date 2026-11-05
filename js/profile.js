@@ -3,6 +3,7 @@
   'use strict';
   var api = window.CSProfileApi;
   var $ = function (id) { return document.getElementById(id); };
+  var REGIONS = ['us', 'eu', 'kr', 'tw'];  // platform#30 Region
   var st = { battletag: '', region: '', characters: [], mainId: null, saving: false };
 
   function txt(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : ''; }
@@ -89,7 +90,7 @@
       return api.profile().then(function (pr) {
         if (pr.ok && pr.body) {
           st.battletag = txt(pr.body.battletag) || st.battletag;
-          st.region = ['us', 'eu'].indexOf(pr.body.preferred_region) >= 0 ? pr.body.preferred_region : '';
+          st.region = REGIONS.indexOf(pr.body.preferred_region) >= 0 ? pr.body.preferred_region : '';
         }
         return api.characters();
       });
@@ -137,7 +138,7 @@
   $('pf-retry').addEventListener('click', load);
   $('pf-region').addEventListener('change', function (e) {
     var prev = st.region, v = e.target.value;
-    if (['us', 'eu'].indexOf(v) < 0) return;
+    if (REGIONS.indexOf(v) < 0) return;
     e.target.disabled = true; $('pf-region-error').hidden = true;
     api.updateProfile({ preferred_region: v }).then(function (r) {
       e.target.disabled = false;

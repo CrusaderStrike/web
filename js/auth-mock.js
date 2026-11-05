@@ -1,5 +1,5 @@
 /**
- * Mock for the Battle.net auth, characters and profile API (platform#30 openapi/v1.yaml at 865f7b1; docs/auth-characters-api.md).
+ * Mock for the Battle.net auth, characters and profile API (platform#30 openapi/v1.yaml at ff99462; docs/auth-characters-api.md).
  * Character ids are opaque (ch_<region>_<id>); never parse them.
  * No network calls, no OAuth, no secrets. State lives in sessionStorage/localStorage.
  * Dev scenarios: ?mock_scenario=empty | error | upstream (characters endpoint).
@@ -134,7 +134,7 @@
       var keys = Object.keys(body);
       for (var i = 0; i < keys.length; i++) if (keys[i] !== 'preferred_region') return invalid('body', 'Unknown field: ' + keys[i]);
       if ('preferred_region' in body) {
-        if (['us', 'eu'].indexOf(body.preferred_region) < 0) return invalid('preferred_region', 'Region must be us or eu.');
+        if (['us', 'eu', 'kr', 'tw'].indexOf(body.preferred_region) < 0) return invalid('preferred_region', 'Region must be us, eu, kr or tw.');
         localStorage.setItem(REGION_KEY, body.preferred_region);
       }
       return this.profile();
