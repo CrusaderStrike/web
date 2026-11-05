@@ -4,10 +4,10 @@
 // GET/POST /characters/{id}/gear-lists (403 {errors:{character_id}} when not selected, 409 list_limit_reached);
 // GET /gear-lists/{id}; POST /gear-lists/{id}/ops (add_item|remove_item, uuid op_id, base_version -> conflicts[]);
 // 429 Retry-After. Items (GET /items, /items/{id}) are live on main. Run with the repo served on CS_E2E_PORT.
-// web#44: CS_SLOT_OPS=set_slot (armory-setslot.e2e.js) runs the same suite with ARMORY_SLOT_OPS='set_slot' against a stub that
-// also implements platform#46 set_slot / clear_slot; the default run is 'legacy' and the stub rejects set_slot like prod before #46.
+// web#44: default run = shipped ARMORY_SLOT_OPS='set_slot' against a stub implementing platform#46 set_slot / clear_slot.
+// CS_SLOT_OPS=legacy (armory-legacy.e2e.js) reruns it with the 'legacy' rollback switch against a pre-#46 stub that rejects set_slot.
 const { chromium } = require('playwright');
-const OPTB = process.env.CS_SLOT_OPS === 'set_slot';
+const OPTB = process.env.CS_SLOT_OPS !== 'legacy';  // default = shipped 'set_slot'
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 const API = 'https://api.crusaderstrike.com';
 const CSRF = 'csrf-armory-token';
@@ -247,7 +247,7 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
     r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', item_id: 16900, base_version: S.sets[0].version }]);
     ok(r.s === 200 && r.b.applied.length === 1 && !r.b.ignored.length && !S.sets[0].items.some(i => i.slot === 'head'), 'clear_slot item_id ignored, not in ignored[]');
     r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', base_version: S.sets[0].version, wat: 1 }]);
-    ok(r.s === 200 && r.b.ignored.length === 1 && r.b.ignored[0].keys.join() === 'wat', 'unknown key -> listed in ignored[]');
+    ok(r.s === 200 && r.b.ignored.length === 1 && JSON.stringify(Object.keys(r.b.ignored[0]).sort()) === '["keys","op_id"]' && typeof r.b.ignored[0].op_id === 'string' && r.b.ignored[0].keys.join() === 'wat', 'unknown key -> ignored[] {op_id, keys}');
     r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', base_version: S.sets[0].version }]);
     ok(r.s === 400 && r.b.errors['ops.0'], 'set_slot without item_id -> 400');
     v0 = S.sets[0].version; S.itemsMax = S.sets[0].items.length;

@@ -20,6 +20,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.evaluate(() => { CSAuthMock.devSignIn(); CSAuthMock.devReset(); CSArmoryMock.devReset(); });
   await go();
   ok(await p.evaluate(() => CS_CONFIG.USE_MOCK_ARMORY === true), 'USE_MOCK_ARMORY on');
+  ok(await p.evaluate(() => CS_CONFIG.ARMORY_SLOT_OPS === 'set_slot') && /ARMORY_SLOT_OPS:\s*'set_slot'/.test(require('fs').readFileSync(require('path').join(__dirname, '../../js/config.js'), 'utf8')), 'shipped default ARMORY_SLOT_OPS = set_slot');
   ok((await p.textContent('#pf-battletag')) === 'Crusader#1234', 'battletag');
   ok(await p.locator('#pf-list > li').count() === 6, '6 WoW Forever characters listed (non-Forever filtered)');
   ok(await p.isVisible('#pf-choose') && await p.evaluate(() => document.activeElement.id === 'pf-choose-h'), 'none displayed -> "Choose characters to display" step, focused');
