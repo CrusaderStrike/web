@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Crusader Strike design system styleguide.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Design system — Crusader Strike</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/design-system.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="index.html">
+      <img src="assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="styleguide.html" aria-current="page">Styleguide</a></li>
+        <li><a href="guild.html">Guild</a></li>
+        <li><a href="leaderboards.html">Leaderboards</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap cs-section">
+    <h1 class="cs-display">Design system</h1>
+    <p class="cs-section-intro">WoW Classic–inspired tokens and shared components for crusaderstrike.com. Palette contrast checked against WCAG AA. Display type uses a fantasy-leaning system stack (Palatino / Georgia) with no external font requests.</p>
+
+    <section class="cs-stack" aria-labelledby="color-title" style="margin-bottom:2.5rem">
+      <h2 id="color-title" class="cs-display">Color</h2>
+      <div class="cs-swatches">
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#0b0907"></div><figcaption><code>--cs-bg</code>#0b0907</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#1c1510"></div><figcaption><code>--cs-panel</code>#1c1510</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#f0e2c4"></div><figcaption><code>--cs-parchment</code>#f0e2c4</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#d4af37"></div><figcaption><code>--cs-gold</code>#d4af37</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#4a90d9"></div><figcaption><code>--cs-alliance</code>#4a90d9</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#e87868"></div><figcaption><code>--cs-horde</code>#e87868</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#a89878"></div><figcaption><code>--cs-muted</code>#a89878</figcaption></figure>
+        <figure class="cs-swatch"><div class="cs-swatch-chip" style="background:#8fdb9a"></div><figcaption><code>--cs-ok</code>#8fdb9a</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="cs-stack" aria-labelledby="type-title" style="margin-bottom:2.5rem">
+      <h2 id="type-title" class="cs-display">Typography</h2>
+      <h1 class="cs-display">Display heading</h1>
+      <h2 class="cs-display">Section heading</h2>
+      <h3>Card / tertiary heading</h3>
+      <p>Body copy uses the system UI stack for readability on dense tables and forms. <span class="cs-muted">Muted supporting text sits at AA on deep backgrounds.</span></p>
+    </section>
+
+    <section class="cs-stack" aria-labelledby="btn-title" style="margin-bottom:2.5rem">
+      <h2 id="btn-title" class="cs-display">Buttons</h2>
+      <div class="cs-row">
+        <button type="button" class="cs-btn cs-btn-primary">Primary</button>
+        <button type="button" class="cs-btn cs-btn-ghost">Ghost</button>
+        <button type="button" class="cs-btn cs-btn-danger">Danger</button>
+        <button type="button" class="cs-btn cs-btn-primary cs-btn-sm">Small</button>
+        <button type="button" class="cs-btn cs-btn-primary" disabled>Disabled</button>
+      </div>
+    </section>
+
+    <section class="cs-stack" aria-labelledby="badge-title" style="margin-bottom:2.5rem">
+      <h2 id="badge-title" class="cs-display">Badges</h2>
+      <div class="cs-row">
+        <span class="cs-badge cs-badge-gold">Featured</span>
+        <span class="cs-badge cs-badge-alliance">Alliance</span>
+        <span class="cs-badge cs-badge-horde">Horde</span>
+        <span class="cs-badge cs-badge-ok">Recruiting</span>
+        <span class="cs-badge cs-badge-rank cs-badge-gold">#1</span>
+      </div>
+    </section>
+
+    <section class="cs-stack" aria-labelledby="card-title" style="margin-bottom:2.5rem">
+      <h2 id="card-title" class="cs-display">Cards</h2>
+      <div class="cs-grid-3">
+        <article class="cs-card"><h3>Guild websites</h3><p>Roster, progression, and recruitment on one branded page.</p></article>
+        <article class="cs-card"><h3>Dungeon Run</h3><p>Timed dungeon ladders across realms and seasons.</p></article>
+        <article class="cs-card"><h3>World PvP</h3><p>Open-world rankings for warbands that still roam.</p></article>
+      </div>
+    </section>
+
+    <section class="cs-stack" aria-labelledby="form-title" style="margin-bottom:2.5rem">
+      <h2 id="form-title" class="cs-display">Form fields</h2>
+      <form class="cs-form-panel" style="max-width:28rem" onsubmit="return false">
+        <div class="cs-field">
+          <label for="demo-email">Email</label>
+          <span class="cs-hint" id="demo-email-hint">Early-access notices only.</span>
+          <input id="demo-email" type="email" aria-describedby="demo-email-hint" placeholder="you@example.com">
+        </div>
+        <div class="cs-field">
+          <label for="demo-faction">Faction</label>
+          <select id="demo-faction">
+            <option value="">Select…</option>
+            <option>alliance</option>
+            <option>horde</option>
+          </select>
+        </div>
+        <div class="cs-field-check">
+          <input id="demo-consent" type="checkbox">
+          <label for="demo-consent">I agree to the privacy note (consent demo).</label>
+        </div>
+        <button type="submit" class="cs-btn cs-btn-primary">Submit</button>
+      </form>
+    </section>
+
+    <section class="cs-stack" aria-labelledby="table-title">
+      <h2 id="table-title" class="cs-display">Table</h2>
+      <div class="cs-table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th scope="col">Rank</th>
+              <th scope="col">Character</th>
+              <th scope="col">Realm</th>
+              <th scope="col">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="cs-badge cs-badge-rank cs-badge-gold">1</span></td>
+              <td>Lightbringer</td>
+              <td>Whitemane</td>
+              <td>3,240</td>
+            </tr>
+            <tr>
+              <td><span class="cs-badge cs-badge-rank">2</span></td>
+              <td>Shadowrend</td>
+              <td>Faerlina</td>
+              <td>3,110</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — design system</span>
+    <span><a href="https://github.com/CrusaderStrike/web">Source</a></span>
+  </footer>
+</body>
+</html>
