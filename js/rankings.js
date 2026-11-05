@@ -150,7 +150,6 @@
     if (!k || ALLOWED[k].indexOf(v) < 0) return;
     var c = {}; c[k] = v; update(c, true);
   });
-  $('rk-filters').addEventListener('submit', function (e) { e.preventDefault(); });
   document.querySelectorAll('.cs-sort').forEach(function (b) {
     b.addEventListener('click', function () {
       var k = b.getAttribute('data-sort');
