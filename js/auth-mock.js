@@ -12,6 +12,8 @@
     { id: 'ch_1002', character_name: 'Ashenvow', surname: null, realm: 'Emberfall', faction: 'alliance', class: 'Priest', race: 'Dwarf', level: 60, game: 'wow_forever' },
     { id: 'ch_1003', character_name: 'Thornquill', surname: 'Briarhide', realm: null, faction: 'horde', class: 'Druid', race: 'Tauren', level: 52, game: 'wow_forever' },
     { id: 'ch_1004', character_name: 'Grimlantern', faction: 'horde', class: 'Warlock', race: 'Undead', level: 38, game: 'wow_forever' },
+    // web#26: faction omitted (Forever profile may not return it) -> neutral badge, never Horde.
+    { id: 'ch_1005', character_name: 'Wispwander', surname: null, realm: 'Duskhollow', class: 'Rogue', race: 'Gnome', level: 27, game: 'wow_forever' },
     // Non-Forever entries the server must filter out; the mock filters too, to prove the UI never shows them.
     { id: 'ch_9001', character_name: 'Filtered', surname: null, realm: 'Emberfall', faction: 'alliance', class: 'Mage', race: 'Gnome', level: 10, game: 'other' }
   ];
@@ -60,6 +62,7 @@
       if (!session()) return err(401, 'unauthenticated', 'Sign in required.');
       var sc = scenario();
       if (sc === 'error') return err(500, 'internal_error', 'Something went wrong.');
+      if (sc === 'nomain') { localStorage.removeItem(SELECTION_KEY); }
       if (sc === 'upstream') return err(502, 'upstream_unavailable', 'Battle.net is not responding.');
       var list = sc === 'empty' ? [] : FIXTURES.filter(function (c) { return c.game === 'wow_forever'; });
       var sel = null;
@@ -69,6 +72,7 @@
     saveSelection: function (body, csrf) {
       var s = session();
       if (!s) return err(401, 'unauthenticated', 'Sign in required.');
+      if (scenario() === 'save_error') return err(500, 'internal_error', 'Could not save. Try again.');
       if (!csrf || csrf !== s.csrf_token) return err(403, 'csrf_failed', 'Security check failed. Reload and try again.');
       var ids = FIXTURES.filter(function (c) { return c.game === 'wow_forever'; }).map(function (c) { return c.id; });
       if (!body || ids.indexOf(body.main_id) === -1) return invalid('main_id', 'Pick a main from your characters.');
@@ -79,6 +83,18 @@
       var sel = { main_id: body.main_id, alt_ids: alts, updated_at: new Date().toISOString() };
       localStorage.setItem(SELECTION_KEY, JSON.stringify(sel));
       return res(200, { selection: sel });
+    },
+    /** POST /me/characters/refresh (proposed, not in spec): re-sync from Battle.net, returns CharacterList. */
+    refresh: function (csrf) {
+      var s = session();
+      if (!s) return err(401, 'unauthenticated', 'Sign in required.');
+      if (scenario() === 'refresh_error') return err(502, 'upstream_unavailable', 'Battle.net is not responding.');
+      if (!csrf || csrf !== s.csrf_token) return err(403, 'csrf_failed', 'Security check failed. Reload and try again.');
+      return this.characters();
+    },
+    /** Test/dev helper: start a mock session without the OAuth screens. */
+    devSignIn: function () {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ battletag: 'Crusader#1234', csrf_token: randomToken() }));
     },
     /** DELETE /auth/session */
     logout: function () { sessionStorage.removeItem(SESSION_KEY); return res(204, null); }

@@ -14,6 +14,14 @@ window.CS_CONFIG = Object.freeze({
   FEATURE_BNET_SIGNIN: false,
   // true = in-browser mock (js/auth-mock.js); false = real API at API_BASE (platform#11).
   USE_MOCK_AUTH: true,
+  // Profile page (/profile/): true = js/auth-mock.js; false = real API. Paths in PROFILE_PATHS.
+  USE_MOCK_PROFILE: true,
+  PROFILE_PATHS: Object.freeze({
+    SESSION: '/api/v1/auth/session',
+    CHARACTERS: '/api/v1/me/characters',              // spec listMyCharacters
+    SELECTION: '/api/v1/me/characters/selection',     // spec setMyCharacterSelection (ticket says PUT /me/main)
+    REFRESH: '/api/v1/me/characters/refresh'          // NOT in spec yet; proposed POST
+  }),
   AUTH_PATHS: Object.freeze({
     // Paths per platform PR #18 openapi/v1.yaml (server base https://api.crusaderstrike.com/api/v1)
     START: '/api/v1/auth/blizzard/login',

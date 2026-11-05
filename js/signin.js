@@ -103,8 +103,7 @@
       info.appendChild(name);
       var meta = el('span', 'si-char-meta', metaText(c));
       info.appendChild(meta);
-      var badge = el('span', 'cs-badge ' + (c.faction === 'alliance' ? 'cs-badge-alliance' : 'cs-badge-horde'),
-        c.faction === 'alliance' ? 'Alliance' : 'Horde');
+      var badge = window.csFactionBadge(c.faction);
       info.appendChild(badge);
       li.appendChild(info);
 

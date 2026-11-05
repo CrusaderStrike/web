@@ -86,3 +86,21 @@ Relation to the spec: `Member.is_main` should be derived from this selection.
 Four fake characters covering every shape: name + surname + realm (Lightbringer Dawnmantle — Emberfall), name + realm with `surname: null` (Ashenvow — Emberfall), name + surname with `realm: null` (Thornquill Briarhide), and name only with both keys omitted (Grimlantern),
 plus one non-Forever entry that the mock filters out. That entry proves the UI shows only WoW Forever characters.
 Mock state: the session lives in `sessionStorage`, and the selection in `localStorage` (so it survives mock sign-out and sign-in).
+
+## Profile page (`/profile/`)
+
+`profile/index.html` + `js/profile.js`, through the thin client `js/profile-api.js`.
+`CS_CONFIG.USE_MOCK_PROFILE` (default `true`) picks `js/auth-mock.js` or the real API; paths are in `CS_CONFIG.PROFILE_PATHS`.
+Gated by the same `FEATURE_BNET_SIGNIN` / `csBnetEnabled()` flag as sign-in.
+
+- Loads `GET /auth/session` (battletag, csrf_token) and `GET /me/characters`.
+- Setting a main saves `PUT /me/characters/selection` with `{ main_id, alt_ids: <every other character> }`, optimistic, rolled back on error.
+  The slice-1 ticket names this `PUT /me/main`; the spec has no such path, so the client uses the spec path. Change `PROFILE_PATHS.SELECTION` and `setMain()` if Platform Dev's profile OpenAPI differs.
+- A signed-in user with characters but `selection: null` is sent to `signin.html` (the picker).
+- **Proposed, not in the spec:** `POST /me/characters/refresh` (X-CSRF-Token) re-syncs from Battle.net and returns `CharacterList`. Errors as for `GET /me/characters`.
+
+### Faction (web#26)
+`Character.faction` is optional. A missing or unknown faction shows a neutral "No faction" badge (`aria-label="Faction: none"`), never Horde.
+Fixture `ch_1005` (Wispwander — Duskhollow) has no `faction` key.
+
+Mock-only profile scenarios: `mock_scenario=empty|error|upstream|nomain|save_error|refresh_error`.

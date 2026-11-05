@@ -344,6 +344,7 @@ h3 { font-family: var(--cs-font-display); font-size: var(--cs-text-xl); margin: 
 }
 .cs-badge-gold { border-color: var(--cs-gold-soft); color: var(--cs-gold); background: rgba(212,175,55,0.1); }
 .cs-badge-alliance { border-color: var(--cs-alliance); color: var(--cs-alliance); background: var(--cs-alliance-bg); }
+.cs-badge-neutral { border-color: var(--cs-border); color: var(--cs-muted); background: transparent; }
 .cs-badge-horde { border-color: var(--cs-horde); color: var(--cs-horde); background: var(--cs-horde-bg); }
 .cs-badge-ok { border-color: var(--cs-ok); color: var(--cs-ok); background: var(--cs-ok-bg); }
 .cs-badge-rank {
