@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Equipped gear for your World of Warcraft Forever characters on Crusader Strike.">
+  <meta name="theme-color" content="#0b0907">
+  <meta name="robots" content="noindex">
+  <title>Gear — Crusader Strike</title>
+  <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/profile.css">
+  <link rel="stylesheet" href="../css/gear.css">
+</head>
+<body>
+  <a class="cs-skip-link" href="#main">Skip to content</a>
+  <header class="cs-wrap cs-header">
+    <a class="cs-brand" href="../index.html">
+      <img src="../assets/logo.svg" width="40" height="40" alt="">
+      <span>Crusader Strike</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="cs-nav">
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="../guild.html">Guild</a></li>
+        <li><a href="../leaderboards.html">Leaderboards</a></li>
+        <li><a href="../profile/">Profile</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main" class="cs-wrap cs-section">
+    <p><a href="../profile/">← Back to profile</a></p>
+    <h1 class="cs-display" id="gr-h" tabindex="-1">Gear</h1>
+    <p id="gr-status" class="cs-muted" role="status" aria-live="polite"></p>
+
+    <section id="gr-loading" class="cs-card pf-state" aria-labelledby="gr-loading-h">
+      <h2 id="gr-loading-h" class="pf-state-h">Loading gear…</h2>
+    </section>
+    <section id="gr-disabled" class="cs-card pf-state" aria-labelledby="gr-disabled-h" hidden>
+      <h2 id="gr-disabled-h" class="pf-state-h" tabindex="-1">Gear is coming soon</h2>
+      <p>Battle.net sign-in isn't switched on yet.</p>
+    </section>
+    <section id="gr-signedout" class="cs-card pf-state" aria-labelledby="gr-signedout-h" hidden>
+      <h2 id="gr-signedout-h" class="pf-state-h" tabindex="-1">Sign in to see your gear</h2>
+      <a class="cs-btn cs-btn-primary" href="../signin.html">Sign in</a>
+    </section>
+    <section id="gr-notfound" class="cs-card pf-state" aria-labelledby="gr-notfound-h" hidden>
+      <h2 id="gr-notfound-h" class="pf-state-h" tabindex="-1">Character not found</h2>
+      <p>Pick a character from your profile.</p>
+    </section>
+    <section id="gr-error" class="cs-card pf-state" role="alert" aria-labelledby="gr-error-h" hidden>
+      <h2 id="gr-error-h" class="pf-state-h" tabindex="-1">Gear could not load</h2>
+      <p id="gr-error-msg"></p>
+      <button type="button" class="cs-btn cs-btn-ghost" id="gr-retry">Try again</button>
+    </section>
+
+    <section id="gr-ready" aria-labelledby="gr-h" hidden>
+      <p class="cs-muted" id="gr-updated"></p>
+      <div id="gr-empty" class="cs-card pf-state" hidden>
+        <h2 class="pf-state-h">No gear recorded yet</h2>
+        <p>Log in to this character in WoW Forever and sync, then check back.</p>
+      </div>
+      <div class="cs-table-wrap" id="gr-table-wrap">
+        <table class="cs-table gr-table">
+          <caption id="gr-caption" class="cs-muted gr-caption">Equipped gear</caption>
+          <thead>
+            <tr>
+              <th scope="col">Slot</th>
+              <th scope="col">Item</th>
+              <th scope="col">Quality</th>
+              <th scope="col" class="gr-num">Item level</th>
+            </tr>
+          </thead>
+          <tbody id="gr-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="cs-wrap cs-footer">
+    <span>© Crusader Strike — World of Warcraft Forever</span>
+    <span><a href="../profile/">Profile</a></span>
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/auth-mock.js"></script>
+  <script src="../js/gear-mock.js"></script>
+  <script src="../js/profile-api.js"></script>
+  <script src="../js/gear-api.js"></script>
+  <script src="../js/gear.js"></script>
+</body>
+</html>

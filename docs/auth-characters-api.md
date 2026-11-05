@@ -107,4 +107,18 @@ Gated by the same `FEATURE_BNET_SIGNIN` / `csBnetEnabled()` flag as sign-in.
 `Character.faction` is lowercase `"alliance" | "horde" | null` (platform#30; Blizzard's ALLIANCE/HORDE are mapped server-side). Null, missing or unknown shows a neutral "No faction" badge (`aria-label="Faction: none"`), never Horde.
 Fixture `ch_us_1005` (Wispwander — Duskhollow) has `faction: null`.
 
-Mock-only profile scenarios: `mock_scenario=empty|error|upstream|nomain|save_error|refresh_error|refresh_ratelimit|refresh_stale|save_ratelimit|save_body`. Fixture `ch_eu_2001` (Hollowpeak) is stale..
+Mock-only profile scenarios: `mock_scenario=empty|error|upstream|nomain|save_error|refresh_error|refresh_ratelimit|refresh_stale|save_ratelimit|save_body`. Fixture `ch_eu_2001` (Hollowpeak) is stale.
+
+## Gear (web#18, `/gear/?character={id}`)
+
+`GET /characters/{character_id}/gear` (platform#30 `getCharacterGear`) via `js/gear-api.js`; `CS_CONFIG.USE_MOCK_GEAR` picks `js/gear-mock.js`.
+```json
+{ "character_id": "ch_us_1001", "updated_at": "2026-11-04T18:00:00Z",
+  "items": [{ "slot": "head", "itemId": 910001, "name": "Helm of the Dawnward Vigil", "quality": "epic", "ilvl": 66, "icon": "inv_helmet_03" }] }
+```
+- Read-only for now. `PUT` on the same path is owner-only and needs `X-CSRF-Token` (not used yet).
+- Slots: `head … ranged` incl. `finger1/2`, `trinket1/2`, `main_hand`, `off_hand`. Empty slots are omitted; unknown slots are dropped. Rows are ordered by slot.
+- `quality` is lowercase `poor|common|uncommon|rare|epic|legendary|null`, shown by color and as text; null/unknown shows "Unknown".
+- `name`, `ilvl`, `icon` may be null. `icon` is a Blizzard icon asset name without extension; the URL comes from `CS_CONFIG.GEAR_ICON_URL` (`{icon}` placeholder). Names that aren't `[a-z0-9_]` use the local placeholder; the mock always uses it.
+- `401` → sign in; `403`/`404` (non-owner or not visible) → "Character not found"; `429` → Retry-After message; `502` → "Battle.net is unavailable, try again later".
+- Mock scenarios: `mock_scenario=gear_empty|gear_error|gear_upstream|gear_ratelimit|slow`; ids not in the mock's character list return 404.

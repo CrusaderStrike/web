@@ -1,0 +1,19 @@
+/* web#18 gear UI. Quality colors tuned for contrast on the dark theme; quality is also shown as text. */
+.gr-caption { caption-side: bottom; padding: 0.75rem; text-align: left; }
+.gr-num { text-align: right; font-variant-numeric: tabular-nums; }
+.gr-item { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.gr-icon { width: 36px; height: 36px; flex: none; border-radius: 4px; border: 2px solid currentColor; background: #1b1611; }
+.gr-name { font-weight: 700; overflow-wrap: anywhere; }
+.q-poor { color: #b4b4b4; }
+.q-common { color: #f2f2f2; }
+.q-uncommon { color: #3ee23e; }
+.q-rare { color: #5aaeff; }
+.q-epic { color: #c58cff; }
+.q-legendary { color: #ff9a3c; }
+@media (max-width: 560px) {
+  .gr-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .gr-table, .gr-table tbody, .gr-table tr, .gr-table td { display: block; width: 100%; }
+  .gr-table tr { border-bottom: 1px solid var(--cs-border); padding: 0.5rem 0; }
+  .gr-table td { border: 0; padding: 0.2rem 0.75rem; text-align: left; }
+  .gr-table td[data-label]::before { content: attr(data-label) ": "; color: var(--cs-muted); }
+}

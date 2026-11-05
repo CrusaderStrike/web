@@ -66,6 +66,10 @@
       r.setAttribute('aria-describedby', nameId);
       lab.appendChild(r); lab.appendChild(el('span', null, 'Set as main'));
       li.appendChild(lab);
+      var gl = el('a', 'pf-gear-link', 'View gear');
+      gl.href = '../gear/?character=' + encodeURIComponent(c.id);
+      gl.setAttribute('aria-describedby', nameId);
+      li.appendChild(gl);
       list.appendChild(li);
     });
     $('pf-refresh').disabled = st.saving;

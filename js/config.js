@@ -16,6 +16,9 @@ window.CS_CONFIG = Object.freeze({
   USE_MOCK_AUTH: true,
   // Profile page (/profile/): true = js/auth-mock.js; false = real API (platform#30 openapi/v1.yaml at ff99462).
   USE_MOCK_PROFILE: true,
+  // web#18 gear UI: true = js/gear-mock.js; false = real API GET /characters/{id}/gear.
+  USE_MOCK_GEAR: true,
+  GEAR_PATH: '/api/v1/characters/{id}/gear',
   PROFILE_PATHS: Object.freeze({
     SESSION: '/api/v1/auth/session',
     PROFILE: '/api/v1/me/profile',                   // GET/PUT UserProfile {battletag, main_character_id, preferred_region}
