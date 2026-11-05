@@ -1,0 +1,48 @@
+/* web#38 public guild pages + browse index. Mobile-first; colours from design-system tokens (AA on --cs-bg/--cs-panel). */
+.cs-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+[hidden] { display: none !important; }
+.gp-crumbs a, .gl a { color: var(--cs-gold-bright); }
+.gp-banner { display: grid; grid-template-columns: 64px 1fr; gap: 1rem; align-items: center; padding: 1rem; margin: 0.5rem 0 1.25rem;
+  border: 1px solid var(--cs-border); border-radius: var(--cs-radius-lg, 12px); background: var(--cs-panel); }
+.gp-banner-alliance { background: linear-gradient(120deg, var(--cs-alliance-bg), var(--cs-panel)); }
+.gp-banner-horde { background: linear-gradient(120deg, var(--cs-horde-bg), var(--cs-panel)); }
+.gp-crest { width: 64px; height: 64px; }
+.gp-name { margin: 0 0 0.4rem; overflow-wrap: anywhere; }
+.gp-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0; }
+.gp-open { color: var(--cs-ok); border-color: var(--cs-ok); background: var(--cs-ok-bg); }
+.gp-closed, .gp-forever, .gp-realm { color: var(--cs-parchment); }
+.gp-members { color: var(--cs-parchment); font-size: var(--cs-text-sm); }
+.gp-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+.gp-grid h2 { margin-top: 0; font-size: var(--cs-text-xl); }
+.gp-pitch, .gp-ingame { white-space: pre-line; overflow-wrap: anywhere; }
+.gp-ingame-label { font-weight: 600; }
+.gp-apply { display: inline-flex; min-height: 44px; align-items: center; }
+.gp-raids { list-style: none; padding: 0; margin: 0 0 0.5rem; display: grid; gap: 0.5rem; }
+.gp-raid-local { display: block; color: var(--cs-gold-bright); }
+.gp-prio-high { color: var(--cs-err); font-weight: 700; }
+.gp-prio-medium { color: var(--cs-gold-bright); }
+.gp-prio-low { color: var(--cs-parchment); }
+.gp-status-on { padding: 0.75rem 1rem; border: 1px solid var(--cs-gold-soft); border-radius: 8px; background: var(--cs-panel); color: var(--cs-parchment); }
+.gp-state, .gl-state { margin: 1rem 0; }
+.gl-filters { margin-bottom: 1rem; }
+.gl-row { display: grid; grid-template-columns: 1fr; gap: 0 1rem; }
+.gl-set { border: 1px solid var(--cs-border); border-radius: 8px; padding: 0.5rem 0.75rem; margin: 0 0 0.75rem; display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+.gl-set legend { font-weight: 600; padding: 0 0.25rem; }
+.gl-check { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; }
+.gl-check input { width: 1.1rem; height: 1.1rem; }
+.gl-list { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+.gl-card { display: grid; grid-template-columns: 48px 1fr; gap: 0.75rem; align-items: center; }
+.gl-name { margin: 0 0 0.25rem; font-size: var(--cs-text-lg); overflow-wrap: anywhere; }
+.gl-name a { display: inline-block; min-height: 24px; }
+.gl-meta { margin: 0; color: var(--cs-parchment); display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.gl-pager { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; margin: 1rem 0; }
+.gl-pager .cs-btn { min-height: 44px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--cs-focus); outline-offset: 2px; }
+@media (min-width: 720px) {
+  .gp-banner { grid-template-columns: 96px 1fr; padding: 1.5rem; }
+  .gp-crest { width: 96px; height: 96px; }
+  .gp-grid { grid-template-columns: 1fr 1fr; }
+  .gl-row { grid-template-columns: 1fr 1fr 1fr; }
+  .gl-list { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1040px) { .gl-list { grid-template-columns: 1fr 1fr 1fr; } }
