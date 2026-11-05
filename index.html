@@ -23,7 +23,7 @@
         <li><a href="leaderboards.html">Leaderboards</a></li>
         <li><a href="rankings.html">Rankings</a></li>
         <li><a href="guild.html">Guilds</a></li>
-        <li id="nav-bnet" hidden><a href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login" class="cs-btn cs-btn-sm cs-btn-bnet cs-btn-bnet--compact">Login / Create account with Battle.net</a></li>
+        <li id="nav-bnet" hidden><a href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login?return_to=%2Fprofile%2F" class="cs-btn cs-btn-sm cs-btn-bnet cs-btn-bnet--compact">Login / Create account with Battle.net</a></li>
       </ul>
     </nav>
   </header>
@@ -37,7 +37,7 @@
           Dungeon Run and World PvP rankings, and an addon that keeps your roster in the fight.
         </p>
         <div class="cta-row">
-          <a class="cs-btn cs-btn-bnet" id="hero-bnet" href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login" hidden>Sign in with Battle.net</a>
+          <a class="cs-btn cs-btn-bnet" id="hero-bnet" href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login?return_to=%2Fprofile%2F" hidden>Sign in with Battle.net</a>
           <a class="cs-btn cs-btn-primary" href="#pitch">See what ships</a>
         </div>
         <div id="hero-bnet-notes" class="hero-bnet-notes" hidden>
@@ -81,6 +81,7 @@
   </footer>
 
   <script src="js/config.js"></script>
+  <script src="js/bnet-return.js"></script>
   <script src="js/nav-flags.js"></script>
 </body>
 </html>

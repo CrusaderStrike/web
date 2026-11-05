@@ -34,9 +34,10 @@ Mock-only dev scenarios (via query string on `signin.html`): `mock_scenario=empt
 
 ## Endpoints (server base `https://api.crusaderstrike.com/api/v1`)
 
-### `GET /auth/blizzard/login?return_to=/signin.html` (spec `blizzardLogin`)
-`return_to` is a relative same-site path starting with a single `/` (default `/signin.html`). Since web#51 the UI sends no `return_to`: every control links to plain start-auth, and `/signin.html` is a redirect stub that sends `?auth=` callback returns on to `/profile/`.
-*Mock:* navigates to `signin.html?mock_authorize=1&state=…`, a simulated consent screen.
+### `GET /auth/blizzard/login?return_to=/profile/` (spec `blizzardLogin`)
+`return_to` is a same-origin relative path starting with a single `/` (no `//`, backslash, scheme or `:`); invalid or missing falls back to `/profile/`. Every `.cs-btn-bnet` has a static `?return_to=%2Fprofile%2F` href (works with JS off), and `js/bnet-return.js` rewrites it to the current `pathname + search` (minus `auth=`/`reason=`; `/profile/` on home and `signin.html`, or when the path has `:`, a backslash or a leading `//`).
+Callback: with no stored `return_to`, every result (`?auth=ok`, `?auth=cancelled`, `?auth=error&reason=invalid_state|oauth_error|upstream_unavailable`) goes to `/profile/`. With a stored `return_to`, ok, cancelled and no-code go to that path; a failed exchange always goes to `/profile/`. `/signin.html` is a redirect stub to start-auth; its `?auth=` relay to `/profile/` is a safety net only.
+*Mock:* `CSAuthMock.start/callback` store `return_to` with the state and mirror the live callback routing above.
 
 ### `GET /auth/blizzard/callback` (spec `blizzardCallback`)
 Always `302`s to `{return_to}` with `auth=ok`, `auth=cancelled`, or `auth=error&reason=invalid_state|upstream_unavailable|oauth_error|internal_error`. The UI shows a reason-specific message. *Mock:* state mismatch → `auth=error&reason=invalid_state`.

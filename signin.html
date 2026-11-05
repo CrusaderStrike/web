@@ -5,17 +5,17 @@
   <meta name="robots" content="noindex">
   <title>Redirecting to Battle.net sign-in…</title>
   <!-- web#51: sign-in now starts at the platform start-auth URL. GitHub Pages can't send a 301/302, so this stub
-       redirects. No return_to (PM): the platform falls back to /signin.html after the callback, so a request that
-       already carries ?auth= (the callback coming back) goes to the profile instead of starting OAuth again. -->
+       redirects. It sends return_to=/profile/. SAFETY NET ONLY (the live callback never lands here; its default is /profile/): a request that already carries ?auth= (a callback
+       coming back here) goes to the profile instead of starting OAuth again. -->
   <script>
     (function () {
       if (/[?&]auth=/.test(location.search)) { location.replace('/profile/' + location.search); return; }
-      location.replace('https://api.crusaderstrike.com/api/v1/auth/blizzard/login');
+      location.replace('https://api.crusaderstrike.com/api/v1/auth/blizzard/login?return_to=%2Fprofile%2F');
     })();
   </script>
-  <noscript><meta http-equiv="refresh" content="0; url=https://api.crusaderstrike.com/api/v1/auth/blizzard/login"></noscript>
+  <noscript><meta http-equiv="refresh" content="0; url=https://api.crusaderstrike.com/api/v1/auth/blizzard/login?return_to=%2Fprofile%2F"></noscript>
 </head>
 <body>
-  <p>Redirecting to Battle.net sign-in… <a href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login">Continue to Battle.net sign-in</a></p>
+  <p>Redirecting to Battle.net sign-in… <a href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login?return_to=%2Fprofile%2F">Continue to Battle.net sign-in</a></p>
 </body>
 </html>

@@ -12,12 +12,13 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   const ratio = (a, c) => { const [x, y] = [lum(a), lum(c)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
   const style = sel => p.$eval(sel, e => { const s = getComputedStyle(e); return { bg: s.backgroundColor, fg: s.color, img: s.backgroundImage, ow: s.outlineWidth, os: s.outlineStyle, oc: s.outlineColor }; });
   const START = 'https://api.crusaderstrike.com/api/v1/auth/blizzard/login';
+  const RT = v => START + '?return_to=' + encodeURIComponent(v); const STATIC = RT('/profile/');
   const points = [
-    { url: 'index.html?ff_bnet=1', wait: '#nav-bnet', sel: '#nav-bnet a', role: 'link', name: 'Login / Create account with Battle.net', href: START, compact: true },
-    { url: 'index.html?ff_bnet=1', wait: '#hero-bnet', sel: '#hero-bnet', role: 'link', name: 'Sign in with Battle.net', href: START },
-    { url: 'profile/?ff_bnet=1', wait: '#pf-signedout', sel: '#pf-signin', role: 'link', name: 'Sign in with Battle.net', href: START },
-    { url: 'gear/?character=ch_us_1001&ff_bnet=1', wait: '#gr-signedout', sel: '#gr-signin', role: 'link', name: 'Sign in with Battle.net', href: START },
-    { url: 'gear/lists/?character=ch_us_1001&ff_bnet=1', wait: '#gl-signedout', sel: '#gl-signin', role: 'link', name: 'Sign in with Battle.net', href: START },
+    { url: 'index.html?ff_bnet=1', wait: '#nav-bnet', sel: '#nav-bnet a', role: 'link', name: 'Login / Create account with Battle.net', href: RT('/profile/'), compact: true },
+    { url: 'index.html?ff_bnet=1', wait: '#hero-bnet', sel: '#hero-bnet', role: 'link', name: 'Sign in with Battle.net', href: RT('/profile/') },
+    { url: 'profile/?ff_bnet=1', wait: '#pf-signedout', sel: '#pf-signin', role: 'link', name: 'Sign in with Battle.net', href: RT('/profile/?ff_bnet=1') },
+    { url: 'gear/?character=ch_us_1001&ff_bnet=1', wait: '#gr-signedout', sel: '#gr-signin', role: 'link', name: 'Sign in with Battle.net', href: RT('/gear/?character=ch_us_1001&ff_bnet=1') },
+    { url: 'gear/lists/?character=ch_us_1001&ff_bnet=1', wait: '#gl-signedout', sel: '#gl-signin', role: 'link', name: 'Sign in with Battle.net', href: RT('/gear/lists/?character=ch_us_1001&ff_bnet=1') },
   ];
   for (const t of points) {
     await p.goto(B + t.url); const shown = await vis(t.wait); const tag = t.url.split('?')[0] + ' ' + t.sel;
@@ -28,7 +29,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
     const named = p.getByRole(t.role, { name: t.name, exact: true });
     ok(await named.count() >= 1 && await named.first().evaluate((e, s) => e === document.querySelector(s), t.sel), tag + ': accessible name "' + t.name + '"');
     ok(!/®/.test(await p.textContent(t.sel)), tag + ': no ® in label');
-    ok(await p.getAttribute(t.sel, 'href') === t.href, tag + ': href ' + t.href);
+    ok(await p.getAttribute(t.sel, 'href') === t.href, tag + ': JS on return_to href ' + t.href);
     const s = await style(t.sel);
     ok(s.img === 'none' && s.bg === 'rgb(0, 116, 224)' && s.fg === 'rgb(255, 255, 255)', tag + ': solid Blizzard blue ' + s.bg);
     ok(ratio(s.bg, s.fg) >= 4.5, tag + ': contrast ' + ratio(s.bg, s.fg).toFixed(2) + ':1 >= 4.5');
@@ -38,6 +39,25 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
     await p.focus(t.sel); await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Tab');
     const f = await style(t.sel); const isF = await p.$eval(t.sel, e => e === document.activeElement && e.matches(':focus-visible'));
     ok(isF && f.os !== 'none' && parseFloat(f.ow) >= 2, tag + ': keyboard focus-visible ring ' + f.ow + ' ' + f.oc);
+  }
+  // JS off: every control keeps the static return_to=/profile/ href (raw HTML is what a no-JS browser follows).
+  for (const t of points) {
+    const html = await (await p.request.get(B + t.url)).text(); const id = t.sel === '#nav-bnet a' ? 'nav-bnet' : t.sel.slice(1);
+    const m = html.match(new RegExp('id="' + id + '"[^>]*>\\s*<a [^>]*href="([^"]+)"|<a [^>]*id="' + id + '"[^>]*href="([^"]+)"|<a [^>]*href="([^"]+)"[^>]*id="' + id + '"'));
+    const href = m && (m[1] || m[2] || m[3]); ok(href === STATIC, t.url.split('?')[0] + ' ' + t.sel + ': JS off href ' + href);
+  }
+  const nj = await b.newContext({ javaScriptEnabled: false }); const q = await nj.newPage();
+  for (const t of points.slice(2)) { await q.goto(B + t.url); ok(await q.getAttribute(t.sel, 'href') === STATIC, t.url.split('?')[0] + ' ' + t.sel + ': JS-off page keeps return_to=/profile/'); }
+  await nj.close();
+  // auth= and reason= are stripped; home (/ and /index.html) uses /profile/.
+  await p.goto(B + 'profile/?ff_bnet=1&auth=error&reason=denied'); await vis('#pf-signedout');
+  ok(await p.getAttribute('#pf-signin', 'href') === RT('/profile/?ff_bnet=1'), 'auth=/reason= stripped from return_to');
+  await p.goto(B + '?ff_bnet=1'); await vis('#hero-bnet'); ok(await p.getAttribute('#hero-bnet', 'href') === STATIC, '/ (home): return_to=/profile/');
+  // Platform contract: ':' or backslash in the path, or a leading '//', sends /profile/ instead.
+  await p.goto(B + 'profile/?ff_bnet=1'); await vis('#pf-signedout');
+  for (const [path, want] of [['/foo:bar/', '/profile/'], ['/a%3Ab/', '/profile/'], ['/a%5Cb/', '/profile/'], ['//evil.example/x', '/profile/'], ['/gear/?x=1', '/gear/?x=1']]) {
+    const got = await p.evaluate(u => { history.replaceState(null, '', location.origin + u); return window.csBnetReturnTo(); }, path);
+    ok(got === want, 'unsafe-path guard ' + path + ' -> ' + got);
   }
   // Session-expired states reuse the same signed-out button (only the heading/copy changes).
   for (const [u, sec, sel] of [['profile/index.html', 'pf-signedout', 'pf-signin'], ['gear/lists/index.html', 'gl-signedout', 'gl-signin']]) {

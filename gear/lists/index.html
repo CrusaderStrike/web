@@ -46,7 +46,7 @@
       <h2 id="gl-signedout-h" class="pf-state-h" tabindex="-1">Sign in to see your gear lists</h2>
       <p id="gl-signedout-msg" hidden></p>
       <p id="gl-signin-notice" class="cs-signin-notice">Sign in to view this page.</p>
-      <a class="cs-btn cs-btn-bnet" id="gl-signin" href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login">Sign in with Battle.net</a>
+      <a class="cs-btn cs-btn-bnet" id="gl-signin" href="https://api.crusaderstrike.com/api/v1/auth/blizzard/login?return_to=%2Fprofile%2F">Sign in with Battle.net</a>
     </section>
     <section id="gl-notfound" class="cs-card pf-state" aria-labelledby="gl-notfound-h" hidden>
       <h2 id="gl-notfound-h" class="pf-state-h" tabindex="-1">Character not found</h2>
@@ -207,6 +207,7 @@
   </footer>
 
   <script src="../../js/config.js"></script>
+  <script src="../../js/bnet-return.js"></script>
   <script src="../../js/auth-mock.js"></script>
   <script src="../../js/gear-lists-spec.js"></script>
   <script src="../../js/gear-lists-mock.js"></script>
