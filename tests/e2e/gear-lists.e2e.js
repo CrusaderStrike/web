@@ -1,6 +1,6 @@
 // web#18 gear lists (mock, platform#34 shapes). Run with the repo served on :8765.
 const { chromium } = require('playwright');
-const B = 'http://localhost:8765/';
+const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async () => {
   const b = require('./_test-config.js').withTestConfig(await chromium.launch());
   const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };

@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const B='http://localhost:8765/';
+const B='http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async()=>{const b = require('./_test-config.js').withTestConfig(await chromium.launch());const ctx=await b.newContext();const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
 const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c)process.exitCode=1;};
 const vis=s=>p.waitForSelector(s+':not([hidden])',{timeout:5000}).then(()=>true,()=>false);
@@ -89,7 +89,7 @@ await vis('#si-picker'); const nb=p.locator('#si-list li:has(#si-main-ch_us_1005
 ok((await nb.textContent())==='No faction','signin picker no-faction badge (web#26)');
 // real client: CSRF + Retry-After with USE_MOCK_PROFILE=false (route-mocked network)
 const p2=await ctx.newPage(); const hdrs={};
-const CORS={'Access-Control-Allow-Origin':'http://localhost:8765','Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'Content-Type, X-CSRF-Token, Accept','Access-Control-Allow-Methods':'GET, POST, PUT, DELETE','Access-Control-Expose-Headers':'Retry-After'};
+const CORS={'Access-Control-Allow-Origin':B.slice(0, -1),'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'Content-Type, X-CSRF-Token, Accept','Access-Control-Allow-Methods':'GET, POST, PUT, DELETE','Access-Control-Expose-Headers':'Retry-After'};
 await p2.route('https://api.crusaderstrike.com/**',async r=>{const u=r.request().url();
  if(r.request().method()==='OPTIONS')return r.fulfill({status:204,headers:CORS});
  hdrs[r.request().method()+' '+new URL(u).pathname]=r.request().headers();const f=r.fulfill.bind(r);r={fulfill:o=>f(Object.assign({},o,{headers:Object.assign({},CORS,o.headers||{})}))};
