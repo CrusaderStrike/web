@@ -20,7 +20,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.evaluate(() => { CSAuthMock.devSignIn(); CSAuthMock.devReset(); CSArmoryMock.devReset(); });
   await go();
   ok(await p.evaluate(() => CS_CONFIG.USE_MOCK_ARMORY === true), 'USE_MOCK_ARMORY on');
-  ok(await p.evaluate(() => CS_CONFIG.ARMORY_SLOT_OPS === 'set_slot') && /ARMORY_SLOT_OPS:\s*'set_slot'/.test(require('fs').readFileSync(require('path').join(__dirname, '../../js/config.js'), 'utf8')), 'shipped default ARMORY_SLOT_OPS = set_slot');
+  ok(await p.evaluate(() => !('ARMORY_SLOT_OPS' in CS_CONFIG)), 'no ARMORY_SLOT_OPS switch (set_slot only)');
   ok((await p.textContent('#pf-battletag')) === 'Crusader#1234', 'battletag');
   ok(await p.locator('#pf-list > li').count() === 6, '6 WoW Forever characters listed (non-Forever filtered)');
   ok(await p.isVisible('#pf-choose') && await p.evaluate(() => document.activeElement.id === 'pf-choose-h'), 'none displayed -> "Choose characters to display" step, focused');
@@ -99,15 +99,15 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   ok(/Emberwrought Helm/.test(await p.textContent('#pf-slot-head')), 'slot shows item');
   const setId = await p.getAttribute('.pf-set[aria-current=true]', 'data-set');
   const srv = await mockSet(setId);
-  ok(srv.items.length === 1 && srv.items[0].slot === 'head' && srv.items[0].item_id === iid && srv.items[0].priority === 1 && srv.version === 2, 'POST ops add_item priority 1 -> server items + v2');
+  ok(srv.items.length === 1 && srv.items[0].slot === 'head' && srv.items[0].item_id === iid && srv.items[0].priority === 1 && srv.version === 2, 'POST ops set_slot -> one row priority 1 + v2');
   // finger2 picker lists finger items
   await p.click('#pf-slot-finger2'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0);
   ok(/Band/.test(await p.textContent('#pf-picker-list .pf-pick-name')), 'finger2 picker shows rings'); await p.keyboard.press('Escape');
   ok(await p.evaluate(() => !document.getElementById('pf-picker').open && document.activeElement.id === 'pf-slot-finger2'), 'Escape closes picker, focus back');
   // clear slot
   await p.click('#pf-slot-head'); await p.click('#pf-picker-clear'); ok(await until(() => /Head cleared/.test(document.getElementById('pf-status').textContent)), 'clear slot saves');
-  ok(!(await mockSet(setId)).items.some(i => i.slot === 'head'), 'clear = remove_item, head gone on server');
-  // replacing a filled slot = remove old + add new in one batch, still one item per slot
+  ok(!(await mockSet(setId)).items.some(i => i.slot === 'head'), 'clear = clear_slot, head gone on server');
+  // replacing a filled slot = one set_slot, still one item per slot
   await p.click('#pf-slot-head'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 1); await p.click('#pf-picker-list li:nth-child(1) .pf-pick'); await until(() => /Head saved/.test(document.getElementById('pf-status').textContent)); await idle();
   await p.click('#pf-slot-head'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 1); await p.click('#pf-picker-list li:nth-child(2) .pf-pick'); await until(() => /Head saved/.test(document.getElementById('pf-status').textContent) && document.documentElement.getAttribute('data-pf-busy') === '0');
   ok((await mockSet(setId)).items.filter(i => i.slot === 'head').length === 1, 'replace keeps one item per slot');
@@ -150,18 +150,19 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
     let vs = await v(); r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, base_version: 1 }] }); o.push(r.body.conflicts[0].reason === 'stale_base_version' && r.body.version === vs + 1);
     r = await M.ops(id, { ops: [{ op_id: U(), type: 'clear_slot', slot: 'head', base_version: await v(), x: 1 }] }); o.push(r.body.ignored.length === 1 && r.body.ignored[0].keys.join() === 'x');
     r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', base_version: await v() }] }); o.push(r.status === 400);
-    // Option A same-batch swap: remove + add in one request never makes itself stale
-    vs = await v(); await M.ops(id, { ops: [{ op_id: U(), type: 'add_item', slot: 'head', item_id: head[0].item_id, priority: 1, base_version: vs }] }); vs = await v();
-    r = await M.ops(id, { ops: [{ op_id: U(), type: 'remove_item', slot: 'head', item_id: head[0].item_id, base_version: vs }, { op_id: U(), type: 'add_item', slot: 'head', item_id: head[1].item_id, priority: 1, base_version: vs }] });
-    o.push(r.body.applied.length === 2 && !r.body.conflicts.length && r.body.list.items.filter(i => i.slot === 'head').map(i => i.item_id).join() === String(head[1].item_id));
-    // slot wiped by set/clear in an earlier request -> legacy op at the old base is stale
+    // same-batch ops never make each other stale (different slots, one base_version)
+    vs = await v();
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, base_version: vs }, { op_id: U(), type: 'set_slot', slot: 'neck', item_id: neck, base_version: vs }] });
+    o.push(r.body.applied.length === 2 && !r.body.conflicts.length);
+    // slot changed in an earlier request -> op at the old base is stale
     vs = await v(); await M.ops(id, { ops: [{ op_id: U(), type: 'clear_slot', slot: 'head', base_version: vs }] });
-    r = await M.ops(id, { ops: [{ op_id: U(), type: 'add_item', slot: 'head', item_id: head[0].item_id, priority: 1, base_version: vs }] }); o.push(r.body.conflicts[0] && r.body.conflicts[0].reason === 'stale_base_version');
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'set_slot', slot: 'head', item_id: head[0].item_id, base_version: vs }] }); o.push(r.body.conflicts[0] && r.body.conflicts[0].reason === 'stale_base_version');
+    r = await M.ops(id, { ops: [{ op_id: U(), type: 'add_item', slot: 'head', item_id: head[0].item_id, priority: 1, base_version: await v() }] }); o.push(r.status === 400);
     r = await M.ops(id, { ops: [{ op_id: U(), type: 'clear_slot', slot: 'head', base_version: await v() }] }); o.push(r.body.applied.length === 1 && !r.body.list.items.some(i => i.slot === 'head'));
     const v2 = await v(); r = await M.ops(id, { ops: [{ op_id: U(), type: 'clear_slot', slot: 'head', base_version: v2 }] }); o.push(r.body.applied.length === 1 && r.body.version === v2);
     return o;
   }, setId);
-  ok(sb.every(Boolean), 'mock set_slot/clear_slot (#46 answers): replace, no-op, item_not_in_slot, stale, ignored extras -> priority 1 row, stale-before-noop bump, ignored[] unknown keys, item_id required, same-batch A swap, wiped-slot legacy stale, clear, empty-clear no-op ' + JSON.stringify(sb));
+  ok(sb.every(Boolean), 'mock set_slot/clear_slot (#46 answers): replace, no-op, item_not_in_slot, stale, ignored extras -> priority 1 row, stale-before-noop bump, ignored[] unknown keys, item_id required, same-batch no self-stale, earlier-request stale, add_item not modelled, clear, empty-clear no-op ' + JSON.stringify(sb));
   await go('?mock_armory=ratelimit'); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
   await p.click('#pf-slot-wrist'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0); await p.click('#pf-picker-list .pf-pick');
   ok(await vis('#pf-slot-banner') && /Wait 2 seconds/.test(await p.textContent('#pf-slot-banner')), '429 Retry-After message');

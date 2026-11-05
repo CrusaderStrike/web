@@ -2,7 +2,7 @@
  * web#42 in-browser mock with the shipped platform main wire shapes (openapi/v1.yaml, src/routes/{profile,gear-lists}.ts,
  * gear-list schema v1): GET /me/characters {characters, selection}; PUT /me/characters/selection {main_id, alt_ids}
  * (delegates to js/auth-mock.js); GET/POST /characters/{id}/gear-lists; GET /gear-lists/{id};
- * POST /gear-lists/{id}/ops (add_item | remove_item, plus platform#46 set_slot | clear_slot; op_id, base_version -> {version, applied, duplicates, conflicts, list});
+ * POST /gear-lists/{id}/ops (platform#46 set_slot | clear_slot only; op_id, base_version -> {version, applied, duplicates, conflicts, list});
  * GET /items, /items/{id}. A character not in the selection -> 403 {errors:{character_id}} like
  * requireOwnedCharacter. Items are FICTIONAL (icon_url null). State in localStorage (cs_mock_armory).
  * Scenarios: ?mock_armory=limit | notdisplayed | conflict | notforever | ratelimit | items500 | toggle500.
@@ -111,9 +111,9 @@
       if (!Array.isArray(ops) || ops.length < 1 || ops.length > 50) return fields(400, { ops: 'Array of 1..50 ops required.' });
       for (var i = 0; i < ops.length; i++) {
         var o = ops[i];
-        var slotOp = o && (o.type === 'set_slot' || o.type === 'clear_slot');  // platform#46
-        if (!o || !UUID_RE.test(o.op_id) || ['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained', 'set_slot', 'clear_slot'].indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 ||
-          (o.type !== 'clear_slot' && (typeof o.item_id !== 'number' || o.item_id < 1 || o.item_id % 1)) || typeof o.base_version !== 'number' || (o.type === 'add_item' && !(o.priority >= 1))) return fields(400, { ['ops.' + i]: 'Invalid.' });
+        // The armory only sends set_slot / clear_slot (platform#46); the mock models just those.
+        if (!o || !UUID_RE.test(o.op_id) || ['set_slot', 'clear_slot'].indexOf(o.type) < 0 || SLOTS.indexOf(o.slot) < 0 ||
+          (o.type === 'set_slot' && (typeof o.item_id !== 'number' || o.item_id < 1 || o.item_id % 1)) || typeof o.base_version !== 'number') return fields(400, { ['ops.' + i]: 'Invalid.' });
         // platform#46: known-but-irrelevant fields (clear_slot item_id; set_slot priority/note/obtained) are ignored silently.
       }
       if (!l) return err(404, 'not_found', 'List not found.');
@@ -134,7 +134,7 @@
         if (unk.length) out.ignored.push({ op_id: o.op_id, keys: unk });
         if (s.flags.seen.indexOf(o.op_id) >= 0) { out.duplicates.push(o.op_id); return; }
         s.flags.seen.push(o.op_id);
-        if (o.type === 'set_slot' || o.type === 'clear_slot') {
+        {
           var cur = l.items.filter(function (x) { return x.slot === o.slot; });
           if (o.type === 'set_slot') {
             var it = sc() === 'notforever' ? null : findItem(o.item_id);
@@ -146,20 +146,12 @@
           var noop = o.type === 'clear_slot' ? !cur.length : cur.length === 1 && cur[0].item_id === o.item_id;
           if (o.type === 'set_slot' && !cur.length && l.items.length >= ITEMS_MAX) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'list_items_limit', message: 'list_items_limit' }); return; }
           if (!noop) {
-            l.version++; l.touch[o.slot + ':*'] = l.version; cur.forEach(function (x) { l.touch[o.slot + ':' + x.item_id] = l.version; });
+            l.version++; cur.forEach(function (x) { l.touch[o.slot + ':' + x.item_id] = l.version; });
             l.items = l.items.filter(function (x) { return x.slot !== o.slot; });
             if (o.type === 'set_slot') { l.touch[o.slot + ':' + o.item_id] = l.version; l.items.push({ slot: o.slot, item_id: o.item_id, priority: 1, note: null, obtained: false, obtained_at: null, icon_url: null }); }
           }
-          out.applied.push(o.op_id); return;  // no-op: accepted, no version bump
+          out.applied.push(o.op_id);  // a no-op is accepted with no version bump
         }
-        if (o.type === 'add_item' && (sc() === 'notforever' || !findItem(o.item_id))) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); return; }
-        var key = o.slot + ':' + o.item_id, t = Math.max(pre[key] || 0, pre[o.slot + ':*'] || 0, preAll);  // slot wiped by set/clear earlier -> stale
-        if (t > o.base_version) { l.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); return; }
-        l.version++; l.touch[key] = l.version;
-        if (o.type === 'remove_item') l.items = l.items.filter(function (x) { return !(x.slot === o.slot && x.item_id === o.item_id); });
-        else if (o.type === 'add_item' && !l.items.some(function (x) { return x.slot === o.slot && x.item_id === o.item_id; }))
-          l.items.push({ slot: o.slot, item_id: o.item_id, priority: o.priority, note: null, obtained: false, obtained_at: null, icon_url: null });
-        out.applied.push(o.op_id);
       });
       l.updated_at = now(); save(s);
       out.version = l.version; out.list = view(l);
