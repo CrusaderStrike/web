@@ -77,15 +77,17 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
         const o = ops[i];
         const slotOp = o.type === 'set_slot' || o.type === 'clear_slot';  // platform#46 only (S.optB); prod before #46 rejects them
         if (!UUID4.test(o.op_id) || !['add_item', 'remove_item', 'reprioritize_item', 'mark_obtained'].concat(S.optB ? ['set_slot', 'clear_slot'] : []).includes(o.type) || !SLOTS.includes(o.slot) ||
-          (o.type !== 'clear_slot' && (!Number.isInteger(o.item_id) || o.item_id < 1)) || !Number.isInteger(o.base_version) || (o.type === 'add_item' && !(o.priority >= 1)) ||
-          (slotOp && ['priority', 'note', 'obtained'].some(k => k in o)) || (o.type === 'clear_slot' && 'item_id' in o)) return J(400, { errors: { ['ops.' + i]: 'Invalid.' } });
+          (o.type !== 'clear_slot' && (!Number.isInteger(o.item_id) || o.item_id < 1)) || !Number.isInteger(o.base_version) || (o.type === 'add_item' && !(o.priority >= 1))) return J(400, { errors: { ['ops.' + i]: 'Invalid.' } });
+        void slotOp;  // known extra fields on set_slot/clear_slot are ignored (platform#46)
       }
       const s = S.sets.find(x => x.id === mm[1]); if (!s) return J(404, err('not_found'));
       if (!selected(s.character_id)) return J(403, { errors: { character_id: 'Must be your selected main or an alt.' } });
       if (S.once.stale) { S.once.stale = false; s.version++; s.staleAll = s.version;
         s.items = s.items.filter(i => i.slot !== 'neck').concat([{ slot: 'neck', item_id: 18814, priority: 1, note: null, obtained: false, obtained_at: null, icon_url: null }]); }
       const out = { applied: [], duplicates: [], conflicts: [], ignored: [] };
+      const pre = { ...s.touch }, preAll = s.staleAll || 0, KNOWN = ['op_id', 'type', 'slot', 'item_id', 'base_version', 'priority', 'note', 'obtained', 'client_ts'];
       for (const o of ops) {
+        const unk = Object.keys(o).filter(k => !KNOWN.includes(k)); if (unk.length) out.ignored.push({ op_id: o.op_id, keys: unk });
         if (S.seen.has(o.op_id)) { out.duplicates.push(o.op_id); continue; }
         S.seen.add(o.op_id);
         if (o.type === 'set_slot' || o.type === 'clear_slot') {
@@ -95,18 +97,19 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
             if (!it) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); continue; }
             if (it.slot !== o.slot) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_in_slot', message: 'item_not_in_slot' }); continue; }
           }
-          const t = Math.max(s.staleAll || 0, ...Object.keys(s.touch).filter(k => k.startsWith(o.slot + ':')).map(k => s.touch[k]));
+          const t = Math.max(preAll, ...Object.keys(pre).filter(k => k.startsWith(o.slot + ':')).map(k => pre[k]));
           if (t > o.base_version) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); continue; }
           const noop = o.type === 'clear_slot' ? !cur.length : cur.length === 1 && cur[0].item_id === o.item_id;
+          if (o.type === 'set_slot' && !cur.length && s.items.length >= (S.itemsMax || 100)) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'list_items_limit', message: 'list_items_limit' }); continue; }
           if (!noop) {
-            s.version++; cur.forEach(i => { s.touch[o.slot + ':' + i.item_id] = s.version; });
+            s.version++; s.touch[o.slot + ':*'] = s.version; cur.forEach(i => { s.touch[o.slot + ':' + i.item_id] = s.version; });
             s.items = s.items.filter(i => i.slot !== o.slot);
             if (o.type === 'set_slot') { s.touch[o.slot + ':' + o.item_id] = s.version; s.items.push({ slot: o.slot, item_id: o.item_id, priority: 1, note: null, obtained: false, obtained_at: null, icon_url: null }); }
           } else S.noops = (S.noops || 0) + 1;
           out.applied.push(o.op_id); continue;
         }
         if (o.type === 'add_item' && !items.some(i => i.item_id === o.item_id)) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'item_not_forever', message: 'item_not_forever' }); continue; }
-        const key = o.slot + ':' + o.item_id, t = Math.max(s.touch[key] || 0, s.staleAll || 0);
+        const key = o.slot + ':' + o.item_id, t = Math.max(pre[key] || 0, pre[o.slot + ':*'] || 0, preAll);
         if (t > o.base_version) { s.version++; out.conflicts.push({ op_id: o.op_id, reason: 'stale_base_version', winning_version: t, message: 'Stale base_version.' }); continue; }
         s.version++; s.touch[key] = s.version;
         if (o.type === 'remove_item') s.items = s.items.filter(i => !(i.slot === o.slot && i.item_id === o.item_id));
@@ -218,6 +221,9 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   if (!OPTB) {
     const pre = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 16900, base_version: ver }]);
     ok(pre.s === 400 && pre.b.errors['ops.0'], 'legacy stub (prod before platform#46) rejects set_slot -> 400; client stays on legacy');
+    const lv = S.sets[0].version, cur = S.sets[0].items.find(i => i.slot === 'neck');
+    const sw = await raw([{ op_id: U4(), type: 'remove_item', slot: 'neck', item_id: cur.item_id, base_version: lv }, { op_id: U4(), type: 'add_item', slot: 'neck', item_id: cur.item_id, priority: 1, base_version: lv }]);
+    ok(sw.b.applied.length === 2 && !sw.b.conflicts.length, 'same-batch remove_item + add_item of one key: no self-stale');
   } else {
     let r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'neck', item_id: 18814, base_version: ver }]);
     ok(r.s === 200 && r.b.applied.length === 1 && r.b.version === ver && S.sets[0].version === ver, 'set_slot same item -> accepted no-op, no version bump');
@@ -225,13 +231,39 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
     ok(r.s === 200 && r.b.applied.length === 1 && r.b.version === ver, 'clear_slot on empty slot -> accepted no-op');
     r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 18814, base_version: ver }]);
     ok(r.s === 200 && r.b.conflicts[0].reason === 'item_not_in_slot', 'set_slot neck item into head -> conflicts[] item_not_in_slot');
-    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 16900, priority: 1, base_version: ver }]);
-    ok(r.s === 400 && r.b.errors['ops.0'], 'set_slot with priority -> 400 (no priority/note/obtained)');
-    r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', item_id: 16900, base_version: ver }]);
-    ok(r.s === 400 && r.b.errors['ops.0'], 'clear_slot with item_id -> 400');
+    let v0 = S.sets[0].version;
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'neck', item_id: 18814, base_version: 1 }]);
+    ok(r.s === 200 && r.b.conflicts[0] && r.b.conflicts[0].reason === 'stale_base_version' && r.b.version === v0 + 1 && !r.b.applied.length, 'no-op with an old base_version -> stale_base_version (stale before no-op), rejection bumps version');
+    v0 = S.sets[0].version; const noopId = U4();
+    r = await raw([{ op_id: noopId, type: 'set_slot', slot: 'neck', item_id: 18814, base_version: v0 }]);
+    ok(r.b.applied[0] === noopId && r.b.version === v0, 'no-op at current base -> applied, no bump');
+    r = await raw([{ op_id: noopId, type: 'set_slot', slot: 'neck', item_id: 18814, base_version: v0 }]);
+    ok(r.b.duplicates[0] === noopId && !r.b.applied.length, 'no-op op_id recorded for dedupe');
+    v0 = S.sets[0].version;
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 16900, priority: 9, note: 'x', obtained: true, base_version: v0 }]);
+    const row = S.sets[0].items.find(i => i.slot === 'head');
+    ok(r.s === 200 && r.b.applied.length === 1 && !r.b.ignored.length && row && row.priority === 1 && row.note === null && row.obtained === false && row.obtained_at === null,
+      'set_slot priority/note/obtained ignored (not in ignored[]); writes one row priority 1, note null, obtained false');
+    r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', item_id: 16900, base_version: S.sets[0].version }]);
+    ok(r.s === 200 && r.b.applied.length === 1 && !r.b.ignored.length && !S.sets[0].items.some(i => i.slot === 'head'), 'clear_slot item_id ignored, not in ignored[]');
+    r = await raw([{ op_id: U4(), type: 'clear_slot', slot: 'head', base_version: S.sets[0].version, wat: 1 }]);
+    ok(r.s === 200 && r.b.ignored.length === 1 && r.b.ignored[0].keys.join() === 'wat', 'unknown key -> listed in ignored[]');
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', base_version: S.sets[0].version }]);
+    ok(r.s === 400 && r.b.errors['ops.0'], 'set_slot without item_id -> 400');
+    v0 = S.sets[0].version; S.itemsMax = S.sets[0].items.length;
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'head', item_id: 16900, base_version: v0 }]);
+    ok(r.b.conflicts[0] && r.b.conflicts[0].reason === 'list_items_limit' && r.b.version === v0 + 1, 'list_items_limit when setting into an empty slot at the cap (bumps)');
+    r = await raw([{ op_id: U4(), type: 'set_slot', slot: 'neck', item_id: 18814, base_version: S.sets[0].version }]);
+    ok(r.b.applied.length === 1, 'list_items_limit not applied when the slot is occupied'); S.itemsMax = 0;
+    v0 = S.sets[0].version; await raw([{ op_id: U4(), type: 'clear_slot', slot: 'neck', base_version: v0 }]);
+    r = await raw([{ op_id: U4(), type: 'add_item', slot: 'neck', item_id: 18814, priority: 1, base_version: v0 }]);
+    ok(r.b.conflicts[0] && r.b.conflicts[0].reason === 'stale_base_version', 'legacy add_item after an earlier-request clear_slot of that slot -> stale');
+    r = await raw([{ op_id: U4(), type: 'add_item', slot: 'neck', item_id: 18814, priority: 1, base_version: S.sets[0].version }]);
     const dup = U4(); await raw([{ op_id: dup, type: 'clear_slot', slot: 'head', base_version: S.sets[0].version }]);
     r = await raw([{ op_id: dup, type: 'clear_slot', slot: 'head', base_version: S.sets[0].version }]);
     ok(r.s === 200 && r.b.duplicates[0] === dup && r.b.applied.length === 0, 'op_id dedupe -> duplicates[]');
+    const sb = S.log.filter(x => x.m === 'POST' && /\/ops$/.test(x.path) && Array.isArray(x.body && x.body.ops) && x.body.ops.some(o => o.type === 'set_slot' || o.type === 'clear_slot'));
+    ok(sb.length > 3 && sb.every(x => new Set(x.body.ops.map(o => o.slot)).size === x.body.ops.length), 'never two ops for the same slot in one set_slot batch');
   }
 
   // 429 Retry-After
