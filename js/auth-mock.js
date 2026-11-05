@@ -41,26 +41,39 @@
     return Array.prototype.map.call(a, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
   }
 
+  // Same rule as the platform return_to helper: single leading '/', no '//', backslash, ':' or encoded forms.
+  function safePath(v) {
+    if (typeof v !== 'string' || v.charAt(0) !== '/') return null;
+    var d; try { d = decodeURIComponent(v); } catch (e) { return null; }
+    if (/^\/\//.test(v) || /^\/\//.test(d) || /[\\:]/.test(d.split('?')[0])) return null;
+    try { var u = new URL(v, 'https://x.invalid'); if (u.origin !== 'https://x.invalid' || /^\/\//.test(u.pathname)) return null; } catch (e) { return null; }
+    return v;
+  }
   window.CSAuthMock = {
-    /** Simulates GET START: returns the URL the browser would be redirected to. */
+    /** Simulates GET START: stores return_to with the OAuth state (invalid/missing -> /profile/, never 400). */
     start: function (returnTo) {
       var state = randomToken();
       sessionStorage.setItem('cs_mock_oauth_state', state);
-      sessionStorage.setItem('cs_mock_return_to', returnTo || '/signin.html');
-      return 'signin.html?mock_authorize=1&state=' + encodeURIComponent(state) +
-        '&return_to=' + encodeURIComponent(returnTo || '/signin.html');
+      sessionStorage.setItem('cs_mock_return_to', safePath(returnTo) || '/profile/');
+      return 'signin.html?mock_authorize=1&state=' + encodeURIComponent(state);
     },
-    /** Simulates GET CALLBACK. outcome: 'ok' | 'access_denied'. Returns redirect target. */
+    /** Simulates GET CALLBACK, matching the live platform callback. Returns the absolute-path redirect target.
+     *  outcome: 'ok' | 'access_denied' (cancelled) | 'no_code' | 'exchange_failed' | 'upstream_unavailable'.
+     *  No stored return_to (or bad state): every result goes to /profile/. With a stored return_to, ok, cancelled
+     *  and no-code go to that path; a failed exchange always goes to /profile/. A return_to on the callback is ignored. */
     callback: function (state, outcome) {
       var expected = sessionStorage.getItem('cs_mock_oauth_state');
-      sessionStorage.removeItem('cs_mock_oauth_state');
-      if (outcome === 'access_denied') return 'signin.html?auth=cancelled';
-      if (!expected || expected !== state) return 'signin.html?auth=error&reason=invalid_state';
+      var stored = sessionStorage.getItem('cs_mock_return_to');
+      sessionStorage.removeItem('cs_mock_oauth_state'); sessionStorage.removeItem('cs_mock_return_to');
+      var to = function (path, q) { return path + (path.indexOf('?') >= 0 ? '&' : '?') + q; };
+      if (!expected || expected !== state) return to('/profile/', 'auth=error&reason=invalid_state');
+      var rt = safePath(stored) || '/profile/';
+      if (outcome === 'access_denied') return to(rt, 'auth=cancelled');
+      if (outcome === 'no_code') return to(rt, 'auth=error&reason=oauth_error');
+      if (outcome === 'exchange_failed') return to('/profile/', 'auth=error&reason=oauth_error');
+      if (outcome === 'upstream_unavailable') return to('/profile/', 'auth=error&reason=upstream_unavailable');
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ battletag: 'Crusader#1234', csrf_token: randomToken() }));
-      // Like the real callback: redirect to the allowlisted return_to (web#42 sends /profile/).
-      var rt = sessionStorage.getItem('cs_mock_return_to') || '/signin.html';
-      sessionStorage.removeItem('cs_mock_return_to');
-      return /^\/(?!\/)/.test(rt) ? rt.slice(1) || 'index.html' : 'signin.html?auth=ok';
+      return to(rt, 'auth=ok');
     },
     /** GET /auth/session -> Session (incl. csrf_token). */
     session: function () {

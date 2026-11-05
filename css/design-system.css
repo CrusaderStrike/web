@@ -218,6 +218,29 @@ h3 { font-family: var(--cs-font-display); font-size: var(--cs-text-xl); margin: 
   border-color: var(--cs-horde);
   color: var(--cs-horde);
 }
+/* web#51: Battle.net sign-in buttons. Solid blue sampled from Blizzard's own
+   sign-in button (account.battle.net .btn-primary: #0074e0, focus border #47a6ff).
+   White on #0074e0 = 4.59:1, hover #005fb8 = 6.31:1, disabled #3d5a78 = 7.16:1 (WCAG AA). Text only, no mark. */
+.cs-btn-bnet,
+.cs-nav a.cs-btn-bnet {
+  background: #0074e0;
+  color: #ffffff;
+  border-color: #0074e0;
+  box-shadow: none;
+  font-weight: 600;
+}
+.cs-btn-bnet:hover:not(:disabled):not([aria-disabled="true"]),
+.cs-nav a.cs-btn-bnet:hover { background: #005fb8; border-color: #005fb8; color: #ffffff; }
+.cs-btn-bnet:active:not(:disabled) { background: #004f99; border-color: #004f99; }
+.cs-btn-bnet:focus-visible { outline: 2px solid #47a6ff; outline-offset: 3px; border-color: #ffffff; color: #ffffff; }
+.cs-btn-bnet:disabled,
+.cs-btn-bnet[aria-disabled="true"] { background: #3d5a78; border-color: #3d5a78; color: #ffffff; opacity: 1; }
+.cs-btn-bnet--compact {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.85rem;
+  font-size: var(--cs-text-sm);
+}
+
 .cs-btn-sm {
   min-height: 2.25rem;
   padding: 0.4rem 0.85rem;
@@ -422,3 +445,6 @@ h3 { font-family: var(--cs-font-display); font-size: var(--cs-text-xl); margin: 
 @media (max-width: 860px) {
   .cs-grid-3 { grid-template-columns: 1fr; }
 }
+
+/* web#51: protected-page signed-out / session-expired notice. */
+.cs-signin-notice { margin: 0 0 0.75rem; color: var(--cs-parchment); }
