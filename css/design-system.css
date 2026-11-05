@@ -294,13 +294,6 @@ h3 { font-family: var(--cs-font-display); font-size: var(--cs-text-xl); margin: 
   color: var(--cs-muted);
   font-size: var(--cs-text-sm);
 }
-.cs-hp {
-  position: absolute !important;
-  left: -10000px !important;
-  width: 1px !important;
-  height: 1px !important;
-  overflow: hidden !important;
-}
 
 .cs-form-panel {
   background: var(--cs-bg-elevated);
