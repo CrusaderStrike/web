@@ -23,6 +23,7 @@
   }
 
   function render(body, ch) {
+    $('gr-lists-link').href = 'lists/?character=' + encodeURIComponent(charId);
     var name = ch ? fullName(ch) : 'Character';
     $('gr-h').textContent = name + ' — gear';
     if (ch && ch.stale) {
