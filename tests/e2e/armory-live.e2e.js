@@ -232,14 +232,26 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   for (const host of ['crusaderstrike.com', 'www.crusaderstrike.com', 'staging.crusaderstrike.com']) {
     const ctx = await b.newContext();
     await ctx.route('https://' + host + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: '<script src="/js/config.js"></script>' }));
-    await ctx.route('https://' + host + '/js/config.js', async r => { const res = await ctx.request.get(B + 'js/config.js'); r.fulfill({ status: 200, contentType: 'text/javascript', body: (await res.text()).replace(/USE_MOCK_ARMORY:\s*false/, 'USE_MOCK_ARMORY: true') }); });
+    await ctx.route('https://' + host + '/js/config.js', async r => { const res = await ctx.request.get(B + 'js/config.js'); r.fulfill({ status: 200, contentType: 'text/javascript', body: (await res.text()).replace(/(USE_MOCK_\w+:\s*)false/g, '$1true') }); });
     const pp = await ctx.newPage(); await pp.goto('https://' + host + '/profile/');
-    const v = await pp.evaluate(() => [CS_CONFIG.USE_MOCK_ARMORY, CS_CONFIG.IS_PROD_HOST]);
+    const v = await pp.evaluate(() => ({ flags: Object.keys(CS_CONFIG).filter(k => /^USE_MOCK_/.test(k)).map(k => [k, CS_CONFIG[k]]), prodHost: CS_CONFIG.IS_PROD_HOST }));
     const prod = host !== 'staging.crusaderstrike.com';
-    ok(prod ? v[0] === false && v[1] === true : v[0] === true && v[1] === false, host + (prod ? ': mocks forced off on prod host' : ': non-prod host keeps configured mock'));
+    ok(v.flags.length === (require('fs').readFileSync(require('path').join(__dirname, '../../js/config.js'), 'utf8').match(/^\s*USE_MOCK_\w+:/mg) || []).length && v.flags.length >= 6, host + ': sees every USE_MOCK_* flag (' + v.flags.map(f => f[0]).join(',') + ')');
+    for (const [k, val] of v.flags) ok(val === !prod, host + ': ' + k + (prod ? ' forced off on prod host' : ' keeps configured true on non-prod host'));
+    ok(v.prodHost === prod, host + ': IS_PROD_HOST ' + prod);
     await ctx.close();
   }
   ok(await p.evaluate(() => CS_CONFIG.IS_PROD_HOST === false), 'localhost is not a prod host');
+
+  // platform#44: empty selection with updated_at null -> no crash, no Invalid Date, nothing displayed, toggle sets a main
+  const savedSel = S.sel; S.sel = { main_id: null, alt_ids: [], updated_at: null };
+  const errsBefore = errs.length; await go();
+  ok(await vis('#pf-ready') && !(await p.isChecked('#pf-show-ch_a')) && !(await p.isChecked('#pf-show-ch_b')), 'null selection: page ready, nothing displayed');
+  ok(!/Invalid Date/.test(await p.textContent('body')) && errs.length === errsBefore, 'null selection: no Invalid Date, no page errors');
+  ok(await p.evaluate(() => { const s = CSArmoryApi.normSel({ main_id: null, alt_ids: null, updated_at: null }); return s.main_id === null && s.alt_ids.length === 0 && s.updated_at === null && CSArmoryApi.selectionTime(s) === '' && CSArmoryApi.selectionTime({ main_id: 'x', alt_ids: [], updated_at: 'garbage' }) === '' && CSArmoryApi.selectionTime(null) === '' && CSArmoryApi.selectionTime({ main_id: 'x', updated_at: '2026-11-04T00:00:00Z' }) !== ''; }), 'normSel/selectionTime: null + invalid updated_at -> no date');
+  await p.click('#pf-show-ch_a'); await idle();
+  ok(JSON.stringify(last('PUT', /selection$/).body) === '{"main_id":"ch_a","alt_ids":[]}', 'null selection -> first toggle PUTs ch_a as main');
+  S.sel = savedSel; await go();
 
   // hide: selection drops the alt; sets kept. Hiding the last displayed character is blocked (server needs a main).
   await p.uncheck('#pf-show-ch_b'); await status(/is hidden/); await idle();

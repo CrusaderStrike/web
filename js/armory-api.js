@@ -47,18 +47,29 @@
   function norm(l) { if (l && typeof l === 'object') { l.items = Array.isArray(l.items) ? l.items : []; l.slots = slotsOf(l.items); } return l; }
   function normR(r) { if (r.ok && r.body) norm(r.body); return r; }
   /** GET /me/characters -> {characters, selection}; displayed = selection main or alt. */
+  /** platform#44: an empty selection may come back as {main_id: null, alt_ids: [], updated_at: null}. Never yields Invalid Date. */
+  function normSel(sel) {
+    if (!sel || typeof sel !== 'object') return null;
+    var d = sel.updated_at ? new Date(sel.updated_at) : null;
+    sel.alt_ids = Array.isArray(sel.alt_ids) ? sel.alt_ids.filter(Boolean) : [];
+    sel.main_id = sel.main_id || null;
+    sel.updated_at = d && !isNaN(d) ? sel.updated_at : null;
+    return sel;
+  }
   function applySel(body) {
-    var sel = body && body.selection || null, ids = sel ? [sel.main_id].concat(sel.alt_ids || []) : [];
+    var sel = body ? (body.selection = normSel(body.selection)) : null, ids = sel ? [sel.main_id].concat(sel.alt_ids).filter(Boolean) : [];
     (body && body.characters || []).forEach(function (c) { c.displayed = ids.indexOf(c.id) >= 0; });
     return body;
   }
   var lastSel = null;
   window.CSArmoryApi = {
-    mock: m, uuid: uuid, slotsOf: slotsOf,
+    mock: m, uuid: uuid, slotsOf: slotsOf, normSel: normSel,
+    /** 'Saved <local time>' for a selection, or '' when updated_at is null/invalid. */
+    selectionTime: function (sel) { var s = normSel(sel); return s && s.updated_at ? new Date(s.updated_at).toLocaleString() : ''; },
     session: function () { return window.CSProfileApi.session().then(function (r) { if (r.ok && r.body) csrf = r.body.csrf_token || null; return r; }); },
     characters: function () {
       return call('characters', [], 'GET', cfg.API_BASE + cfg.PROFILE_PATHS.CHARACTERS).then(function (r) {
-        if (r.ok && r.body) { lastSel = r.body.selection || null; applySel(r.body); }
+        if (r.ok && r.body) { applySel(r.body); lastSel = r.body.selection; }
         return r;
       });
     },
@@ -73,7 +84,7 @@
       var main = lastSel && ids.indexOf(lastSel.main_id) >= 0 ? lastSel.main_id : ids[0];
       var b = { main_id: main, alt_ids: ids.filter(function (i) { return i !== main; }) };
       return call('saveSelection', [b], 'PUT', cfg.API_BASE + cfg.PROFILE_PATHS.SELECTION, b).then(function (r) {
-        if (r.ok) lastSel = r.body && r.body.selection || { main_id: b.main_id, alt_ids: b.alt_ids };
+        if (r.ok) lastSel = normSel(r.body && r.body.selection) || { main_id: b.main_id, alt_ids: b.alt_ids, updated_at: null };
         return r;
       });
     },
