@@ -2,6 +2,7 @@
  * web#42 profile: per-character display toggles (PUT /me/characters/selection {main_id, alt_ids}; displayed = main + alts), gear-set side panel (drawer on mobile),
  * create form with the level-60 rules, armory view in the in-game character-window layout, per-slot Forever item
  * picker with search + paging, and autosave per slot (POST /gear-lists/{id}/ops set_slot / clear_slot, base_version; stale_base_version -> reload + retry). Contract: platform main openapi/v1.yaml + gear-list schema v1.
+ * web#56: Planning-for selector among displayed characters, the same 19-slot pane, and an empty center mount labelled as a 3D viewer placeholder (a real viewer is a later step). Slot writes stay set_slot / clear_slot.
  * Main/alts are the platform selection; the UI just shows displayed on/off. API data is rendered with createElement + textContent only.
  */
 (function () {
@@ -23,12 +24,14 @@
   var REGIONS = ['us', 'eu', 'kr', 'tw'];
   var SLOT_LABEL = { head: 'Head', neck: 'Neck', shoulder: 'Shoulder', back: 'Back', chest: 'Chest', shirt: 'Shirt', tabard: 'Tabard',
     wrist: 'Wrist', hands: 'Hands', waist: 'Waist', legs: 'Legs', feet: 'Feet', finger1: 'Finger 1', finger2: 'Finger 2',
-    trinket1: 'Trinket 1', trinket2: 'Trinket 2', main_hand: 'Main hand', off_hand: 'Off hand', ranged: 'Ranged' };
-  // In-game character window: left column, right column, weapons along the bottom.
+    trinket1: 'Trinket 1', trinket2: 'Trinket 2', main_hand: 'Main hand', off_hand: 'Off hand', ranged: 'Ranged', ammo: 'Ammo' };
+  // In-game character window: left column, right column, weapons along the bottom. Ammo is not part of that 19.
   var LEFT = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', 'wrist'];
   var RIGHT = ['hands', 'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2'];
   var WEAPONS = ['main_hand', 'off_hand', 'ranged'];
-  var st = { battletag: '', region: '', characters: [], sets: {}, setErr: {}, current: null, etag: null, items: {}, saving: {}, createFor: null, picker: null };
+  var AMMO_CLASS = { warrior: 1, rogue: 1, hunter: 1 };
+  var st = { battletag: '', region: '', characters: [], sets: {}, setErr: {}, current: null, etag: null, items: {}, saving: {}, createFor: null, picker: null,
+    planId: null, planSet: {}, miss: {} };
 
   function txt(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : ''; }
   function fullName(c) { return [txt(c.character_name), txt(c.surname)].filter(Boolean).join(' ') || 'Unnamed character'; }
@@ -65,6 +68,48 @@
   function charById(id) { return st.characters.filter(function (c) { return c.id === id; })[0] || null; }
   function displayed() { return st.characters.filter(function (c) { return c.displayed && !c.stale; }); }
   function level(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
+  /** Ammo is its own slot, only for Warrior, Rogue, and Hunter. Unknown or any other class stays hidden. */
+  function usesAmmo(c) { return !!AMMO_CLASS[txt(c && c.class).toLowerCase()]; }
+  function num(v) { var n = typeof v === 'number' ? v : parseInt(v, 10); return n === n ? n : null; }
+  function rangedItem(s) {
+    var id = s && s.slots ? s.slots.ranged : null;
+    return id != null && st.items[id] ? st.items[id] : null;
+  }
+  /** Bow and crossbow take arrows; a gun takes bullets. Anything else (none, thrown, wand) does not filter. */
+  function ammoKind(ranged) {
+    if (!ranged || num(ranged.item_class) !== 2) return 'both';
+    var s = num(ranged.subclass);
+    if (s === 2 || s === 18) return 'arrow';
+    if (s === 3) return 'bullet';
+    return 'both';
+  }
+  function isArrow(item) { return !!item && num(item.item_class) === 6 && num(item.subclass) === 2; }
+  function isBullet(item) { return !!item && num(item.item_class) === 6 && num(item.subclass) === 3; }
+  function ammoFits(ammo, ranged) {
+    if (!ammo) return true;
+    var kind = ammoKind(ranged);
+    if (kind === 'both') return true;
+    return kind === 'arrow' ? isArrow(ammo) : isBullet(ammo);
+  }
+  var AMMO_HINT = 'Equip a bow, crossbow or gun to filter ammo.';
+  function showInPicker(slot, item) {
+    if (!item) return false;
+    if (slot === 'ranged' && String(item.inventory_type || '').toUpperCase() === 'AMMO') return false;
+    if (slot === 'ammo') {
+      var id = num(item.item_id);
+      if (id === 19082 || id === 19286) return false;
+      var kind = ammoKind(rangedItem(st.current));
+      if (kind === 'arrow') return isArrow(item);
+      if (kind === 'bullet') return isBullet(item);
+    }
+    return true;
+  }
+  function syncAmmoHint() {
+    var h = $('pf-picker-hint'); if (!h) return;
+    var both = pk.slot === 'ammo' && ammoKind(rangedItem(st.current)) === 'both';
+    h.hidden = !both;
+    h.textContent = both ? AMMO_HINT : '';
+  }
   function safeIcon(u) { try { var x = new URL(u); return x.protocol === 'https:' && x.hostname === 'render.worldofwarcraft.com' ? x.href : null; } catch (e) { return null; } }
   function iconFor(slot, item) {
     var f = el('span', 'pf-icon' + (item ? ' q-' + (txt(item.quality) || 'unknown') : ' is-empty'));
@@ -139,16 +184,103 @@
   }
 
   // ---------- gear sets panel ----------
-  function loadSets() {
+  function loadSets(opts) {
     var ds = displayed();
     return Promise.all(ds.map(function (c) {
       return A.sets(c).then(function (r) {
         if (r.ok) { st.sets[c.id] = Array.isArray(r.body && r.body.items) ? r.body.items : []; delete st.setErr[c.id]; }
         else st.setErr[c.id] = errMsg(r, 'Gear sets could not load.');
       });
-    })).then(renderPanel);
+    })).then(function () {
+      renderPanel();
+      if (opts && opts.open === false) return;
+      return applyPlan(false);
+    });
+  }
+  /** Keep planId on a displayed character: the open set's character, else the one already chosen, else the first displayed. */
+  function reconcilePlan() {
+    var ds = displayed();
+    if (!ds.length) { st.planId = null; return; }
+    if (st.planId && ds.some(function (c) { return c.id === st.planId; })) return;
+    var cur = st.current && charById(st.current.character_id);
+    if (cur && cur.displayed && !cur.stale) st.planId = cur.id;
+    else st.planId = ds[0].id;
+  }
+  function firstSet(sets) {
+    var g = R.sort(sets || []);
+    return g.leveling[0] || g.max_level[0] || null;
+  }
+  /** Last set opened for this character, else the first in the panel order. Skips ids that 404'd this session. */
+  function preferredSet(id) {
+    var sets = (st.sets[id] || []).filter(function (s) { return s && !st.miss[s.id]; });
+    var keep = sets.filter(function (s) { return s.id === st.planSet[id]; })[0];
+    return keep || firstSet(sets);
+  }
+  function remember(s) { if (s && s.character_id && s.id) st.planSet[s.character_id] = s.id; }
+  /** In-memory plan with no list: 19 empty slots for this character, not a set the server can save. */
+  function blankPlan(c) {
+    return { id: null, character_id: c.id, name: '', missing: true, type: 'max_level', until_level: null, role_spec: null, slots: {}, items: [] };
+  }
+  function showPlanEmpty(c) {
+    $('pf-armory-view').hidden = true;
+    $('pf-armory-empty').hidden = false;
+    $('pf-armory-h').textContent = c ? 'No gear set for ' + fullName(c) : 'Pick a gear set';
+    $('pf-armory-empty-msg').textContent = c
+      ? fullName(c) + ' has no gear set yet. Create one in the gear sets panel to start planning.'
+      : 'Choose a character to plan for, then pick a set or create one.';
+  }
+  function renderPlan() {
+    var ds = displayed(), box = $('pf-plan-chars'), field = $('pf-plan');
+    if (!box || !field) return;
+    field.hidden = !ds.length;
+    var prev = document.activeElement;
+    var keep = prev && prev.name === 'pf-plan';
+    clear(box);
+    ds.forEach(function (c) {
+      var on = c.id === st.planId;
+      var lab = el('label', 'pf-plan-char' + (on ? ' is-selected' : ''));
+      var inp = el('input');
+      inp.type = 'radio'; inp.name = 'pf-plan'; inp.value = c.id; inp.id = 'pf-plan-' + c.id; inp.checked = on;
+      lab.appendChild(inp);
+      var text = el('span', 'pf-plan-text');
+      text.appendChild(el('span', 'pf-plan-name', fullName(c)));
+      var meta = [txt(c.level) ? 'Level ' + txt(c.level) : '', txt(c.class)].filter(Boolean).join(' · ');
+      if (meta) text.appendChild(el('span', 'pf-plan-meta', meta));
+      if (on) text.appendChild(el('span', 'pf-plan-flag', 'Planning'));
+      lab.appendChild(text);
+      box.appendChild(lab);
+    });
+    document.querySelectorAll('.pf-pchar').forEach(function (n) {
+      n.classList.toggle('is-planning', n.getAttribute('data-char') === st.planId);
+    });
+    if (keep && st.planId) { var back = $('pf-plan-' + st.planId); if (back) back.focus(); }
+  }
+  /** Open the planned character's gear set when they have one. announceIt is for an explicit selector change. */
+  function applyPlan(announceIt) {
+    var c = st.planId ? charById(st.planId) : null;
+    if (!c || !c.displayed || c.stale) { showPlanEmpty(null); return; }
+    if (st.current && !st.current.missing && st.current.character_id === c.id) return;
+    var pick = preferredSet(c.id);
+    if (!pick) {
+      if (st.current) closeSet();
+      showPlanEmpty(c);
+      if (announceIt) announce('Planning for ' + fullName(c) + '. No gear set yet.');
+      return;
+    }
+    if (announceIt) announce('Planning for ' + fullName(c) + '.');
+    return openSet(pick.id, c.id, false);
+  }
+  function selectPlan(id) {
+    var c = charById(id);
+    if (!c || !c.displayed || c.stale) return;
+    var same = id === st.planId;
+    st.planId = id;
+    renderPanel();
+    if (same && st.current && st.current.character_id === id) { announce('Planning for ' + fullName(c) + '.'); return; }
+    return applyPlan(true);
   }
   function renderPanel() {
+    reconcilePlan();
     var ds = displayed(), body = $('pf-panel-body'); clear(body);
     $('pf-armory-wrap').hidden = !ds.length;
     ds.forEach(function (c) {
@@ -179,6 +311,7 @@
       });
       body.appendChild(sec);
     });
+    renderPlan();
   }
 
   // ---------- mobile drawer ----------
@@ -256,6 +389,7 @@
       $('pf-create').close();
       (st.sets[c.id] = st.sets[c.id] || []).push(r.body);
       st.current = r.body; st.etag = r.headers && r.headers.etag || null;
+      st.planId = c.id; remember(r.body);
       announce('Gear set ' + r.body.name + ' created. Pick items for each slot.');
       renderPanel(); renderSet(); drawer(false, false); $('pf-set-h').focus();
     });
@@ -264,12 +398,39 @@
   // ---------- armory view ----------
   function closeSet() { st.current = null; st.etag = null; $('pf-armory-view').hidden = true; $('pf-armory-empty').hidden = false; renderPanel(); }
   function openSet(id, charId, focus) {
-    var c = charById(charId);
+    if (focus) delete st.miss[id];
+    st.planId = charId;
+    renderPlan();
     return A.get(id).then(function (r) {
       if (r.status === 401) { show('signedout'); return; }
-      if (r.status === 404) { slotBanner('That gear set no longer exists.'); loadSets(); return; }
-      if (!r.ok) { slotBanner('Could not open the set: ' + errMsg(r, 'please try again.')); return; }
+      if (r.status === 404) {
+        // The list we asked for is gone. Drop it, and do not keep another character's open set on screen.
+        st.miss[id] = true;
+        if (st.planSet[charId] === id) delete st.planSet[charId];
+        st.current = null;
+        st.etag = null;
+        var gone = 'That gear set no longer exists.';
+        var c0 = charById(charId);
+        if (c0) { st.current = blankPlan(c0); renderSet(); }
+        else showPlanEmpty(null);
+        slotBanner(gone);
+        return loadSets({ open: false }).then(function () {
+          if (preferredSet(charId)) return applyPlan(false);
+          var c = charById(charId);
+          if (!c || !c.displayed || c.stale) { showPlanEmpty(c && c.displayed ? c : null); return; }
+          st.current = blankPlan(c);
+          renderPanel();
+          renderSet();
+        }).then(function () { slotBanner(gone); });
+      }
+      if (!r.ok) {
+        var msg = 'Could not open the set: ' + errMsg(r, 'please try again.');
+        slotBanner(msg);
+        if ($('pf-armory-view').hidden) { showPlanEmpty(charById(st.planId)); $('pf-armory-empty-msg').textContent = msg; }
+        return;
+      }
       st.current = r.body; st.etag = r.headers && r.headers.etag || null;
+      remember(st.current);
       $('pf-slot-banner').hidden = true;
       return resolveItems(r.body).then(function () {
         renderPanel(); renderSet(); drawer(false, false);
@@ -282,34 +443,48 @@
     return Promise.all(ids.map(function (iid) { return A.item(iid).then(function (r) { if (r.ok && r.body) st.items[iid] = r.body; }); }));
   }
   function slotBanner(m) { var b = $('pf-slot-banner'); b.textContent = m; b.hidden = !m; }
+  function appendSlot(ul, slot, s, missing) {
+    var iid = s.slots ? s.slots[slot] : null, it = iid != null ? st.items[iid] || { item_id: iid, name: 'Item ' + iid } : null;
+    var mismatch = slot === 'ammo' && it && !ammoFits(it, rangedItem(s));
+    var li = el('li'), b = el('button', 'pf-slot' + (it ? ' is-filled' : '') + (mismatch ? ' is-mismatch' : '') + (st.saving[slot] ? ' is-saving' : ''));
+    b.type = 'button'; b.setAttribute('data-slot', slot); b.id = 'pf-slot-' + slot;
+    b.setAttribute('aria-label', (missing
+      ? SLOT_LABEL[slot] + ': empty. That gear set no longer exists.'
+      : SLOT_LABEL[slot] + ': ' + (it ? txt(it.name) : 'empty') + (st.saving[slot] ? ', saving' : '') + '. Choose item')
+      + (mismatch ? ' Doesn\u2019t match the ranged weapon.' : ''));
+    b.appendChild(iconFor(slot, it));
+    var tx = el('span', 'pf-slot-text');
+    tx.appendChild(el('span', 'pf-slot-label', SLOT_LABEL[slot]));
+    tx.appendChild(el('span', 'pf-slot-item' + (it ? ' q-' + (txt(it.quality) || 'unknown') : ''), it ? txt(it.name) : 'Empty'));
+    if (mismatch) tx.appendChild(el('span', 'pf-slot-flag', 'Doesn\u2019t match ranged weapon'));
+    b.appendChild(tx);
+    b.addEventListener('click', function () {
+      if (st.current && st.current.missing) { slotBanner('That gear set no longer exists.'); return; }
+      openPicker(slot, b);
+    });
+    li.appendChild(b); ul.appendChild(li);
+  }
   function renderSet() {
     var s = st.current; if (!s) return;
     var c = charById(s.character_id) || {};
+    var missing = !!s.missing;
     $('pf-armory-empty').hidden = true; $('pf-armory-view').hidden = false;
-    $('pf-set-h').textContent = txt(s.name) || 'Untitled set';
-    $('pf-set-meta').textContent = fullName(c) + ' · ' + setLabel(s);
-    var out = R.outgrown(s, c);
+    $('pf-set-h').textContent = missing ? 'No gear set' : (txt(s.name) || 'Untitled set');
+    $('pf-set-meta').textContent = missing ? fullName(c) : fullName(c) + ' · ' + setLabel(s);
+    var out = !missing && R.outgrown(s, c);
     $('pf-armory-view').classList.toggle('is-outgrown', out);
     $('pf-set-outgrown').hidden = !out;
     $('pf-set-outgrown').textContent = out ? 'Outgrown: ' + fullName(c) + ' is level ' + level(c) + ', past this set\u2019s level ' + s.until_level + '. It is kept for reference.' : '';
-    $('pf-model-name').textContent = fullName(c);
-    $('pf-model-sub').textContent = ['Level ' + (level(c) || '?'), txt(c.race), txt(c.class)].filter(Boolean).join(' ');
+    $('pf-viewer-char').textContent = fullName(c);
+    $('pf-viewer-sub').textContent = ['Level ' + (level(c) || '?'), txt(c.race), txt(c.class)].filter(Boolean).join(' · ');
     [['pf-col-left', LEFT], ['pf-col-right', RIGHT], ['pf-row-weapons', WEAPONS]].forEach(function (g) {
       var ul = $(g[0]); clear(ul);
-      g[1].forEach(function (slot) {
-        var iid = s.slots ? s.slots[slot] : null, it = iid != null ? st.items[iid] || { item_id: iid, name: 'Item ' + iid } : null;
-        var li = el('li'), b = el('button', 'pf-slot' + (it ? ' is-filled' : '') + (st.saving[slot] ? ' is-saving' : ''));
-        b.type = 'button'; b.setAttribute('data-slot', slot); b.id = 'pf-slot-' + slot;
-        b.setAttribute('aria-label', SLOT_LABEL[slot] + ': ' + (it ? txt(it.name) : 'empty') + (st.saving[slot] ? ', saving' : '') + '. Choose item');
-        b.appendChild(iconFor(slot, it));
-        var tx = el('span', 'pf-slot-text');
-        tx.appendChild(el('span', 'pf-slot-label', SLOT_LABEL[slot]));
-        tx.appendChild(el('span', 'pf-slot-item' + (it ? ' q-' + (txt(it.quality) || 'unknown') : ''), it ? txt(it.name) : 'Empty'));
-        b.appendChild(tx);
-        b.addEventListener('click', function () { openPicker(slot, b); });
-        li.appendChild(b); ul.appendChild(li);
-      });
+      g[1].forEach(function (slot) { appendSlot(ul, slot, s, missing); });
     });
+    var ammoRow = $('pf-ammo-row'), ammoList = $('pf-ammo');
+    clear(ammoList);
+    if (usesAmmo(c)) { ammoRow.hidden = false; appendSlot(ammoList, 'ammo', s, missing); }
+    else ammoRow.hidden = true;
   }
 
   // ---------- item picker ----------
@@ -320,6 +495,7 @@
     var cur = st.current.slots[slot]; var it = cur != null ? st.items[cur] : null;
     $('pf-picker-current').textContent = 'Current: ' + (it ? txt(it.name) : cur != null ? 'Item ' + cur : 'empty');
     $('pf-picker-clear').disabled = cur == null;
+    var hint = $('pf-picker-hint'); if (hint) { hint.hidden = true; hint.textContent = ''; }
     $('pf-picker').showModal(); $('pf-picker-q').focus();
     fetchItems(false);
   }
@@ -330,12 +506,23 @@
     $('pf-picker-status').textContent = 'Loading items…'; $('pf-picker-more').hidden = true;
     A.items({ slot: pk.slot, q: pk.q, max_required_level: null, cursor: more ? pk.cursor : null }).then(function (r) {
       if (seq !== pk.seq) return;
-      if (!r.ok) { $('pf-picker-status').textContent = 'Items could not load: ' + errMsg(r, 'please try again.'); return; }
+      if (!r.ok) {
+        // slot=ammo is not in the catalog yet on some APIs: an empty picker, not an error.
+        if (pk.slot === 'ammo' && (r.status === 400 || r.status === 404)) {
+          clear(list); pk.cursor = null; $('pf-picker-more').hidden = true;
+          $('pf-picker-status').textContent = 'No WoW Forever items match.';
+          syncAmmoHint();
+          return;
+        }
+        $('pf-picker-status').textContent = 'Items could not load: ' + errMsg(r, 'please try again.');
+        return;
+      }
       var items = Array.isArray(r.body && r.body.items) ? r.body.items : [];
       var firstNew = null;
       items.forEach(function (i) {
         var iid = i.item_id != null ? i.item_id : i.id; if (iid == null) return;
         i.item_id = iid; st.items[iid] = i;
+        if (!showInPicker(pk.slot, i)) return;
         var li = el('li'), b = el('button', 'pf-pick'); b.type = 'button'; b.setAttribute('data-item', iid);
         if (st.current.slots[pk.slot] === iid) b.setAttribute('aria-pressed', 'true');
         b.appendChild(iconFor(pk.slot, i));
@@ -350,6 +537,7 @@
       $('pf-picker-more').hidden = !pk.cursor;
       var n = list.children.length;
       $('pf-picker-status').textContent = n ? n + (n === 1 ? ' item' : ' items') + (pk.cursor ? ' shown, more available.' : ' found.') : 'No WoW Forever items match.';
+      syncAmmoHint();
       if (more && firstNew) firstNew.focus();
     });
   }
@@ -446,6 +634,7 @@
     });
   }
   $('pf-list').addEventListener('change', function (e) { if (e.target.name === 'displayed') toggle(e.target.value, e.target.checked); });
+  $('pf-plan-chars').addEventListener('change', function (e) { if (e.target && e.target.name === 'pf-plan') selectPlan(e.target.value); });
   $('pf-retry').addEventListener('click', load);
   $('pf-region').addEventListener('change', function (e) {
     var prev = st.region, v = e.target.value;

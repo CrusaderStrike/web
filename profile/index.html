@@ -92,6 +92,11 @@
 
       <section id="pf-armory-wrap" class="pf-armory-wrap" aria-labelledby="pf-sets-h" hidden>
         <h2 id="pf-sets-h" class="cs-display pf-sets-h">Gear sets</h2>
+        <fieldset id="pf-plan" class="pf-plan" aria-describedby="pf-plan-hint">
+          <legend id="pf-plan-legend">Planning for</legend>
+          <p id="pf-plan-hint" class="pf-plan-hint">Choose which displayed character this gear plan is for.</p>
+          <div id="pf-plan-chars" class="pf-plan-chars"></div>
+        </fieldset>
         <button type="button" class="cs-btn cs-btn-ghost pf-drawer-btn" id="pf-drawer-btn" aria-expanded="false" aria-controls="pf-panel">Show gear sets</button>
         <div class="pf-armory-layout">
           <aside id="pf-panel" class="pf-panel" aria-label="Gear sets by character" tabindex="-1">
@@ -105,7 +110,7 @@
           <section id="pf-armory" class="pf-armory" aria-labelledby="pf-armory-h">
             <div id="pf-armory-empty" class="pf-armory-empty">
               <h3 id="pf-armory-h" tabindex="-1">Pick a gear set</h3>
-              <p class="cs-muted">Choose a set from the panel, or use Create new gear list on a character.</p>
+              <p id="pf-armory-empty-msg" class="cs-muted">Choose a character to plan for, then pick a set or create one.</p>
             </div>
             <div id="pf-armory-view" hidden>
               <div class="pf-armory-head">
@@ -116,13 +121,19 @@
               <p id="pf-slot-banner" class="pf-slot-banner" role="alert" hidden></p>
               <div class="pf-charwin" role="group" aria-labelledby="pf-set-h">
                 <ul class="pf-col pf-col-left" id="pf-col-left" aria-label="Armor slots, left"></ul>
-                <div class="pf-model" aria-hidden="true">
-                  <div class="pf-model-name" id="pf-model-name"></div>
-                  <div class="pf-model-sub" id="pf-model-sub"></div>
-                  <svg class="pf-silhouette" viewBox="0 0 100 200" focusable="false"><path d="M50 8c9 0 16 7 16 17s-7 18-16 18-16-8-16-18S41 8 50 8zM30 48h40l14 10 6 48-10 2-6-34-2 48 6 70H62l-6-58h-12l-6 58H22l6-70-2-48-6 34-10-2 6-48z"/></svg>
+                <!-- web#56: empty mount. A later change can replace this placeholder with a real 3D viewer. -->
+                <div class="pf-viewer" id="pf-viewer" role="region" aria-labelledby="pf-viewer-label">
+                  <p id="pf-viewer-label" class="pf-viewer-label">3D viewer placeholder</p>
+                  <p id="pf-viewer-char" class="pf-viewer-char"></p>
+                  <p id="pf-viewer-sub" class="pf-viewer-sub"></p>
+                  <div id="pf-viewer-mount" class="pf-viewer-mount" data-viewer="placeholder"></div>
+                  <p class="pf-viewer-note">A live 3D model of this character will replace this placeholder.</p>
                 </div>
                 <ul class="pf-col pf-col-right" id="pf-col-right" aria-label="Armor slots, right"></ul>
                 <ul class="pf-row-weapons" id="pf-row-weapons" aria-label="Weapon slots"></ul>
+              </div>
+              <div id="pf-ammo-row" class="pf-ammo-row" hidden>
+                <ul class="pf-ammo" id="pf-ammo" aria-label="Ammo slot"></ul>
               </div>
             </div>
           </section>
@@ -168,6 +179,7 @@
   <dialog id="pf-picker" class="pf-dialog pf-picker" aria-labelledby="pf-picker-h">
     <h2 id="pf-picker-h">Choose an item</h2>
     <p id="pf-picker-current" class="cs-muted"></p>
+    <p id="pf-picker-hint" class="cs-muted" hidden></p>
     <form id="pf-picker-search" role="search" class="cs-field">
       <label for="pf-picker-q">Search WoW Forever items</label>
       <input id="pf-picker-q" type="search" autocomplete="off" aria-controls="pf-picker-list">

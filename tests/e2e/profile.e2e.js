@@ -1,5 +1,6 @@
 // web#42 profile + armory against the in-browser mocks (USE_MOCK_ARMORY=true; shipped wire shapes: PUT selection, POST ops): display toggles, choose step,
 // gear set side panel (drawer on mobile), create form level rules, 19-slot armory, item picker, autosave + conflicts.
+// web#56: planning-character selector (switch + keyboard), center 3D viewer placeholder, slot click still updates the icon.
 const { chromium } = require('playwright');
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async () => {
@@ -81,6 +82,35 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'weapons along the bottom');
   ok(await p.getAttribute('#pf-slot-head', 'aria-label') === 'Head: empty. Choose item', 'slot buttons labelled');
   ok(await p.locator('#pf-slot-head .pf-icon.is-ph svg[data-glyph=helm]').count() === 1, 'placeholder icon when empty');
+
+  // web#56: selector makes the planning character obvious; center is an empty 3D placeholder; slot click still writes the icon
+  ok(await p.locator('#pf-plan-chars input[name=pf-plan]').count() === 3, 'selector lists displayed characters');
+  ok((await p.textContent('#pf-plan-legend')) === 'Planning for', 'selector labelled Planning for');
+  ok(await p.getAttribute('#pf-plan', 'aria-describedby') === 'pf-plan-hint', 'planning selector describes its hint');
+  ok(await p.locator('#pf-plan-ch_us_1003').isChecked() && /Planning/.test(await p.locator('.pf-plan-char.is-selected').textContent()) && (await p.getAttribute('.pf-pchar.is-planning', 'data-char')) === 'ch_us_1003', 'Thornquill is the checked planning character');
+  ok(await p.isVisible('#pf-viewer') && (await p.getAttribute('#pf-viewer', 'role')) === 'region' && (await p.getAttribute('#pf-viewer', 'aria-labelledby')) === 'pf-viewer-label', 'center is a labelled region');
+  ok((await p.textContent('#pf-viewer-label')) === '3D viewer placeholder' && /Thornquill Briarhide/.test(await p.textContent('#pf-viewer-char')), 'placeholder names the planned character');
+  ok(await p.locator('#pf-viewer-mount').evaluate(n => n.childElementCount === 0 && n.getAttribute('data-viewer') === 'placeholder') && await p.locator('.pf-silhouette').count() === 0, 'viewer mount is empty');
+  await p.focus('#pf-plan-ch_us_1003'); await p.keyboard.press('ArrowLeft');
+  ok(await until(() => /Planning for Lightbringer Dawnmantle/.test(document.getElementById('pf-status').textContent) && /Lightbringer Dawnmantle/.test(document.getElementById('pf-set-meta').textContent)), 'ArrowLeft switches the planning character and opens their set');
+  await idle();
+  ok(await p.locator('#pf-plan-ch_us_1001').isChecked() && /Lightbringer Dawnmantle/.test(await p.textContent('#pf-viewer-char')), 'selector and placeholder follow Lightbringer');
+  ok((await p.$$eval('#pf-col-left .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'head,neck,shoulder,back,chest,shirt,tabard,wrist', 'left column stays head through wrist after the switch');
+  ok((await p.$$eval('#pf-col-right .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'hands,waist,legs,feet,finger1,finger2,trinket1,trinket2', 'right column stays hands through trinkets');
+  ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'weapons stay along the bottom');
+  await p.click('#pf-slot-hands'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0);
+  const handsName = (await p.textContent('#pf-picker-list .pf-pick-name')).trim();
+  await p.click('#pf-picker-list .pf-pick');
+  ok(await until(() => /Hands saved/.test(document.getElementById('pf-status').textContent)), 'slot click still saves through set_slot');
+  await idle();
+  ok((await p.textContent('#pf-slot-hands')).includes(handsName) && (await p.textContent('#pf-viewer-label')) === '3D viewer placeholder', 'slotted icon updates and the center stays a placeholder');
+  ok(await p.locator('#pf-viewer-mount').evaluate(n => n.childElementCount === 0), 'placeholder mount stays empty after set_slot');
+  await p.click('#pf-plan-ch_us_1005');
+  ok(await until(() => document.getElementById('pf-armory-view').hidden && /Wispwander/.test(document.getElementById('pf-armory-h').textContent)), 'character with no gear set leaves the pane closed');
+  ok(await p.locator('#pf-plan-ch_us_1005').isChecked() && /no gear set yet/.test(await p.textContent('#pf-armory-empty-msg')), 'empty plan names that character');
+  await p.locator('.pf-set', { hasText: 'Endgame' }).click();
+  ok(await until(() => document.getElementById('pf-set-h').textContent === 'Endgame' && document.getElementById('pf-plan-ch_us_1003').checked), 'opening a set plans for that character again');
+  await idle();
 
   // picker: search + paging, keyboard, autosave with If-Match
   await p.focus('#pf-slot-head'); await p.keyboard.press('Enter');
@@ -179,7 +209,7 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
     localStorage.setItem('cs_mock_armory', JSON.stringify(s)); });
   await go(); const og = p.locator('.pf-set[data-set=gs_old]');
   ok(await og.evaluate(e => e.classList.contains('is-outgrown')) && /Outgrown/.test(await og.textContent()), 'outgrown set grayed out in panel');
-  await og.click(); await until(() => !document.getElementById('pf-armory-view').hidden);
+  await og.click(); await until(() => /Outgrown: Wispwander is level 27/.test(document.getElementById('pf-set-outgrown').textContent || '')); await idle();
   ok(await p.evaluate(() => document.getElementById('pf-armory-view').classList.contains('is-outgrown')) && /Outgrown: Wispwander is level 27/.test(await p.textContent('#pf-set-outgrown')), 'outgrown armory grayed with note');
 
   // hiding keeps sets
@@ -208,6 +238,89 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-mobile.png'), fullPage: true });
   await p.setViewportSize({ width: 1280, height: 900 }); await go(); await p.click(`.pf-set[data-set="${setId}"]`); await p.waitForTimeout(400);
   await p.screenshot({ path: require('path').join(process.env.CS_E2E_SHOTS || require('os').tmpdir(), 'armory-desktop.png'), fullPage: true });
+
+  // ammo is its own slot (not ranged): Hunter shows it, Mage hides it, a class change updates it
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: 'Hunter', ch_us_1003: 'Mage' })));
+  await go(); await idle();
+  ok(/Hunter/.test(await p.textContent('#pf-viewer-sub')) && await p.isVisible('#pf-slot-ammo') && (await p.getAttribute('#pf-slot-ammo', 'data-slot')) === 'ammo', 'hunter shows an ammo slot');
+  ok(await p.locator('.pf-charwin .pf-slot').count() === 19 && (await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'ammo stays outside the 19-slot pane and ranged');
+  await p.evaluate(() => {
+    window.__itemSlots = [];
+    const orig = CSArmoryMock.items;
+    CSArmoryMock.items = function (q) { window.__itemSlots.push(q && q.slot); return orig.apply(this, arguments); };
+  });
+  await p.click('#pf-slot-ranged'); await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length > 0);
+  ok(await p.evaluate(() => window.__itemSlots.slice(-1)[0] === 'ranged') && !/ammo/i.test(await p.textContent('#pf-picker-list')), 'ranged picker asks for slot=ranged and does not list ammo');
+  await p.fill('#pf-picker-q', 'Misfiled');
+  ok(await until(() => /No WoW Forever items match/.test(document.getElementById('pf-picker-status').textContent) && document.querySelectorAll('#pf-picker-list .pf-pick').length === 0), 'ranged picker drops inventory_type AMMO');
+  await p.click('#pf-picker-close');
+  await until(() => !document.getElementById('pf-picker').open);
+  await p.click('#pf-slot-ammo');
+  ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick').length >= 2), 'ammo picker loads with no ranged weapon');
+  ok(await p.evaluate(() => window.__itemSlots.slice(-1)[0] === 'ammo'), 'ammo picker asks for slot=ammo');
+  ok((await p.locator('#pf-picker-list .pf-pick-name').allTextContents()).sort().join() === 'Testwood Arrow,Testwood Bullet', 'no ranged weapon shows arrows and bullets');
+  ok(!/Jagged Arrow|Deadly Poison/.test(await p.textContent('#pf-picker-list')), 'ammo picker drops item ids 19082 and 19286');
+  ok((await p.textContent('#pf-picker-hint')) === 'Equip a bow, crossbow or gun to filter ammo.' && await p.isVisible('#pf-picker-hint'), 'hint when ammo is not filtered');
+  await p.click('#pf-picker-close');
+  await until(() => !document.getElementById('pf-picker').open);
+  const pickNamed = async (slot, name) => {
+    await p.click('#pf-slot-' + slot);
+    await until(() => document.getElementById('pf-picker').open);
+    await p.fill('#pf-picker-q', name);
+    await p.waitForFunction(n => [...document.querySelectorAll('#pf-picker-list .pf-pick-name')].some(e => e.textContent === n), name, { timeout: 5000 });
+    await p.locator('#pf-picker-list .pf-pick', { hasText: name }).first().click();
+    await p.waitForFunction(([slot, name]) => { const el = document.getElementById('pf-slot-' + slot); return !!(el && el.textContent.includes(name)); }, [slot, name], { timeout: 5000 });
+    await idle();
+  };
+  await pickNamed('ranged', 'Testwood Bow');
+  await p.click('#pf-slot-ammo');
+  ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick-name').length === 1 && document.querySelector('#pf-picker-list .pf-pick-name').textContent === 'Testwood Arrow'), 'hunter with a bow sees only arrows');
+  ok(await p.isHidden('#pf-picker-hint'), 'bow hides the unfiltered-ammo hint');
+  await p.locator('#pf-picker-list .pf-pick').click();
+  ok(await until(() => /Ammo saved: Testwood Arrow/.test(document.getElementById('pf-status').textContent)), 'arrow saved in the ammo slot');
+  await idle();
+  await pickNamed('ranged', 'Testwood Gun');
+  ok(/Testwood Arrow/.test(await p.textContent('#pf-slot-ammo')) && await p.locator('#pf-slot-ammo').evaluate(e => e.classList.contains('is-mismatch')) && /Doesn.t match ranged weapon/.test(await p.textContent('#pf-slot-ammo')), 'gun leaves the arrow equipped and flags the mismatch');
+  const hunterSet = await p.getAttribute('.pf-set[aria-current=true]', 'data-set');
+  ok((await mockSet(hunterSet)).items.some(i => i.slot === 'ammo' && i.item_id === 91011), 'mismatch does not clear the ammo row');
+  await p.click('#pf-slot-ammo');
+  ok(await until(() => document.querySelectorAll('#pf-picker-list .pf-pick-name').length === 1 && document.querySelector('#pf-picker-list .pf-pick-name').textContent === 'Testwood Bullet'), 'hunter with a gun sees only bullets');
+  await p.click('#pf-picker-close');
+  await until(() => !document.getElementById('pf-picker').open);
+  await p.click('#pf-plan-ch_us_1003');
+  ok(await until(() => /Mage/.test(document.getElementById('pf-viewer-sub').textContent) && !document.getElementById('pf-slot-ammo')), 'switching to a mage hides ammo');
+  await p.click('#pf-plan-ch_us_1001');
+  ok(await until(() => /Hunter/.test(document.getElementById('pf-viewer-sub').textContent) && !!document.getElementById('pf-slot-ammo')), 'switching back to the hunter shows ammo');
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: 'Mage' })));
+  await go(); await idle();
+  ok(/Mage/.test(await p.textContent('#pf-viewer-sub')) && await p.locator('#pf-slot-ammo').count() === 0, 'changing that character to a mage hides ammo');
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: '' })));
+  await go(); await idle();
+  ok(await p.locator('#pf-slot-ammo').count() === 0, 'an unknown class hides ammo');
+  await p.evaluate(() => localStorage.setItem('cs_mock_class', JSON.stringify({ ch_us_1001: 'Hunter' })));
+  await go(); await idle();
+  ok(await p.isVisible('#pf-slot-ammo'), 'changing that character back to hunter shows ammo');
+  await p.evaluate(() => localStorage.removeItem('cs_mock_class'));
+  await go(); await p.click(`.pf-set[data-set="${setId}"]`); await until(() => document.getElementById('pf-set-h').textContent === 'Endgame'); await idle();
+
+  // web#56 review: switching to a character whose preferred set 404s must not keep the previous character's pane
+  await p.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('cs_mock_armory'));
+    s.sets = s.sets.filter(x => x.character_id !== 'ch_us_1001');
+    localStorage.setItem('cs_mock_armory', JSON.stringify(s));
+  });
+  await p.click('#pf-plan-ch_us_1001');
+  ok(await until(() => document.getElementById('pf-plan-ch_us_1001').checked && document.getElementById('pf-set-h').textContent === 'No gear set' && /Thornquill/.test(document.getElementById('pf-set-h').textContent) === false && /Lightbringer Dawnmantle/.test(document.getElementById('pf-viewer-char').textContent)), '404 clears the previous set and plans the new character');
+  await idle();
+  ok(!(await p.isHidden('#pf-armory-view')) && await p.locator('.pf-charwin .pf-slot').count() === 19, 'empty plan is the 19-slot pane');
+  ok((await p.$$eval('#pf-col-left .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'head,neck,shoulder,back,chest,shirt,tabard,wrist', 'empty plan keeps head through wrist');
+  ok((await p.$$eval('#pf-row-weapons .pf-slot', x => x.map(e => e.dataset.slot).join())) === 'main_hand,off_hand,ranged', 'empty plan keeps weapons on the bottom');
+  ok(await p.locator('.pf-charwin .pf-slot-item').allTextContents().then(a => a.length === 19 && a.every(t => t.trim() === 'Empty')), 'every slot is empty after the 404');
+  ok(await p.isVisible('#pf-slot-banner') && /no longer exists/.test(await p.textContent('#pf-slot-banner')), '404 banner stays on the empty plan');
+  ok(/Lightbringer Dawnmantle/.test(await p.textContent('#pf-set-meta')) && !/Thornquill/.test(await p.textContent('#pf-set-meta')), 'pane names the character whose set 404d');
+  ok((await p.textContent('#pf-viewer-label')) === '3D viewer placeholder', 'center stays the 3D placeholder');
+  await p.click('#pf-slot-head');
+  ok(!(await p.evaluate(() => document.getElementById('pf-picker').open)), 'empty plan slot does not open the picker');
 
   const txt = await p.evaluate(() => document.body.innerText); ok(!/\b(undefined|NaN)\b/.test(txt), 'no undefined/NaN in page text');
   const src = await p.evaluate(async () => { let s = ''; for (const f of ['js/profile.js', 'js/armory-api.js', 'js/armory-mock.js', 'js/gear-set-rules.js']) s += await (await fetch('../' + f)).text(); return s; });

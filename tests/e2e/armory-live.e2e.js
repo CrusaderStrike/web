@@ -259,7 +259,7 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   S.sets.push(mkSet('ch_b', 'Deadmines', { type: 'leveling', until_level: 20 }));
   await go(); const og = p.locator('.pf-pchar[data-char=ch_b] .pf-set.is-outgrown');
   ok(await og.count() === 1 && /Outgrown/.test(await og.textContent()), 'outgrown set greyed in panel');
-  await og.click(); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
+  await og.click(); await until(() => /Outgrown: Wisp Wander is level 27/.test(document.getElementById('pf-set-outgrown').textContent || '')); await idle();
   ok(await p.evaluate(() => document.getElementById('pf-armory-view').classList.contains('is-outgrown')) && /Outgrown: Wisp Wander is level 27/.test(await p.textContent('#pf-set-outgrown')), 'outgrown armory note');
   ok(!(await p.locator(`.pf-set[data-set="${lvId}"]`).evaluate(e => e.classList.contains('is-outgrown'))), 'leveling set above current level not outgrown');
 

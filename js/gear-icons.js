@@ -24,11 +24,12 @@
     sword: 'M18.5 2.5H21.5V5.5L10.5 16.5 7.5 13.5zM5 12.5l6.5 6.5-1.5 1.5-1.8-1.8L5.5 21.4 2.6 18.5l2.7-2.7L3.5 14z',
     shield: 'M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5zm0 2.5L6.5 6.6V11c0 3.7 2.4 6.7 5.5 8.3z',
     bow: 'M5 2c7 3 11 7 14 14l-1.5.6C14.7 10 11 6.3 4.4 3.4zM4 3.5l1-1L19.5 17l2 4.5-4.5-2L2.5 5z',
+    ammo: 'M8 8h8l1 3v8H7v-8zm1 4h6v2H9zm0 3.5h6v2H9zM9 4h6v3H9z',
     tabard: 'M6 3h12v14l-6 4-6-4zm3 3v8.5l3 2 3-2V6z'
   };
   var SLOT = { head: 'helm', neck: 'amulet', shoulder: 'shoulder', back: 'cloak', chest: 'chest', shirt: 'shirt', tabard: 'tabard',
     wrist: 'wrist', hands: 'hands', waist: 'belt', legs: 'legs', feet: 'boots', finger1: 'ring', finger2: 'ring',
-    trinket1: 'trinket', trinket2: 'trinket', main_hand: 'sword', off_hand: 'shield', ranged: 'bow' };
+    trinket1: 'trinket', trinket2: 'trinket', main_hand: 'sword', off_hand: 'shield', ranged: 'bow', ammo: 'ammo' };
   window.CSGearIcons = {
     glyphFor: function (slot) { return Object.prototype.hasOwnProperty.call(SLOT, slot) ? SLOT[slot] : 'trinket'; },
     /** Returns an <svg class="gr-glyph" data-glyph="..."> for a slot. */
