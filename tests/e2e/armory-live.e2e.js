@@ -26,8 +26,7 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const err = code => ({ error: { code, message: code, request_id: 'r' } });
   const selected = id => S.sel && (S.sel.main_id === id || S.sel.alt_ids.includes(id));
-  const outgrown = s => s.type === 'leveling' && (chars.find(c => c.id === s.character_id) || {}).level >= s.until_level;
-  const view = s => { const o = JSON.parse(JSON.stringify(s)); delete o.touch; delete o.staleAll; o.outgrown = outgrown(s); return o; };
+  const view = s => { const o = JSON.parse(JSON.stringify(s)); delete o.touch; delete o.staleAll; return o; };
   const mkSet = (cid, name, extra) => Object.assign({ id: uuid(), character_id: cid, owner_user_id: 'u1', name, visibility: 'private', version: 1,
     updated_at: '2026-11-05T06:00:00.000Z', updated_source: 'web', items: [], touch: {}, type: 'max_level', until_level: null, role_spec: null }, extra || {});
   const ctx = await b.newContext();
@@ -126,6 +125,15 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   const pickFirst = async slot => { await openPick(slot); await p.click('#pf-picker-list .pf-pick'); };
   const newBtn = id => p.locator(`.pf-pchar[data-char=${id}] .pf-new`);
   const closeCreate = async () => { await p.click('#pf-c-cancel'); await until(() => !document.getElementById('pf-create').open); };
+  const assertCreate = async (width) => {
+    await p.setViewportSize({ width, height: width < 800 ? 800 : 900 });
+    const info = await p.evaluate(() => {
+      const root = document.getElementById('pf-create');
+      const fields = [...root.querySelectorAll('input, select, textarea')].map(el => el.id);
+      return { radios: root.querySelectorAll('input[type=radio]').length, fields, text: root.innerText, open: root.open };
+    });
+    ok(info.open && info.radios === 0 && info.fields.join() === 'pf-c-name' && !/leveling|max-level|up to level|role or spec/i.test(info.text), 'profile create card has no radios, level field, or role/spec at ' + width);
+  };
 
   S.signedIn = false; await p.goto(B + 'profile/'); ok(await vis('#pf-signedout'), '401 -> sign-in prompt');
   S.signedIn = true; await go();
@@ -140,16 +148,16 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   ok(!S.log.some(x => x.m === 'PATCH'), 'no PATCH /me/characters/{id} (not on platform main)');
   ok(await p.locator('#pf-panel .pf-pchar').count() === 2, 'panel lists both displayed characters');
 
-  // create: always sends type; leveling sends until_level, level 60 sends max_level + null
-  await newBtn('ch_a').click(); await p.fill('#pf-c-name', 'Tank'); await p.fill('#pf-c-role', 'Protection'); await p.click('#pf-c-save');
-  ok(await until(() => !document.getElementById('pf-create').open), 'max-level set created'); await idle();
+  // create sends exactly {name, type:'max_level', until_level:null, role_spec:null} for every character
+  await p.setViewportSize({ width: 1280, height: 900 });
+  await newBtn('ch_a').click(); await assertCreate(1280); await p.fill('#pf-c-name', 'Tank'); await p.click('#pf-c-save');
+  ok(await until(() => !document.getElementById('pf-create').open), 'set created from a name'); await idle();
   let cr = last('POST', /\/characters\/ch_a\/gear-lists$/);
-  ok(cr && cr.csrf === CSRF && cr.body.type === 'max_level' && cr.body.until_level === null && JSON.stringify(cr.body) === JSON.stringify({ name: 'Tank', type: 'max_level', until_level: null, role_spec: 'Protection' }), 'level 60 create body has type max_level: ' + (cr && JSON.stringify(cr.body)));
-  await newBtn('ch_b').click(); await p.fill('#pf-c-name', 'Questing'); await p.fill('#pf-c-until', '40'); await p.click('#pf-c-save');
-  ok(await until(() => !document.getElementById('pf-create').open), 'leveling set created'); await idle();
+  ok(cr && cr.csrf === CSRF && JSON.stringify(cr.body) === JSON.stringify({ name: 'Tank', type: 'max_level', until_level: null, role_spec: null }), 'create body is exactly {name, type:max_level, until_level:null, role_spec:null}: ' + (cr && JSON.stringify(cr.body)));
+  await newBtn('ch_b').click(); await p.fill('#pf-c-name', 'Questing'); await p.click('#pf-c-save');
+  ok(await until(() => !document.getElementById('pf-create').open), 'under-60 character creates from a name too'); await idle();
   cr = last('POST', /\/characters\/ch_b\/gear-lists$/);
-  ok(cr && cr.body.type === 'leveling' && cr.body.until_level === 40, 'leveling create body has type leveling + until_level 40: ' + (cr && JSON.stringify(cr.body)));
-  const lvId = S.sets[1].id;
+  ok(cr && JSON.stringify(cr.body) === JSON.stringify({ name: 'Questing', type: 'max_level', until_level: null, role_spec: null }), 'under-60 create body is the same name-only shape: ' + (cr && JSON.stringify(cr.body)));
   await p.click(`.pf-set[data-set="${S.sets[0].id}"]`); await until(() => document.getElementById('pf-set-h').textContent === 'Tank'); await idle();
   ok((await p.textContent('#pf-set-h')) === 'Tank', 'armory opens the set');
   const setId = S.sets[0].id;
@@ -238,30 +246,32 @@ const SLOTS = ['head', 'neck', 'shoulder', 'back', 'chest', 'shirt', 'tabard', '
   S.once.r429 = true; await p.click('#pf-slot-neck'); await p.click('#pf-picker-clear');
   ok(await vis('#pf-slot-banner') && /Wait 7 seconds/.test(await p.textContent('#pf-slot-banner')), '429 Retry-After: 7 -> message ' + await p.textContent('#pf-slot-banner')); await idle();
 
-  // server-side create validation codes (platform#43 shape {error:{code:validation_error, details}}) surface on the form
-  for (const [d, field, re] of [
-    [{ until_level: 'until_level_not_above_current_level' }, '#pf-c-until-err', /higher than/],
-    [{ until_level: 'until_level_out_of_range' }, '#pf-c-until-err', /1 to 60/],
-    [{ until_level: 'until_level_required' }, '#pf-c-until-err', /Enter the level/],
-    [{ type: 'leveling_set_at_max_level' }, '#pf-c-type-err', /only have max-level/]]) {
-    S.once.create400 = d; await newBtn('ch_b').click(); await p.fill('#pf-c-name', 'Lv'); await p.fill('#pf-c-until', '40'); await p.click('#pf-c-save');
-    ok(await until(([s, r]) => new RegExp(r).test(document.querySelector(s).textContent), [field, re.source]), '400 ' + Object.values(d)[0] + ' shown');
+  // server-side create validation codes (platform#43 shape {error:{code:validation_error, details}}) surface on the form error
+  for (const [d, re] of [
+    [{ until_level: 'until_level_not_above_current_level' }, /higher than/],
+    [{ until_level: 'until_level_out_of_range' }, /1 to 60/],
+    [{ until_level: 'until_level_required' }, /Enter the level/],
+    [{ type: 'leveling_set_at_max_level' }, /only have max-level/],
+    [{ until_level: 'until_level_must_be_null' }, /no level/]]) {
+    S.once.create400 = d; await newBtn('ch_b').click(); await p.fill('#pf-c-name', 'Lv'); await p.click('#pf-c-save');
+    ok(await until(r => new RegExp(r).test(document.getElementById('pf-c-error').textContent), re.source), '400 ' + Object.values(d)[0] + ' shown');
     await closeCreate();
   }
-  S.once.create400 = { until_level: 'until_level_must_be_null' }; await newBtn('ch_b').click(); await p.check('#pf-c-type-max'); await p.fill('#pf-c-name', 'Mx'); await p.click('#pf-c-save');
-  ok(await until(() => /no level/.test(document.getElementById('pf-c-until-err').textContent)), '400 until_level_must_be_null mapped'); await closeCreate();
 
   // shipped "not displayed": 403 {errors:{character_id}} from requireOwnedCharacter
-  S.once.notSelected = true; await newBtn('ch_b').click(); await p.fill('#pf-c-name', 'X'); await p.fill('#pf-c-until', '40'); await p.click('#pf-c-save');
+  S.once.notSelected = true; await newBtn('ch_b').click(); await p.fill('#pf-c-name', 'X'); await p.click('#pf-c-save');
   ok(await vis('#pf-c-error') && /Show this character on your profile/.test(await p.textContent('#pf-c-error')), '403 {errors:{character_id}} -> character_not_displayed message'); await closeCreate();
 
-  // outgrown: leveling set until 20 for a level-27 character
-  S.sets.push(mkSet('ch_b', 'Deadmines', { type: 'leveling', until_level: 20 }));
-  await go(); const og = p.locator('.pf-pchar[data-char=ch_b] .pf-set.is-outgrown');
-  ok(await og.count() === 1 && /Outgrown/.test(await og.textContent()), 'outgrown set greyed in panel');
+  // stored type/until_level/role_spec is ignored
+  S.sets.push(mkSet('ch_b', 'Deadmines', { type: 'leveling', until_level: 20, role_spec: 'Feral' }));
+  await go(); const og = p.locator('.pf-set', { hasText: 'Deadmines' });
+  ok(await og.count() === 1 && (await og.innerText()).trim() === 'Deadmines', 'stored leveling set shows its name only');
   await og.click(); await until(() => !document.getElementById('pf-armory-view').hidden); await idle();
-  ok(await p.evaluate(() => document.getElementById('pf-armory-view').classList.contains('is-outgrown')) && /Outgrown: Wisp Wander is level 27/.test(await p.textContent('#pf-set-outgrown')), 'outgrown armory note');
-  ok(!(await p.locator(`.pf-set[data-set="${lvId}"]`).evaluate(e => e.classList.contains('is-outgrown'))), 'leveling set above current level not outgrown');
+  ok((await p.textContent('#pf-set-meta')) === 'Wisp Wander' && await p.locator('#pf-set-outgrown').count() === 0 && !/Leveling|Outgrown|Feral|Max level/.test(await p.locator('.pf-armory-head').innerText()), 'armory meta has no level or role label');
+  await p.setViewportSize({ width: 375, height: 800 }); await go();
+  await p.click('#pf-drawer-btn'); await until(() => document.getElementById('pf-panel').classList.contains('is-open'));
+  await newBtn('ch_b').click(); await assertCreate(375); await closeCreate();
+  await p.setViewportSize({ width: 1280, height: 900 });
 
   // 409 list_limit_reached at 20 sets
   while (S.sets.filter(s => s.character_id === 'ch_a').length < 20) S.sets.push(mkSet('ch_a', 'S' + n));

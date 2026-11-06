@@ -1,5 +1,5 @@
 // web#42 profile + armory against the in-browser mocks (USE_MOCK_ARMORY=true; shipped wire shapes: PUT selection, POST ops): display toggles, choose step,
-// gear set side panel (drawer on mobile), create form level rules, 19-slot armory, item picker, autosave + conflicts.
+// gear set side panel (drawer on mobile), name-only create, 19-slot armory, item picker, autosave + conflicts.
 const { chromium } = require('playwright');
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 (async () => {
@@ -13,6 +13,15 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   const idle = () => p.waitForFunction(() => document.documentElement.getAttribute('data-pf-busy') === '0', null, { timeout: 8000 }).catch(() => {});
   const go = async q => { await p.goto(B + 'profile/' + (q || '')); await vis('#pf-ready'); await idle(); };
   const mockSet = id => p.evaluate(i => JSON.parse(localStorage.getItem('cs_mock_armory')).sets.find(s => s.id === i), id);
+  const assertCreate = async (width) => {
+    await p.setViewportSize({ width, height: width < 800 ? 800 : 900 });
+    const info = await p.evaluate(() => {
+      const root = document.getElementById('pf-create');
+      const fields = [...root.querySelectorAll('input, select, textarea')].map(el => el.id);
+      return { radios: root.querySelectorAll('input[type=radio]').length, fields, text: root.innerText, open: root.open };
+    });
+    ok(info.open && info.radios === 0 && info.fields.join() === 'pf-c-name' && !/leveling|max-level|up to level|role or spec/i.test(info.text), 'profile create card has no radios, level field, or role/spec at ' + width + ': ' + info.fields.join());
+  };
 
   await p.goto(B + 'profile/'); ok(await vis('#pf-disabled'), 'flag off -> coming soon');
   await p.goto(B + 'profile/?ff_bnet=1'); ok(await vis('#pf-signedout'), 'signed out -> sign-in prompt (armory only behind login)');
@@ -41,38 +50,34 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   ok(await p.isChecked('#pf-show-ch_us_1001') && await p.isChecked('#pf-show-ch_us_1003') && !(await p.isChecked('#pf-show-ch_us_1002')), 'display choice persists');
   ok(await p.locator('#pf-panel .pf-pchar').count() === 3, 'panel lists the 3 displayed characters');
 
-  // create form: level 60 -> max-level only
+  // create form: name only, on a level-60 character and on one under 60
   const newBtn = id => p.locator(`.pf-pchar[data-char=${id}] .pf-new`);
+  await p.setViewportSize({ width: 1280, height: 900 });
   await newBtn('ch_us_1001').click(); ok(await p.isVisible('#pf-create') && await p.evaluate(() => document.activeElement.id === 'pf-c-name'), 'create dialog opens, focus on name');
-  ok(await p.isHidden('#pf-c-type-lv-l') && await p.isChecked('#pf-c-type-max') && await p.isHidden('#pf-c-until-wrap'), 'level 60: max-level only, no level field');
+  await assertCreate(1280);
   await p.click('#pf-c-save'); ok(/name/i.test(await p.textContent('#pf-c-name-err')) && await p.getAttribute('#pf-c-name', 'aria-invalid') === 'true', 'name required');
-  await p.fill('#pf-c-name', 'Tank'); await p.evaluate(() => { document.getElementById('pf-c-role').value = 'x'.repeat(33); }); await p.click('#pf-c-save');
-  ok(/32/.test(await p.textContent('#pf-c-role-err')), 'role_spec > 32 rejected');
-  await p.fill('#pf-c-role', 'Protection'); await p.click('#pf-c-save');
-  ok(await until(() => !document.getElementById('pf-create').open), 'max-level set created');
-  ok((await p.textContent('#pf-set-h')) === 'Tank' && /Max level · Protection/.test(await p.textContent('#pf-set-meta')), 'armory opens for new set');
+  await p.fill('#pf-c-name', 'Tank'); await p.click('#pf-c-save');
+  ok(await until(() => !document.getElementById('pf-create').open), 'set created from a name');
+  ok((await p.textContent('#pf-set-h')) === 'Tank' && (await p.textContent('#pf-set-meta')) === 'Lightbringer Dawnmantle', 'armory opens for new set, meta is the character name');
+  const made = await p.evaluate(() => JSON.parse(localStorage.getItem('cs_mock_armory')).sets.find(s => s.name === 'Tank'));
+  ok(made && made.type === 'max_level' && made.until_level === null && made.role_spec === null, 'create stored {type:max_level, until_level:null, role_spec:null}');
   await newBtn('ch_us_1001').click(); await p.fill('#pf-c-name', 'DPS'); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open);
-  ok(await p.locator('.pf-pchar[data-char=ch_us_1001] .pf-sets-max_level .pf-set-name').allTextContents().then(a => a.join() === 'DPS,Tank'), 'several named max-level sets');
+  ok(await p.locator('.pf-pchar[data-char=ch_us_1001] .pf-set-name').allTextContents().then(a => a.join() === 'DPS,Tank'), 'lists sorted by name');
+  ok(await p.locator('.pf-group-h, .pf-set-sub').count() === 0, 'no leveling/max-level sections or meta labels');
   await p.keyboard.press('Escape');
 
-  // level 52: leveling by default, until_level > 52, max-level still allowed
+  // under 60: same name-only card, same body, one list sorted by name
   await newBtn('ch_us_1003').click();
-  ok(await p.isChecked('#pf-c-type-lv') && await p.isVisible('#pf-c-until'), 'under 60 defaults to leveling with Up to level');
-  await p.fill('#pf-c-name', 'Pre-raid'); await p.click('#pf-c-save'); ok(/Enter the level/.test(await p.textContent('#pf-c-until-err')), 'until_level_required');
-  await p.fill('#pf-c-until', '52'); await p.click('#pf-c-save'); ok(/higher than/.test(await p.textContent('#pf-c-until-err')), 'until_level_not_above_current_level');
-  await p.fill('#pf-c-until', '61'); await p.click('#pf-c-save'); ok(/1 to 60/.test(await p.textContent('#pf-c-until-err')), 'until_level_out_of_range');
-  // server-side codes surface too (bypass client check)
+  await assertCreate(1280);
+  await p.click('#pf-c-cancel');
   const sv = await p.evaluate(() => CSArmoryApi.create({ id: 'ch_us_1003', level: 52 }, { name: 'x', type: 'max_level', until_level: 55 }));
   ok(sv.status === 400 && sv.body.error.code === 'validation_error' && sv.body.error.details.until_level === 'until_level_must_be_null', 'mock 400 until_level_must_be_null');
   const sv2 = await p.evaluate(() => CSArmoryApi.create({ id: 'ch_us_1001', level: 60 }, { name: 'x', type: 'leveling', until_level: 60 }));
   ok(sv2.status === 400 && sv2.body.error.details.type === 'leveling_set_at_max_level', 'mock 400 leveling_set_at_max_level');
-  await p.fill('#pf-c-until', '58'); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open);
-  for (const [n, l] of [['Questing', '55'], ['Late', '60']]) { await newBtn('ch_us_1003').click(); await p.fill('#pf-c-name', n); await p.fill('#pf-c-until', l); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open); }
-  await newBtn('ch_us_1003').click(); await p.check('#pf-c-type-max'); ok(await p.isHidden('#pf-c-until-wrap'), 'can still pick max-level to plan ahead');
-  await p.fill('#pf-c-name', 'Endgame'); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open);
-  const lv = await p.locator('.pf-pchar[data-char=ch_us_1003] .pf-sets-leveling .pf-set-name').allTextContents();
-  ok(lv.join() === 'Questing,Pre-raid,Late', 'leveling sets ordered by until_level: ' + lv.join());
-  ok((await p.locator('.pf-pchar[data-char=ch_us_1003] .pf-sets-max_level .pf-set-name').allTextContents()).join() === 'Endgame', 'max-level sets listed separately');
+  for (const n of ['Pre-raid', 'Questing', 'Late', 'Endgame']) { await newBtn('ch_us_1003').click(); await p.fill('#pf-c-name', n); await p.click('#pf-c-save'); await until(() => !document.getElementById('pf-create').open); }
+  const lv = await p.locator('.pf-pchar[data-char=ch_us_1003] .pf-set-name').allTextContents();
+  ok(lv.join() === 'Endgame,Late,Pre-raid,Questing', 'lists sorted by name: ' + lv.join());
+  ok(!/Leveling|Max level|Up to level|Role or spec/.test(await p.locator('.pf-pchar[data-char=ch_us_1003]').innerText()), 'no level or role labels on the list');
 
   // armory layout: 19 slots in character-window columns
   ok(await p.locator('.pf-charwin .pf-slot').count() === 19, '19 slots incl. shirt + tabard');
@@ -174,13 +179,13 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   ok(await vis('#pf-c-error') && /Show this character on your profile/.test(await p.textContent('#pf-c-error')), '403 {errors:{character_id}} (not in selection) message'); await p.click('#pf-c-cancel');
   ok(await p.evaluate(() => document.activeElement.classList.contains('pf-new')), 'cancel returns focus to Create new gear list');
 
-  // outgrown: Wispwander (27) with a leveling set up to 20, seeded
-  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('cs_mock_armory')); s.sets.push({ id: 'gs_old', character_id: 'ch_us_1005', name: 'Starter', type: 'leveling', until_level: 20, role_spec: null, updated_at: '2026-11-01T00:00:00Z', version: 1, items: [], touch: {} });
+  // stored type/until_level/role_spec is ignored: the list shows its name only
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('cs_mock_armory')); s.sets.push({ id: 'gs_old', character_id: 'ch_us_1005', name: 'Starter', type: 'leveling', until_level: 20, role_spec: 'Daggers', updated_at: '2026-11-01T00:00:00Z', version: 1, items: [], touch: {} });
     localStorage.setItem('cs_mock_armory', JSON.stringify(s)); });
   await go(); const og = p.locator('.pf-set[data-set=gs_old]');
-  ok(await og.evaluate(e => e.classList.contains('is-outgrown')) && /Outgrown/.test(await og.textContent()), 'outgrown set grayed out in panel');
+  ok((await og.innerText()).trim() === 'Starter' && !(await og.evaluate(e => e.classList.contains('is-outgrown'))), 'stored leveling set shows its name only');
   await og.click(); await until(() => !document.getElementById('pf-armory-view').hidden);
-  ok(await p.evaluate(() => document.getElementById('pf-armory-view').classList.contains('is-outgrown')) && /Outgrown: Wispwander is level 27/.test(await p.textContent('#pf-set-outgrown')), 'outgrown armory grayed with note');
+  ok((await p.textContent('#pf-set-meta')) === 'Wispwander' && await p.locator('#pf-set-outgrown').count() === 0 && !/Leveling|Outgrown|Daggers|Max level/.test(await p.locator('.pf-armory-head').innerText()), 'armory meta is the character name, with no level or role');
 
   // hiding keeps sets
   await p.uncheck('#pf-show-ch_us_1003'); await until(() => /Its gear sets are kept/.test(document.getElementById('pf-status').textContent));
@@ -201,6 +206,9 @@ const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
   await p.click('#pf-drawer-btn');
   ok(await until(() => document.getElementById('pf-panel').classList.contains('is-open')) && await p.getAttribute('#pf-drawer-btn', 'aria-expanded') === 'true', 'drawer opens (aria-expanded)');
   await p.waitForTimeout(300); ok(await p.isVisible('#pf-panel') && await p.evaluate(() => document.activeElement.id === 'pf-panel'), 'drawer visible, focus moved in');
+  await p.click('.pf-pchar[data-char=ch_us_1001] .pf-new');
+  await assertCreate(375);
+  await p.click('#pf-c-cancel');
   await p.keyboard.press('Escape'); ok(await until(() => !document.getElementById('pf-panel').classList.contains('is-open')) && await p.evaluate(() => document.activeElement.id === 'pf-drawer-btn'), 'Escape closes drawer, focus back on toggle');
   await p.click('#pf-drawer-btn'); await p.waitForTimeout(300); await p.click(`.pf-set[data-set="${setId}"]`);
   ok(await until(() => !document.getElementById('pf-panel').classList.contains('is-open') && !document.getElementById('pf-armory-view').hidden), 'choosing a set closes the drawer and opens the armory');

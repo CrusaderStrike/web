@@ -54,6 +54,15 @@ const CH = 'ch_us_1001';
   const U = B + 'gear/lists/?character=' + CH;
   const count = () => p.$$eval('#gl-index button', x => x.length);
   const writes = () => S.log.filter(x => x.m !== 'GET');
+  const assertCreate = async (width) => {
+    await p.setViewportSize({ width, height: width < 800 ? 800 : 900 });
+    const info = await p.evaluate(() => {
+      const root = document.getElementById('gl-create');
+      const fields = [...root.querySelectorAll('input, select, textarea')].map(el => el.id);
+      return { radios: root.querySelectorAll('input[type=radio]').length, fields, text: root.innerText };
+    });
+    ok(info.radios === 0 && info.fields.join() === 'gl-new-name' && !/leveling|max-level|up to level|role or spec/i.test(info.text), 'gear lists create card has no radios, level field, or role/spec at ' + width);
+  };
 
   ok(await p.evaluate(() => 1) === 1, 'page boots');
   S.signedIn = false; await p.goto(U); ok(await vis('#gl-signedout'), '401 -> sign-in prompt');
@@ -63,25 +72,22 @@ const CH = 'ch_us_1001';
   ok(await vis('#gl-none'), 'empty state: no gear lists yet');
   ok((await p.textContent('#gl-h')).startsWith('Lightbringer Dawnmantle'), 'heading from /me/characters');
 
-  // web#42 level rule: level 42 -> leveling by default, until_level must be > 42
-  ok(await p.isChecked('#gl-new-type-leveling') && await p.isVisible('#gl-new-until'), 'under 60 defaults to leveling with Up to level');
-  await p.fill('#gl-new-name', 'Too low'); await p.fill('#gl-new-until', '42'); await p.click('#gl-new-btn');
-  ok(/higher than/.test(await p.textContent('#gl-new-until-err')), 'until_level <= level rejected client-side');
-  await p.check('#gl-new-type-max'); ok(await p.isHidden('#gl-new-until'), 'max-level hides Up to level'); await p.check('#gl-new-type-leveling');
-  await p.fill('#gl-new-until', '50');
-  // create (201, {name, type, until_level, role_spec, visibility}) with CSRF
-  await p.fill('#gl-new-name', 'Emberfall BiS'); await p.selectOption('#gl-new-vis', 'guild'); await p.click('#gl-new-btn');
+  await assertCreate(1280);
+  await assertCreate(375);
+  await p.setViewportSize({ width: 1280, height: 900 });
+  // create (201) body is exactly {name, type:'max_level', until_level:null, role_spec:null}
+  await p.fill('#gl-new-name', 'Emberfall BiS'); await p.click('#gl-new-btn');
   await p.waitForFunction(() => document.getElementById('gl-detail-h').textContent === 'Emberfall BiS');
   const c = writes().find(x => x.m === 'POST');
   ok(c && c.csrf === CSRF, 'create sends X-CSRF-Token from /auth/session');
-  ok(c && JSON.stringify(JSON.parse(c.body)) === JSON.stringify({ name: 'Emberfall BiS', type: 'leveling', until_level: 50, role_spec: null, visibility: 'guild' }), 'create body {name, type, until_level, role_spec, visibility}: ' + (c && c.body));
+  ok(c && JSON.stringify(JSON.parse(c.body)) === JSON.stringify({ name: 'Emberfall BiS', type: 'max_level', until_level: null, role_spec: null }), 'create body is exactly {name, type:max_level, until_level:null, role_spec:null}: ' + (c && c.body));
   ok(await count() === 1, 'one list after create');
 
   // rename (PATCH If-Match "v1")
   await p.fill('#gl-name', 'Emberfall raid'); await p.click('#gl-meta-form button[type=submit]');
   await p.waitForFunction(() => document.getElementById('gl-detail-h').textContent === 'Emberfall raid');
   const pa = writes().find(x => x.m === 'PATCH');
-  ok(pa && pa.ifMatch === '"v1"' && pa.csrf === CSRF, 'rename PATCH with If-Match "v1" + CSRF');
+  ok(pa && pa.ifMatch === '"v1"' && pa.csrf === CSRF && JSON.stringify(JSON.parse(pa.body)) === JSON.stringify({ name: 'Emberfall raid' }), 'rename PATCH is {name} only, no level or role fields: ' + (pa && pa.body));
   ok(S.lists[0].name === 'Emberfall raid' && S.lists[0].version === 2, 'server state renamed, v2');
 
   // 400 { errors: { name } } envelope -> field error

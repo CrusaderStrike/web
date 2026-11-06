@@ -1,6 +1,6 @@
 /**
  * web#18 gear list management (platform#34 spec). All API data is set with createElement + textContent only.
- * Lists: create (type/until_level/role_spec; server cap -> 409 list_limit_reached, limit read from the response) / rename / visibility / delete with If-Match "v<n>"; 409 version_mismatch -> current list + re-apply.
+ * Lists: create sends {name, type:'max_level', until_level:null, role_spec:null} (web#61; server cap -> 409 list_limit_reached) / rename / visibility / delete with If-Match "v<n>"; 409 version_mismatch -> current list + re-apply. A rename never sends level or role fields. Stored type/until_level/role_spec is ignored.
  * Items: ops batch, always 200; conflicts[] shown with a re-apply. Undo = mark_obtained obtained:false.
  */
 (function () {
@@ -90,10 +90,11 @@
     $('gl-count').textContent = '(' + lists.length + ')';
   }
 
+  function byName(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }
   function renderIndex() {
     var ul = $('gl-index'); clear(ul);
     $('gl-none').hidden = lists.length > 0;
-    lists.forEach(function (l) {
+    lists.slice().sort(byName).forEach(function (l) {
       var li = el('li'), b = el('button');
       b.type = 'button'; b.setAttribute('data-id', l.id);
       if (current && current.id === l.id) b.setAttribute('aria-current', 'true');
@@ -380,24 +381,17 @@
     var n = $('gl-new-name').value.trim();
     if (!validName(n)) { fieldErr('gl-new-name', 'Name must be 1\u2013' + L.name_max + ' characters.'); return; }
     fieldErr('gl-new-name', '');
-    var tp = (document.querySelector('input[name=gl-new-type]:checked') || {}).value || R.defaultType(character);
-    var body = R.body(n, tp, $('gl-new-until').value, $('gl-new-role').value);
-    var ve = R.validate(body, character);
-    ['type', 'until_level', 'role_spec'].forEach(function (f) { fieldErr(META_F[f], ve[f] ? R.message(ve[f]) : ''); });
-    if (ve.type || ve.until_level || ve.role_spec) { $(META_F[ve.type ? 'type' : ve.until_level ? 'until_level' : 'role_spec']).focus(); return; }
-    body.visibility = $('gl-new-vis').value;
+    var body = { name: n, type: 'max_level', until_level: null, role_spec: null };
     var go = function () {
       api.create(charId, body).then(function (r) {
         if (r.status === 409 && R.isListLimit(code(r))) { banner(R.limitMessage(r, 'lists')); return; }
         if (r.status === 409 && code(r) === 'character_not_displayed') { banner(R.MSG.character_not_displayed); return; }
         if (r.status === 400) {
-          var fc = R.fieldCodes(r), hit = false;
-          ['type', 'until_level', 'role_spec'].forEach(function (f) { if (fc[f]) { fieldErr(META_F[f], R.message(fc[f])); hit = true; } });
-          if (fc.name) { fieldErr('gl-new-name', R.message(fc.name)); hit = true; }
-          if (hit) return;
+          var fc = R.fieldCodes(r);
+          if (fc.name) { fieldErr('gl-new-name', R.message(fc.name)); return; }
         }
         if (failed(r, go)) return;
-        upsert(r.body); $('gl-new-name').value = ''; $('gl-new-role').value = ''; hideBanner(); say('List created.');
+        upsert(r.body); $('gl-new-name').value = ''; hideBanner(); say('List created.');
         select(r.body.id, true);
       });
     };
@@ -472,7 +466,8 @@
       show('ready');
       var keep = selectId || (current && current.id);
       current = null;
-      select(lists.some(function (l) { return l.id === keep; }) ? keep : (lists[0] && lists[0].id), false);
+      var first = lists.slice().sort(byName)[0];
+      select(lists.some(function (l) { return l.id === keep; }) ? keep : (first && first.id), false);
       Object.keys(queues).forEach(function (id) { if (queuedOps(queues[id]).length) { refreshView(id); pump(id); } });
     });
   }
@@ -490,7 +485,7 @@
         if (r.status === 401) { show('signedout'); return; }
         if (r.status === 0 || r.status >= 500) throw r;  // web#48: don't render lists with an unknown character level
         var ch = r.ok && r.body && Array.isArray(r.body.characters) ? r.body.characters.filter(function (c) { return c.id === charId; })[0] : null;
-        character = ch || null; typeUi(true);
+        character = ch || null;
         var nm = ch ? [txt(ch.character_name), txt(ch.surname)].filter(Boolean).join(' ') : '';
         $('gl-h').textContent = (nm ? nm + ' \u2014 ' : '') + 'gear lists';
         document.title = (nm ? nm + ' gear lists' : 'Gear lists') + ' \u2014 Crusader Strike';
@@ -502,19 +497,7 @@
       show('error');
     });
   }
-  var META_F = { type: 'gl-new-type-leveling', until_level: 'gl-new-until', role_spec: 'gl-new-role' };
-  /** web#42 level rule: under 60 defaults to leveling (max-level still allowed); at 60 max-level only, no level field. */
-  function typeUi(reset) {
-    var can = R.canLevel(character), lv = $('gl-new-type-leveling');
-    lv.disabled = !can; lv.parentNode.hidden = !can;
-    if (reset || !can) { (can ? lv : $('gl-new-type-max')).checked = true; }
-    var leveling = lv.checked && can;
-    $('gl-new-until-wrap').hidden = !leveling;
-    $('gl-new-until').min = String(R.minUntil(character));
-  }
-  document.querySelectorAll('input[name=gl-new-type]').forEach(function (i) { i.addEventListener('change', function () { typeUi(false); }); });
-  typeUi(true);
-  fillVis($('gl-new-vis')); fillVis($('gl-vis'));
+  fillVis($('gl-vis'));
   SPEC.slots.forEach(function (s) { var o = el('option', null, SLOT_LABEL[s] || s); o.value = s; $('gl-add-slot').appendChild(o); });
   $('gl-add-pr').max = String(L.priority_max);
   // ---------- web#48 CSGEAR1 import (schema §7: decode, create id:null sets, apply ops, map local_id -> id) ----------

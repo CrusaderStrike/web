@@ -1,6 +1,6 @@
 /**
  * web#42 profile: per-character display toggles (PUT /me/characters/selection {main_id, alt_ids}; displayed = main + alts), gear-set side panel (drawer on mobile),
- * create form with the level-60 rules, armory view in the in-game character-window layout, per-slot Forever item
+ * name-only create form (web#61), armory view in the in-game character-window layout, per-slot Forever item
  * picker with search + paging, and autosave per slot (POST /gear-lists/{id}/ops set_slot / clear_slot, base_version; stale_base_version -> reload + retry). Contract: platform main openapi/v1.yaml + gear-list schema v1.
  * Main/alts are the platform selection; the UI just shows displayed on/off. API data is rendered with createElement + textContent only.
  */
@@ -72,11 +72,7 @@
     } else { f.classList.add('is-ph'); f.appendChild(window.CSGearIcons.placeholder(slot)); }
     return f;
   }
-  function setLabel(s) {
-    var bits = [s.type === 'leveling' ? 'Leveling to ' + s.until_level : 'Max level'];
-    if (txt(s.role_spec)) bits.push(txt(s.role_spec));
-    return bits.join(' · ');
-  }
+  function byName(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }
 
   // ---------- characters + display toggles ----------
   function renderChars() {
@@ -156,23 +152,18 @@
       nb.setAttribute('aria-describedby', hid); nb.addEventListener('click', function () { openCreate(c, nb); });
       sec.appendChild(nb);
       if (st.setErr[c.id]) sec.appendChild(el('p', 'pf-inline-error', st.setErr[c.id]));
-      var g = R.sort(st.sets[c.id] || []);
-      [['leveling', 'Leveling'], ['max_level', 'Max level']].forEach(function (k) {
-        var arr = g[k[0]];
-        var gh = el('h5', 'pf-group-h', k[1]); sec.appendChild(gh);
-        if (!arr.length) { sec.appendChild(el('p', 'pf-none', k[0] === 'leveling' ? 'No leveling sets.' : 'No max-level sets.')); return; }
-        var ul = el('ul', 'pf-sets pf-sets-' + k[0]); ul.setAttribute('aria-label', fullName(c) + ' ' + k[1].toLowerCase() + ' sets');
+      var arr = (st.sets[c.id] || []).slice().sort(byName);
+      if (arr.length) {
+        var ul = el('ul', 'pf-sets'); ul.setAttribute('aria-label', fullName(c) + ' gear lists');
         arr.forEach(function (s) {
-          var out = R.outgrown(s, c);
-          var li = el('li'), b = el('button', 'pf-set' + (out ? ' is-outgrown' : '')); b.type = 'button'; b.setAttribute('data-set', s.id);
+          var li = el('li'), b = el('button', 'pf-set'); b.type = 'button'; b.setAttribute('data-set', s.id);
           if (st.current && st.current.id === s.id) b.setAttribute('aria-current', 'true');
           b.appendChild(el('span', 'pf-set-name', txt(s.name) || 'Untitled set'));
-          b.appendChild(el('span', 'pf-set-sub', setLabel(s) + (out ? ' · Outgrown' : '')));
           b.addEventListener('click', function () { openSet(s.id, c.id, true); });
           li.appendChild(b); ul.appendChild(li);
         });
         sec.appendChild(ul);
-      });
+      }
       body.appendChild(sec);
     });
   }
@@ -195,52 +186,35 @@
 
   // ---------- create form ----------
   function fErr(id, m) { $(id + '-err').textContent = m || ''; var n = $(id); if (m) n.setAttribute('aria-invalid', 'true'); else n.removeAttribute('aria-invalid'); }
-  function typeUi() {
-    var c = st.createFor, can = R.canLevel(c);
-    $('pf-c-type-lv').disabled = !can; $('pf-c-type-lv-l').hidden = !can;
-    if (!can) $('pf-c-type-max').checked = true;
-    var lv = $('pf-c-type-lv').checked;
-    $('pf-c-until-wrap').hidden = !lv;
-    $('pf-c-until').min = String(R.minUntil(c)); $('pf-c-until').max = String(R.MAX_LEVEL);
-    $('pf-c-until-hint').textContent = R.levelKnown(c) ? 'From ' + R.minUntil(c) + ' to ' + R.MAX_LEVEL + ' (above current level ' + level(c) + ').' :
-      'From 1 to ' + R.MAX_LEVEL + '. The character\u2019s level isn\u2019t known yet; it must be above its current level.';
-  }
   var createOpener = null;
   function openCreate(c, opener) {
     st.createFor = c; createOpener = opener;
-    $('pf-create-for').textContent = 'For ' + fullName(c) + (txt(c.level) ? ', level ' + txt(c.level) : '') +
-      (R.canLevel(c) ? '.' : '. Level ' + R.MAX_LEVEL + ' characters can only have max-level sets.');
-    $('pf-c-name').value = ''; $('pf-c-role').value = ''; $('pf-c-until').value = '';
-    (R.defaultType(c) === 'leveling' ? $('pf-c-type-lv') : $('pf-c-type-max')).checked = true;
-    ['pf-c-name', 'pf-c-type', 'pf-c-until', 'pf-c-role'].forEach(function (f) { if ($(f)) fErr(f, ''); else $(f + '-err').textContent = ''; });
+    $('pf-create-for').textContent = 'For ' + fullName(c) + '.';
+    $('pf-c-name').value = '';
+    fErr('pf-c-name', '');
     $('pf-c-error').hidden = true;
-    typeUi();
     $('pf-create').showModal(); $('pf-c-name').focus();
   }
   function closeCreate() { $('pf-create').close(); if (createOpener && document.contains(createOpener)) createOpener.focus(); }
-  document.querySelectorAll('input[name=pf-c-type]').forEach(function (i) { i.addEventListener('change', typeUi); });
   $('pf-c-cancel').addEventListener('click', closeCreate);
   $('pf-create').addEventListener('cancel', function (e) { e.preventDefault(); closeCreate(); });
-  var FIELD = { name: 'pf-c-name', until_level: 'pf-c-until', role_spec: 'pf-c-role' };
   function showCodes(codes) {
     var first = null;
     Object.keys(codes).forEach(function (f) {
       var m = R.message(codes[f]);
       if (f === 'name' && codes[f] !== 'name_required') m = codes[f];
-      if (FIELD[f]) { fErr(FIELD[f], m); first = first || FIELD[f]; }
-      else if (f === 'type') { $('pf-c-type-err').textContent = m; first = first || 'pf-c-type-max'; }
-      else { $('pf-c-error').textContent = m; $('pf-c-error').hidden = false; }
+      if (f === 'name') { fErr('pf-c-name', m); first = first || 'pf-c-name'; }
+      else { $('pf-c-error').textContent = m; $('pf-c-error').hidden = false; first = first || 'pf-c-name'; }
     });
     if (first) $(first).focus();
   }
   $('pf-create-form').addEventListener('submit', function (e) {
     e.preventDefault();
     var c = st.createFor; if (!c) return;
-    var tp = (document.querySelector('input[name=pf-c-type]:checked') || {}).value || R.defaultType(c);
-    var b = R.body($('pf-c-name').value, tp, $('pf-c-until').value, $('pf-c-role').value);
-    ['pf-c-name', 'pf-c-until', 'pf-c-role'].forEach(function (f) { fErr(f, ''); }); $('pf-c-type-err').textContent = ''; $('pf-c-error').hidden = true;
-    var v = R.validate(b, c);
-    if (Object.keys(v).length) { showCodes(v); return; }
+    var name = $('pf-c-name').value.trim();
+    fErr('pf-c-name', ''); $('pf-c-error').hidden = true;
+    if (!name || name.length > 64) { fErr('pf-c-name', R.message('name_required')); $('pf-c-name').focus(); return; }
+    var b = { name: name, type: 'max_level', until_level: null, role_spec: null };
     var btn = $('pf-c-save'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
     A.create(c, b).then(function (r) {
       btn.disabled = false; btn.removeAttribute('aria-busy');
@@ -283,11 +257,7 @@
     var c = charById(s.character_id) || {};
     $('pf-armory-empty').hidden = true; $('pf-armory-view').hidden = false;
     $('pf-set-h').textContent = txt(s.name) || 'Untitled set';
-    $('pf-set-meta').textContent = fullName(c) + ' · ' + setLabel(s);
-    var out = R.outgrown(s, c);
-    $('pf-armory-view').classList.toggle('is-outgrown', out);
-    $('pf-set-outgrown').hidden = !out;
-    $('pf-set-outgrown').textContent = out ? 'Outgrown: ' + fullName(c) + ' is level ' + level(c) + ', past this set\u2019s level ' + s.until_level + '. It is kept for reference.' : '';
+    $('pf-set-meta').textContent = fullName(c);
     $('pf-model-name').textContent = fullName(c);
     $('pf-model-sub').textContent = ['Level ' + (level(c) || '?'), txt(c.race), txt(c.class)].filter(Boolean).join(' ');
     [['pf-col-left', LEFT], ['pf-col-right', RIGHT], ['pf-row-weapons', WEAPONS]].forEach(function (g) {

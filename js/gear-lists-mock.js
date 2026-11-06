@@ -14,7 +14,8 @@
   var MAX = (window.CS_CONFIG && window.CS_CONFIG.ARMORY_MAX_SETS) || 20;  // web#42: platform cap 20 (409 list_limit_reached)
   var OWNED = ['ch_us_1001', 'ch_us_1002', 'ch_us_1003', 'ch_us_1004', 'ch_us_1005', 'ch_eu_2001'];
   var SLOTS = SPEC.slots;
-  // web#48: character levels from the js/auth-mock.js fixtures, for the platform level rules on create (validateSetLevelRules).
+  // CSGEAR1 import still sends type/until_level/role_spec. The website create always sends max_level / null / null.
+  // Character levels from the js/auth-mock.js fixtures, for the platform level rules on those import creates.
   var LEVEL = { ch_us_1001: 60, ch_us_1002: 60, ch_us_1003: 52, ch_us_1004: 38, ch_us_1005: 27, ch_eu_2001: 44 };
   function levelRules(tp, until, lv) {
     if (tp === 'max_level') return until != null ? { until_level: 'until_level_must_be_null' } : null;
@@ -37,10 +38,10 @@
   function item(slot, id, pr, note, obt) { return { slot: slot, item_id: id, name: ITEMS[id] || null, priority: pr, note: note || null, obtained: !!obt, obtained_at: obt ? '2026-11-03T21:10:00Z' : null, obtained_run_id: null, icon_url: null }; }
   function seed() {
     var a = { id: 'gl_emberfall_bis', character_id: 'ch_us_1001', owner_user_id: OWNER, name: 'Emberfall BiS', visibility: 'guild', version: 4,
-      updated_at: '2026-11-04T02:15:00Z', updated_source: 'addon',
+      updated_at: '2026-11-04T02:15:00Z', updated_source: 'addon', type: 'leveling', until_level: 50, role_spec: 'Retribution',
       items: [item('head', 910001, 1, 'Dungeon Run drop'), item('back', 940002, 1, ''), item('finger1', 940003, 2, 'Swap for ring 1', true)] };
     var b = { id: 'gl_duskhollow_prep', character_id: 'ch_us_1001', owner_user_id: OWNER, name: 'Duskhollow pre-raid', visibility: 'private', version: 1,
-      updated_at: '2026-11-03T18:00:00Z', updated_source: 'web', items: [] };
+      updated_at: '2026-11-03T18:00:00Z', updated_source: 'web', type: 'max_level', until_level: null, role_spec: 'Holy', items: [] };
     var ev = {};
     ev[a.id] = [
       { version: 1, event_type: 'GearListCreated', payload: { name: 'Emberfall BiS', character_id: 'ch_us_1001', visibility: 'guild' }, actor: ME, source: 'web', recorded_at: '2026-11-02T19:00:00Z' },

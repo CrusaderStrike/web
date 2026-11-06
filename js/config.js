@@ -25,7 +25,7 @@ window.CS_CONFIG = Object.freeze(csProdGuard({
   // web#40: live against platform main src/routes/gear-lists.ts (signed-in only; cs_session cookie + X-CSRF-Token on writes).
   USE_MOCK_GEAR_LISTS: false,
   GEAR_LISTS_PATHS: Object.freeze({
-    LISTS: '/api/v1/characters/{id}/gear-lists',     // GET, POST {name, visibility}
+    LISTS: '/api/v1/characters/{id}/gear-lists',     // GET, POST {name, type:'max_level', until_level:null, role_spec:null}
     LIST: '/api/v1/gear-lists/{id}',                  // GET, PATCH/DELETE with If-Match "v<version>"
     OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops[]} -> 200 {version, applied, duplicates, conflicts, list}
     EVENTS: '/api/v1/gear-lists/{id}/events'          // GET ?after_version=&limit=
@@ -35,7 +35,7 @@ window.CS_CONFIG = Object.freeze(csProdGuard({
   // true = js/armory-mock.js (fictional Forever items, ?mock_armory= scenarios); false = real API at API_BASE.
   USE_MOCK_ARMORY: false,  // forced false on CS_PROD_HOSTS regardless (CS_PROD_FORCED_OFF); e2e suites force true via _test-config.js
   ARMORY_PATHS: Object.freeze({
-    SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, visibility?} (shipped); type/until_level/role_spec sent for platform#43
+    SETS: '/api/v1/characters/{id}/gear-lists',       // GET, POST {name, type:'max_level', until_level:null, role_spec:null}
     SET: '/api/v1/gear-lists/{id}',                   // GET (ETag "v<version>")
     OPS: '/api/v1/gear-lists/{id}/ops',               // POST {ops:[set_slot {op_id, slot, item_id, base_version} | clear_slot {op_id, slot, base_version}]} -> {version, applied, duplicates, conflicts, list}
     ITEMS: '/api/v1/items',                           // GET ?slot=&q=&max_required_level=&cursor= -> {items, next_cursor}

@@ -28,9 +28,8 @@
   function lvl(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
   function selected(id) { var x = null; try { x = JSON.parse(localStorage.getItem('cs_mock_selection')); } catch (e) { x = null; } return !!x && (x.main_id === id || (x.alt_ids || []).indexOf(id) >= 0); }
   function notSelected() { return fields(403, { character_id: 'Must be your selected main or an alt.' }); }
-  function view(l, c) {
+  function view(l) {
     var o = JSON.parse(JSON.stringify(l)); delete o.touch; delete o.staleAll;
-    o.outgrown = o.type === 'leveling' && !!lvl(c) && lvl(c) >= o.until_level;
     return o;
   }
   function csrf() { var s = null; try { s = JSON.parse(sessionStorage.getItem('cs_mock_session')); } catch (e) { s = null; } return s && s.csrf_token; }
@@ -71,7 +70,7 @@
     sets: function (c) {
       if (!selected(c.id)) return notSelected();
       var s = st();
-      return res(200, { items: s.sets.filter(function (l) { return l.character_id === c.id && !l.deleted; }).map(function (l) { return view(l, c); }) });
+      return res(200, { items: s.sets.filter(function (l) { return l.character_id === c.id && !l.deleted; }).map(view) });
     },
     create: function (c, b) {
       var s = st();
@@ -79,6 +78,8 @@
       var mine = s.sets.filter(function (l) { return l.character_id === c.id && !l.deleted; });
       if (sc() === 'limit' || mine.length >= MAXSETS) return err(409, 'list_limit_reached', 'Maximum of ' + MAXSETS + ' gear lists per character.', { limit: MAXSETS });
       b = b || {};
+      // Website creates send {name, type:'max_level', until_level:null, role_spec:null}. CSGEAR1 is not this mock;
+      // leveling bodies are still checked so a direct create matches the platform.
       var d = {}, L = lvl(c);
       var name = typeof b.name === 'string' ? b.name.trim() : '';
       if (!name || name.length > 64) d.name = 'name_required';

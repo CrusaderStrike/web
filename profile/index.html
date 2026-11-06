@@ -109,7 +109,6 @@
               <div class="pf-armory-head">
                 <h3 id="pf-set-h" tabindex="-1"></h3>
                 <p id="pf-set-meta" class="cs-muted"></p>
-                <p id="pf-set-outgrown" class="pf-outgrown-note" hidden></p>
               </div>
               <p id="pf-slot-banner" class="pf-slot-banner" role="alert" hidden></p>
               <div class="pf-charwin" role="group" aria-labelledby="pf-set-h">
@@ -137,23 +136,6 @@
         <label for="pf-c-name">Name</label>
         <input id="pf-c-name" type="text" maxlength="64" required aria-describedby="pf-c-name-err" autocomplete="off">
         <span class="cs-error" id="pf-c-name-err"></span>
-      </div>
-      <fieldset class="cs-field pf-c-type" aria-describedby="pf-c-type-err">
-        <legend>Set type</legend>
-        <label id="pf-c-type-lv-l"><input type="radio" name="pf-c-type" id="pf-c-type-lv" value="leveling"> Leveling</label>
-        <label><input type="radio" name="pf-c-type" id="pf-c-type-max" value="max_level"> Max-level ideal</label>
-        <span class="cs-error" id="pf-c-type-err"></span>
-      </fieldset>
-      <div class="cs-field" id="pf-c-until-wrap">
-        <label for="pf-c-until">Up to level</label>
-        <input id="pf-c-until" type="number" inputmode="numeric" min="1" max="60" aria-describedby="pf-c-until-hint pf-c-until-err">
-        <span class="cs-hint" id="pf-c-until-hint"></span>
-        <span class="cs-error" id="pf-c-until-err"></span>
-      </div>
-      <div class="cs-field">
-        <label for="pf-c-role">Role or spec <span class="cs-muted">(optional)</span></label>
-        <input id="pf-c-role" type="text" maxlength="32" placeholder="Tank, DPS, Healer…" aria-describedby="pf-c-role-err" autocomplete="off">
-        <span class="cs-error" id="pf-c-role-err"></span>
       </div>
       <p id="pf-c-error" class="pf-inline-error" role="alert" hidden></p>
       <div class="pf-dialog-actions">
