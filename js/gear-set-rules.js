@@ -1,6 +1,7 @@
 /**
- * web#42 shared gear-set rules (gear-list schema v1; platform openapi/v1.yaml). Used by the armory (profile) and the gear-lists page.
- * type: leveling | max_level. Leveling needs until_level > character level and <= 60; at level 60 only max_level.
+ * web#42 shared gear-set rules (gear-list schema v1; platform openapi/v1.yaml).
+ * web#61: the website treats a gear list as a name. Level checks stay only for the CSGEAR1 import
+ * (js/csgear1.js), which still sends type / until_level / role_spec in the addon wire format.
  */
 (function () {
   'use strict';
@@ -28,7 +29,6 @@
     invalid_slots: 'The slot list wasn\u2019t valid.'
   };
   var GENERIC = 'That change wasn\u2019t accepted. Check it and try again.';
-  function ul(s) { var n = parseInt(s && s.until_level, 10); return n > 0 ? n : MAX + 1; }
   function lvl(c) { var n = parseInt(c && c.level, 10); return n > 0 ? n : 0; }
   window.CSGearSetRules = {
     MAX_LEVEL: MAX, ROLE_MAX: ROLE_MAX, MSG: MSG,
@@ -45,12 +45,7 @@
       var n = this.listLimit(r);
       return n ? 'This character already has ' + n + ' ' + noun + ' (the maximum). Delete one to make another.' : 'This character already has the maximum number of ' + noun + '. Delete one to make another.';
     },
-    canLevel: function (c) { return lvl(c) < MAX; },
-    /** web#48: level missing/0 from the API -> unknown (create still allowed; the server checks against its last synced level). */
-    levelKnown: function (c) { return lvl(c) > 0; },
-    defaultType: function (c) { return lvl(c) < MAX ? 'leveling' : 'max_level'; },
-    minUntil: function (c) { return Math.min(MAX, lvl(c) + 1); },
-    /** Client-side check; returns {field: code} (empty = valid). Server stays the source of truth. */
+    /** CSGEAR1 import check; returns {field: code} (empty = valid). The website create form does not use this. */
     validate: function (b, c) {
       var e = {};
       if (!b.name || !String(b.name).trim() || String(b.name).trim().length > 64) e.name = 'name_required';
@@ -62,11 +57,6 @@
       } else if (b.until_level != null) e.until_level = 'until_level_must_be_null';
       if (b.role_spec != null && String(b.role_spec).length > ROLE_MAX) e.role_spec = 'role_spec_too_long';
       return e;
-    },
-    /** Builds the snake_case create body from form values. */
-    body: function (name, type, until, role) {
-      var r = String(role || '').trim();
-      return { name: String(name || '').trim(), type: type, until_level: type === 'leveling' ? (until === '' || until == null ? null : parseInt(until, 10)) : null, role_spec: r ? r : null };
     },
     /** Server 400 validation_error -> {field: code}; accepts {error:{code,details:{field:code}}} and {errors:{field:code|msg}}. */
     fieldCodes: function (r) {
@@ -88,15 +78,6 @@
       if (r.status >= 500) return 'Crusader Strike is having trouble right now (HTTP ' + r.status + '). Try again in a few minutes.';
       return '';
     },
-    message: function (code) { return MSG[code] || (typeof code === 'string' && code.indexOf(' ') > 0 ? code : 'Check this field.'); },
-    outgrown: function (s, c) { return !!(s && (s.outgrown || (s.type === 'leveling' && lvl(c) && s.until_level != null && lvl(c) >= s.until_level))); },
-    /** Leveling sets by until_level asc (then name), then max-level sets by name. */
-    sort: function (sets) {
-      var by = function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); };
-      return {
-        leveling: sets.filter(function (s) { return s.type === 'leveling'; }).sort(function (a, b) { return (ul(a) - ul(b)) || by(a, b); }),  // web#48: missing until_level sorts last, never NaN
-        max_level: sets.filter(function (s) { return s.type !== 'leveling'; }).sort(by)
-      };
-    }
+    message: function (code) { return MSG[code] || (typeof code === 'string' && code.indexOf(' ') > 0 ? code : 'Check this field.'); }
   };
 })();

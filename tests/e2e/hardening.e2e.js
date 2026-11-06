@@ -1,6 +1,6 @@
 // web#48 hardening for the addon#26 morning check, against the in-browser mocks:
 // (1) CSGEAR1 import: decode/validate, create id:null sets (with slots), apply ops to linked sets, local_id -> id mapping, reply string;
-// (2) until_level / under-60 rules, incl. under-60 creating max_level; (3) API-down and expired-session states on armory, gear lists, character selection.
+// (2) name-only create (stored level/role ignored) plus CSGEAR1 level rules; (3) API-down and expired-session states on armory, gear lists, character selection.
 const { chromium } = require('playwright');
 const B = 'http://localhost:' + (process.env.CS_E2E_PORT || 8765) + '/';
 const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCwiZGVsZXRlZF9saXN0cyI6W10sImVxdWlwcGVkIjp7Im1haW5faGFuZCI6eyJlbmNoYW50X2lkIjowLCJpdGVtX2lkIjoxNDE0NX0sIndyaXN0Ijp7Iml0ZW1faWQiOjE0MTQ4fX0sImV4cG9ydGVkX2F0IjoiMjAyNi0xMS0wNVQwNjozMDowMFoiLCJnYW1lX3ZlcnNpb24iOiJmb3JldmVyIiwibGlzdHMiOlt7ImVkaXRlZF9hdCI6IjIwMjYtMTEtMDVUMDY6Mjk6MTBaIiwiZWRpdGVkX2luIjoiZ2FtZSIsImlkIjpudWxsLCJsb2NhbF9pZCI6ImEzZjA5YzEyIiwibmFtZSI6IlByZS1CaVMgNTAiLCJyZW1vdmVzIjpbXSwicm9sZV9zcGVjIjoiZnVyeSIsInNsb3RzIjp7ImhlYWQiOjEyMzQ1LCJtYWluX2hhbmQiOjE5MDE5LCJvZmZfaGFuZCI6bnVsbH0sInR5cGUiOiJsZXZlbGluZyIsInVudGlsX2xldmVsIjo1MH0seyJlZGl0ZWRfYXQiOiIyMDI2LTExLTA1VDA1OjU4OjAwWiIsImVkaXRlZF9pbiI6IndlYiIsImlkIjoiN2IxZTJjNGEtMGQxZi00ZThhLTljM2ItMmE2ZjVlNGQzYzIxIiwibG9jYWxfaWQiOiI1ZTdkMWI5MCIsIm5hbWUiOiJUYW5rIEJpUyIsInJlbW92ZXMiOlt7Im9wIjoiY2xlYXJfc2xvdCIsInNsb3QiOiJvZmZfaGFuZCJ9LHsiaXRlbV9pZCI6MTQxNDksIm9wIjoicmVtb3ZlX2l0ZW0iLCJzbG90Ijoid3Jpc3QifV0sInJvbGVfc3BlYyI6bnVsbCwic2xvdHMiOnsiY2hlc3QiOjE2OTY2fSwidHlwZSI6Im1heF9sZXZlbCIsInVudGlsX2xldmVsIjpudWxsfV0sInJlYWxtIjoiQ3J1c2FkZXJTdHJpa2UiLCJyZWdpb24iOiJ1cyIsInNjaGVtYV92ZXJzaW9uIjoxfQ==|c=c896e890';
@@ -18,6 +18,15 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   const set = (o) => Object.assign({ id: null, local_id: 'a1b2c3d4', name: 'Set', type: 'max_level', until_level: null, role_spec: null, slots: {}, removes: [], edited_at: '2026-11-05T06:29:10Z', edited_in: 'game' }, o);
   const paste = async s => { await p.fill('#gl-import-text', s); await p.click('#gl-import-btn'); await p.waitForFunction(() => !document.getElementById('gl-import-btn').hasAttribute('aria-busy') || !document.getElementById('gl-ready').offsetParent, null, { timeout: 8000 }).catch(() => {}); };
   const impErr = () => p.textContent('#gl-import-err');
+  const assertCard = async (width, id, only) => {
+    await p.setViewportSize({ width, height: width < 800 ? 800 : 900 });
+    const info = await p.evaluate(([rootId]) => {
+      const root = document.getElementById(rootId);
+      const fields = [...root.querySelectorAll('input, select, textarea')].map(el => el.id);
+      return { radios: root.querySelectorAll('input[type=radio]').length, fields, text: root.innerText };
+    }, [id]);
+    ok(info.radios === 0 && info.fields.join() === only && !/leveling|max-level|up to level|role or spec/i.test(info.text), id + ' create card has no radios, level field, or role/spec at ' + width + ': ' + info.fields.join());
+  };
 
   await p.goto(B + 'gear/lists/?character=ch_us_1003&ff_bnet=1');
   await p.evaluate(() => { CSAuthMock.devSignIn(); sessionStorage.removeItem('cs_mock_gear_lists'); });
@@ -54,7 +63,9 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   ok(bad.unknown === undefined && bad.equipped === undefined, 'unknown keys ignored; equipped optional (import strings omit it)');
 
   // ---------- (1) import: create id:null sets, map local_id -> id ----------
-  ok(await p.isChecked('#gl-new-type-leveling') && await p.getAttribute('#gl-new-until', 'min') === '53', 'level 52: leveling default, Up to level min 53');
+  await assertCard(1280, 'gl-create', 'gl-new-name');
+  await assertCard(375, 'gl-create', 'gl-new-name');
+  await p.setViewportSize({ width: 1280, height: 900 });
   await paste(await enc(base({ character_id: 'ch_us_1001' }))); ok(/different character/.test(await impErr()), 'character_id of another character -> character_mismatch, nothing applied');
   await paste(await enc(base({ character: 'Lightbringer' }))); ok(/different character/.test(await impErr()), 'realm + name of another character -> character_mismatch');
   await paste(await enc(base({ lists: [set({ type: 'leveling', until_level: 50, name: 'Too low' })] })));
@@ -108,17 +119,10 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   ok(!st.lists.some(l => l.id === ideal.id), 'deleted_lists {id} -> DELETE /gear-lists/{id}');
   ok(/Gone.* not on the site any more/.test(await p.$$eval('#gl-import-list li', l => l.map(x => x.textContent).join(' | '))), 'linked id missing on the site -> skipped and reported');
 
-  // ---------- (2) until_level / under-60 UI and server rules ----------
-  await p.check('#gl-new-type-max'); ok(await p.isHidden('#gl-new-until-wrap'), 'under 60, switch to max-level -> no level field');
+  // ---------- (2) name-only create; the mock still enforces platform level rules for CSGEAR1-shaped bodies ----------
   await p.fill('#gl-new-name', 'Plan ahead'); await p.click('#gl-new-btn'); await until(() => document.getElementById('gl-detail-h').textContent === 'Plan ahead');
   st = await store(); const pa = st.lists.find(l => l.name === 'Plan ahead');
-  ok(pa && pa.type === 'max_level' && pa.until_level === null, 'under-60 character creates a max_level set (until_level null)');
-  await p.check('#gl-new-type-leveling'); await p.fill('#gl-new-until', '61'); await p.fill('#gl-new-name', 'x'); await p.click('#gl-new-btn');
-  ok(/from 1 to 60/.test(await p.textContent('#gl-new-until-err')), 'until_level 61 -> out of range');
-  await p.fill('#gl-new-until', '52'); await p.click('#gl-new-btn'); ok(/higher than/.test(await p.textContent('#gl-new-until-err')), 'until_level = current level -> not above current level');
-  await p.fill('#gl-new-until', ''); await p.click('#gl-new-btn'); ok(/Enter the level/.test(await p.textContent('#gl-new-until-err')), 'leveling without until_level -> required');
-  await p.fill('#gl-new-until', '53'); await p.click('#gl-new-btn'); await until(() => document.getElementById('gl-detail-h').textContent === 'x');
-  ok((await store()).lists.some(l => l.name === 'x' && l.until_level === 53), 'until_level = level + 1 accepted');
+  ok(pa && pa.type === 'max_level' && pa.until_level === null && pa.role_spec == null, 'website create stores max_level, null until_level, null role_spec');
   const srv = await p.evaluate(async () => {
     const a = CSGearListsApi; await a.session();
     const r1 = await a.create('ch_us_1003', { name: 'q', type: 'leveling', until_level: 40 });
@@ -129,15 +133,16 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   });
   ok(srv[0].until_level === 'until_level_not_above_current_level' && srv[1].type === 'leveling_set_at_max_level' && srv[2].until_level === 'until_level_must_be_null' && srv[3] === 201, 'mock enforces platform level rules on create ' + JSON.stringify(srv));
   const rules = await p.evaluate(() => {
-    const R = CSGearSetRules, s = R.sort([{ name: 'b', type: 'leveling', until_level: null }, { name: 'a', type: 'leveling', until_level: 40 }, { name: 'm', type: 'max_level', until_level: null }]);
-    return { order: s.leveling.map(x => x.name).join(), unknown: R.levelKnown({ level: null }), canUnknown: R.canLevel({}), min: R.minUntil({}), at59: R.minUntil({ level: 59 }), at60: R.canLevel({ level: '60' }),
-      v59: JSON.stringify(R.validate({ name: 'n', type: 'leveling', until_level: 60 }, { level: 59 })), v60: JSON.stringify(R.validate({ name: 'n', type: 'leveling', until_level: 60 }, { level: 60 })),
-      dec: JSON.stringify(R.validate({ name: 'n', type: 'leveling', until_level: '55.5' }, { level: 10 })), outg: R.outgrown({ type: 'leveling', until_level: 30 }, { level: 30 }) && !R.outgrown({ type: 'max_level', until_level: null }, { level: 60 }) };
+    const R = CSGearSetRules;
+    return {
+      v59: JSON.stringify(R.validate({ name: 'n', type: 'leveling', until_level: 60 }, { level: 59 })),
+      v60: JSON.stringify(R.validate({ name: 'n', type: 'leveling', until_level: 60 }, { level: 60 })),
+      dec: JSON.stringify(R.validate({ name: 'n', type: 'leveling', until_level: '55.5' }, { level: 10 })),
+      gone: ['canLevel', 'levelKnown', 'defaultType', 'minUntil', 'body', 'outgrown', 'sort'].filter(k => typeof R[k] === 'function')
+    };
   });
-  ok(rules.order === 'a,b', 'leveling set with a missing until_level sorts last (no NaN order)');
-  ok(!rules.unknown && rules.canUnknown && rules.min === 1, 'unknown level: leveling allowed from level 1, server stays authoritative');
-  ok(rules.at59 === 60 && rules.v59 === '{}' && rules.at60 === false && /leveling_set_at_max_level/.test(rules.v60), 'level 59 -> until 60 only; level 60 (string) -> max-level only');
-  ok(/until_level_out_of_range/.test(rules.dec) && rules.outg, 'non-integer until_level rejected; outgrown at level >= until_level, never for max_level');
+  ok(rules.v59 === '{}' && /leveling_set_at_max_level/.test(rules.v60), 'CSGEAR1 level check: level 59 accepts until 60; level 60 rejects leveling');
+  ok(/until_level_out_of_range/.test(rules.dec) && rules.gone.length === 0, 'non-integer until_level still rejected for import; website level helpers are gone: ' + rules.gone.join());
   // level 60 page: leveling import rejected client-side
   await p.goto(GL('ch_us_1001')); await vis('#gl-ready');
   await paste(await enc(base({ realm: 'Emberfall', character: 'Lightbringer', lists: [set({ type: 'leveling', until_level: 60 })] })));
@@ -193,7 +198,7 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   await p.goto(GL('ch_us_1003')); ok(await vis('#gl-signedout') && (await p.textContent('#gl-signedout-h')) === 'Sign in to see your gear lists' && await p.isHidden('#gl-signedout-msg'), 'never signed in -> plain sign-in prompt');
   await p.evaluate(() => CSAuthMock.devSignIn()); await p.goto(GL('ch_us_1003')); await vis('#gl-ready');
   await p.evaluate(() => sessionStorage.removeItem('cs_mock_session'));
-  await p.fill('#gl-new-name', 'After expiry'); await p.check('#gl-new-type-max'); await p.click('#gl-new-btn');
+  await p.fill('#gl-new-name', 'After expiry'); await p.click('#gl-new-btn');
   ok(await vis('#gl-signedout') && (await p.textContent('#gl-signedout-h')) === 'Your session has expired', 'gear lists: create after expiry -> expired state');
 
   // ---------- (3) profile: character selection + armory ----------
@@ -215,8 +220,9 @@ const EXAMPLE = 'CSGEAR1:eyJjaGFyYWN0ZXIiOiJTbmlweSIsImNoYXJhY3Rlcl9pZCI6bnVsbCw
   ok(await until(() => /HTTP 503/.test(document.getElementById('pf-panel').textContent)), 'armory: sets API 503 -> message names HTTP 503');
   await p.goto(PF()); await vis('#pf-ready'); await idle();
   await p.click('.pf-pchar[data-char=ch_us_1003] .pf-new');
-  ok(await p.isChecked('#pf-c-type-lv') && /From 53 to 60 \(above current level 52\)/.test(await p.textContent('#pf-c-until-hint')), 'armory create, level 52: leveling default, hint 53..60');
-  await p.check('#pf-c-type-max'); ok(await p.isHidden('#pf-c-until-wrap'), 'armory create: max-level hides Up to level');
+  await assertCard(1280, 'pf-create', 'pf-c-name');
+  await assertCard(375, 'pf-create', 'pf-c-name');
+  await p.setViewportSize({ width: 1280, height: 900 });
   await p.fill('#pf-c-name', 'Expiry test'); await p.click('#pf-c-save');
   ok(await vis('#pf-armory-view') && await p.evaluate(() => JSON.parse(localStorage.getItem('cs_mock_armory')).sets.some(x => x.name === 'Expiry test' && x.type === 'max_level' && x.until_level === null)), 'armory: under-60 character creates a max_level set');
   await idle();
